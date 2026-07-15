@@ -38,7 +38,7 @@ solar-unibench/
 │   ├── forecast/
 │   │   ├── core.py             # FeatureEngineer / ForecastModel ABCs, PipelineConfig, SolarForecastPipeline
 │   │   ├── features.py         # Endogenous, SkyCam(NRBR), multimodal engineers
-│   │   └── models/             # mlp.py, lstm.py, smart_persistence.py, cross_vivit.py
+│   │   └── models/             # smart_persistence.py, gbt.py, mlp.py, lstm.py, transformer.py, cross_vivit.py
 │   ├── metrics.py              # MAE/RMSE/MAPE/Forecast Skill/FS/pinball/CRPS
 │   └── viz/                    # experiment + diagnostic figures (uses the dataviz skill)
 │       ├── style.py            # shared matplotlib style + palette
@@ -166,7 +166,14 @@ Repair primitives: delete+realign, physical-context interpolation, outlier clamp
 - `forecast/core.py` — `PipelineConfig`, `SolarForecastPipeline`, `FeatureEngineer`/`ForecastModel` ABCs (the `.core` that `extensions.py` imports).
 - **Canonical task (approved):** deterministic + probabilistic forecasting of the available target — **PV** for SKIPPD/GEFCom, **GHI** for Folsom/SunLake — at three horizons: intra-hour (15-min), intra-day (1–6 h), day-ahead (24 h).
 - **Feature engineers:** Endogenous (PV lags), SkyCam/NRBR stats, multimodal (images+PV).
-- **Baselines:** 7-neuron MLP (PV-only), MLP+SkyCam, Smart Persistence (physical skill reference), LSTM, CrossViViT (multimodal). Smart Persistence is **target-agnostic** — clear-sky-scaled persistence works on both PV (SKIPPD/GEFCom) and GHI (Folsom/SunLake), so it serves as the skill reference for every dataset.
+- **Baselines** (tiered suite of standard solar-forecasting references; all hyper-params config-driven):
+  1. **Smart Persistence** — physical skill reference. Target-agnostic: clear-sky-scaled persistence works on both PV (SKIPPD/GEFCom) and GHI (Folsom/SunLake), so it is the skill denominator for every dataset.
+  2. **Gradient Boosting (LightGBM)** — the standard strong *tabular* baseline in solar/energy forecasting (hand-crafted lag + NWP + clear-sky features).
+  3. **MLP** — fully configurable architecture (default `[128, 64]` hidden layers; the 7-neuron config is preserved as a `--preset skippd_paper` replication of Nie et al. 2020). PV/tabular features; an `MLP+SkyCam/NRBR` variant covers image features.
+  4. **LSTM** — recurrent sequence baseline.
+  5. **Transformer (PatchTST-style)** — transformer-family sequence baseline (patch tokenization + encoder); the modern deep-learning reference. Config flag allows swapping to a vanilla time-series Transformer or Informer.
+  6. **CrossViViT** — multimodal (sky/satellite + tabular) cross-attention ViT.
+  - Adding/swappping a model is a drop-in `ForecastModel` subclass, so the set is extensible without touching the harness.
 - **Metrics (`metrics.py`):** MAE, RMSE, MAPE, Forecast Skill vs. Smart Persistence, pinball loss / CRPS.
 
 ## 11. Experiments & visualizations — evidence of value (`viz/`, `scripts/run_experiments.py`)
