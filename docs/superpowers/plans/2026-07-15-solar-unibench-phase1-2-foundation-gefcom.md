@@ -826,11 +826,14 @@ def test_night_zeroed_and_flagged():
     assert out.loc[0, "ghi_actual"] == 0.0
     assert out.loc[0, "pv_power_normalized"] == 0.0
     assert out.loc[0, "quality_flag"] == 3  # night
+    assert out.loc[0, "clearness_index"] == 0.0
 
 
 def test_clearness_index_bounded():
     out = quality.apply_quality_audit(_df(), capacity=1.0)
     assert out["clearness_index"].between(0.0, 1.5).all()
+    # row 1: ghi_actual=600, ghi_clearsky=800 -> 0.75
+    assert abs(out.loc[1, "clearness_index"] - 0.75) < 0.01
 
 
 def test_pv_clamped_to_capacity():
@@ -862,6 +865,9 @@ def apply_quality_audit(df_ts: pd.DataFrame, capacity: float = 1.0) -> pd.DataFr
     night = df["cos_zenith"] <= 0
     df.loc[night, ["ghi_actual", "pv_power_normalized"]] = 0.0
     df.loc[night, "quality_flag"] = 3  # night
+    # night clearness_index must be 0.0 (ghi_clearsky ~= 0 at night would
+    # otherwise leave the pre-clip ratio clipped to 1.5); keep float32 dtype.
+    df.loc[night, "clearness_index"] = np.float32(0.0)
 
     # curtailment / clipping: PV pinned at capacity across daytime
     if "pv_power_normalized" in df:

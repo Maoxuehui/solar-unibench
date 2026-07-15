@@ -14,6 +14,9 @@ def apply_quality_audit(df_ts: pd.DataFrame, capacity: float = 1.0) -> pd.DataFr
     night = df["cos_zenith"] <= 0
     df.loc[night, ["ghi_actual", "pv_power_normalized"]] = 0.0
     df.loc[night, "quality_flag"] = 3  # night
+    # night clearness_index must be 0.0 (ghi_clearsky ~= 0 at night would
+    # otherwise leave the pre-clip ratio clipped to 1.5); keep float32 dtype.
+    df.loc[night, "clearness_index"] = np.float32(0.0)
 
     # curtailment / clipping: PV pinned at capacity across daytime
     if "pv_power_normalized" in df:
