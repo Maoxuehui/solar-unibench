@@ -104,7 +104,7 @@ matplotlib>=3.8
 name = "solarunibench"
 version = "0.1.0"
 description = "Solar-UniBench: multi-modal standardized solar forecasting benchmark + pipeline"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 
 [tool.setuptools.packages.find]
 include = ["solarunibench*"]
