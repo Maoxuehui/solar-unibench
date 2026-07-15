@@ -20,6 +20,12 @@ def test_run_pipeline_writes_conformant_artifacts(tmp_path):
     for col in ["timestamp_utc", "entity_id", "ghi_clearsky", "cos_zenith",
                 "clearness_index", "quality_flag"]:
         assert col in ts.columns
+    # The base owns the physics columns: its computed clear-sky must land in the
+    # contract column (not be all-NA from an _x/_y merge collision), daytime
+    # clearness must be derived, and no suffixed columns may survive.
+    assert not ts["ghi_clearsky"].isna().all()
+    assert ts["clearness_index"].notna().any()
+    assert not any(c.endswith("_x") or c.endswith("_y") for c in ts.columns)
     assert manifest["dataset"] == "toy"
 
 

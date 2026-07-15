@@ -9,6 +9,12 @@ from ..contract import validate_metadata, validate_time_series, TS_COLUMNS
 from ..operators.clearsky import compute_astronomy, clearsky_ineichen
 from ..operators.quality import apply_quality_audit
 
+# Physics/anchor columns the base computes and owns. A standardized df_ts may
+# already carry one of these (e.g. a toy ghi_clearsky); the base's value must
+# win, so they are dropped from df_ts before the anchor merge to avoid pandas
+# suffixing them to _x/_y and leaving the contract column all-NA.
+_ANCHOR_COLS = ["cos_zenith", "solar_azimuth", "ghi_clearsky", "dni_clearsky", "dhi_clearsky"]
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -56,12 +62,24 @@ class BaseSolarPipeline(ABC):
 
     def run_pipeline(self, raw: bool = False, limit: int | None = None) -> dict:
         df_meta, df_ts = self.load_and_standardize_raw()
-        if limit:
+        if limit is not None:
             df_ts = df_ts.groupby("entity_id", group_keys=False).head(limit)
+
+        # The base owns the physics/anchor columns: drop any that the standardized
+        # df_ts already carries so the base's computed values win and no _x/_y
+        # suffix collision corrupts the contract columns (e.g. ghi_clearsky).
+        overlap = [c for c in _ANCHOR_COLS if c in df_ts.columns]
+        if overlap:
+            df_ts = df_ts.drop(columns=overlap)
 
         # Merge anchors
         anchors = self._compute_clearsky_and_astronomy(df_meta, df_ts)
-        df = df_ts.merge(anchors, on=["timestamp_utc", "entity_id"], how="left")
+        if anchors.empty:
+            # Degenerate: no anchor rows produced — skip the merge; the missing
+            # columns are NA-filled below so the contract still validates.
+            df = df_ts
+        else:
+            df = df_ts.merge(anchors, on=["timestamp_utc", "entity_id"], how="left")
 
         if raw:
             # E9 control arm: standardized frame BEFORE governance.
