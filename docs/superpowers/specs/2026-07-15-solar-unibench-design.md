@@ -39,12 +39,23 @@ solar-unibench/
 │   │   ├── core.py             # FeatureEngineer / ForecastModel ABCs, PipelineConfig, SolarForecastPipeline
 │   │   ├── features.py         # Endogenous, SkyCam(NRBR), multimodal engineers
 │   │   └── models/             # mlp.py, lstm.py, smart_persistence.py, cross_vivit.py
-│   └── metrics.py              # MAE/RMSE/MAPE/Forecast Skill/FS/pinball/CRPS
+│   ├── metrics.py              # MAE/RMSE/MAPE/Forecast Skill/FS/pinball/CRPS
+│   └── viz/                    # experiment + diagnostic figures (uses the dataviz skill)
+│       ├── style.py            # shared matplotlib style + palette
+│       ├── defect_diagnostics.py  # missingness, irregularity, outlier heatmaps
+│       ├── geo_recovery.py     # recovered vs true coords, blind-test error
+│       ├── clearsky_value.py   # skill gain from clearsky/clearness features
+│       ├── brr_viz.py          # BRR channel + thin-cloud contrast
+│       ├── optical_flow_viz.py # extrapolation frames, uncertainty, PSNR/SSIM decay
+│       ├── quality_flag_viz.py # flag distribution, before/after cleaning
+│       └── benchmark_results.py # baselines × datasets results table + figure
 ├── scripts/
 │   ├── build_dataset.py        # CLI: run one/all adapters → standardized packages
-│   └── run_baseline.py         # CLI: train+eval a baseline on standardized data
+│   ├── run_baseline.py         # CLI: train+eval a baseline on standardized data
+│   └── run_experiments.py      # CLI: run the §11 experiment suite → figures + tables
 ├── tests/                      # synthetic-fixture unit tests per operator/adapter
 ├── data/standardized/{gefcom2014,folsom,skippd,sunlake}/   # outputs (gitignored)
+├── figures/                    # experiment figures + result tables (gitignored)
 └── docs/                       # methodology + dataset docs (existing) + this spec
 ```
 
@@ -155,16 +166,55 @@ Repair primitives: delete+realign, physical-context interpolation, outlier clamp
 - `forecast/core.py` — `PipelineConfig`, `SolarForecastPipeline`, `FeatureEngineer`/`ForecastModel` ABCs (the `.core` that `extensions.py` imports).
 - **Canonical task (approved):** deterministic + probabilistic forecasting of the available target — **PV** for SKIPPD/GEFCom, **GHI** for Folsom/SunLake — at three horizons: intra-hour (15-min), intra-day (1–6 h), day-ahead (24 h).
 - **Feature engineers:** Endogenous (PV lags), SkyCam/NRBR stats, multimodal (images+PV).
-- **Baselines:** 7-neuron MLP (PV-only), MLP+SkyCam, Smart Persistence (physical skill reference), LSTM, CrossViViT (multimodal).
+- **Baselines:** 7-neuron MLP (PV-only), MLP+SkyCam, Smart Persistence (physical skill reference), LSTM, CrossViViT (multimodal). Smart Persistence is **target-agnostic** — clear-sky-scaled persistence works on both PV (SKIPPD/GEFCom) and GHI (Folsom/SunLake), so it serves as the skill reference for every dataset.
 - **Metrics (`metrics.py`):** MAE, RMSE, MAPE, Forecast Skill vs. Smart Persistence, pinball loss / CRPS.
 
-## 11. Execution, error handling, robustness
+## 11. Experiments & visualizations — evidence of value (`viz/`, `scripts/run_experiments.py`)
+
+**Goal:** empirically demonstrate that each pipeline operation (alignment, feature engineering, quality audit) improves downstream utility, plus diagnostic figures of the data itself. Every figure is rendered through the **dataviz skill** design system (consistent palette, light/dark, accessible). Figures → `figures/` (gitignored); numeric results → `figures/results/*.csv`.
+
+Each experiment is specified as **hypothesis → method → metric → figure**, and implemented as a pure function `(loader, out_dir) -> {figures, metrics}` that reads only the standardized packages (fully reproducible). `scripts/run_experiments.py` runs E1–E8 (subset via `--only E1,E3`).
+
+**E1 — Reverse-geolocation accuracy + downstream value (GEFCom).** *Hypothesis: recovered coordinates are accurate and the clear-sky features they unlock improve forecasting.*
+- **Blind test:** run `_reverse_geolocate()` on **Folsom** (known coords) → report recovered-vs-true lat/lon error and great-circle MAE (km). Then recover GEFCom's 3 anonymous zones.
+- **Downstream ablation:** MLP on GEFCom (a) raw PV lags vs (b) + `cos_zenith / ghi_clearsky / clearness_index` from recovered coords → ΔMAE / Forecast Skill.
+- Figures: `fig_geo_blindtest.png` (recovered vs true on map + error bars), `fig_geo_skill_gain.png`.
+
+**E2 — Clear-sky / clearness-index feature value (all 4 datasets).** *Hypothesis: physics anchors beat raw endogenous features.*
+- Ablation: baseline features vs +clear-sky anchors, per dataset.
+- Figure: `fig_clearsky_skill.png` (grouped bars, skill gain per dataset).
+
+**E3 — BRR thin-cloud enhancement (Folsom / SKIPPD).** *Hypothesis: the BRR 4th channel amplifies thin-cloud edges and improves image forecasting.*
+- Qualitative gallery (clear / thin-cloud / overcast): RGB vs BRR.
+- Quantitative: image-baseline skill RGB-only vs RGB+BRR; thin-cloud subset skill.
+- Figures: `fig_brr_gallery.png`, `fig_brr_skill.png`.
+
+**E4 — Optical-flow extrapolation quality + uncertainty calibration (SKIPPD / SunLake).** *Hypothesis: extrapolated future frames track truth within the predicted uncertainty envelope.*
+- Metrics: PSNR/SSIM of extrapolated frames vs real future frames across lead-time K; uncertainty reliability (prediction-interval coverage).
+- Figures: `fig_optflow_sequence.png` (context → extrapolated → truth + uncertainty row), `fig_optflow_psnr_decay.png`, `fig_uncertainty_reliability.png`.
+
+**E5 — Quality-audit cleaning value.** *Hypothesis: `quality_flag` (night-zero, de-clip, fault removal) cuts label noise and lifts skill.*
+- Ablation: raw vs quality-audited training data → skill + target-distribution shift.
+- Figures: `fig_quality_flags.png` (flag composition per dataset), `fig_quality_cleaning_effect.png`.
+
+**E6 — Cross-modal alignment value (Folsom / SKIPPD).** *Hypothesis: temporal alignment + systematic-lag correction reduces image↔scalar async label noise.*
+- Metric: timestamp-diff distribution before/after; multimodal baseline skill before/after.
+- Figures: `fig_align_lag_hist.png`, `fig_align_skill.png`.
+
+**E7 — Data-defect diagnostics (descriptive, all datasets).** *The methodology's "缺陷热力图" diagnostic reports — no model.*
+- Figures: `fig_defect_missingness.png`, `fig_defect_irregularity.png`, `fig_defect_outliers.png` + a defect summary table.
+
+**E8 — Unified benchmark results (baselines × datasets).** *One standardized eval proving the benchmark is uniform.*
+- All baselines on all datasets at the three horizons, skill vs Smart Persistence.
+- Figures: `fig_benchmark_heatmap.png` (model × dataset × horizon), `results_benchmark.csv`.
+
+## 12. Execution, error handling, robustness
 
 - `scripts/build_dataset.py` — resumable, idempotent (`--force` to overwrite); per-stage checkpoints; `tqdm` + log progress; heavy zarr stages run as background jobs. All runs append to `audit.jsonl` + emit `manifest.json`.
 - Robustness: physical clamping; NaN propagation tracked in `quality_flag`; unreadable frames logged + skipped; UTC enforced at ingest; defensive raw-format parsing with explicit dtypes.
 - Environment: dedicated conda env `solar-unibench` from `requirements.txt` (base Anaconda lacks pandas/pvlib/zarr/pyarrow/sklearn/xarray).
 
-## 12. Testing strategy (TDD)
+## 13. Testing strategy (TDD)
 
 Synthetic-fixture unit tests for each operator:
 - clearsky vs. known pvlib reference values at a known site/time
@@ -175,7 +225,7 @@ Synthetic-fixture unit tests for each operator:
 
 Plus a **contract-conformance test** each adapter must pass (schema, dtypes, key uniqueness, file-presence rules). Tests run on synthetic data so CI is fast; real-data execution is the final batch phase.
 
-## 13. Phased plan (build strategy C — vertical spike then layers)
+## 14. Phased plan (build strategy C — vertical spike then layers)
 
 1. **Env + scaffold + contract + tests harness.**
 2. **Vertical spike:** GEFCom2014 tabular end-to-end (incl. reverse-geolocation) — locks base class, contract, CLI.
@@ -183,11 +233,12 @@ Plus a **contract-conformance test** each adapter must pass (schema, dtypes, key
 4. **zarr/image layer:** Folsom sky (RGB+BRR), SKIPPD sky+satellite, SunLake satellite (full optical-flow + uncertainty).
 5. **Loader + splits + PyTorch Dataset.**
 6. **Forecast framework + baselines + metrics.**
-7. **Full batch execution + manifest/audit + README / figure-ready outputs.**
+7. **Experiments & visualizations (§11, E1–E8)** — evidence-of-value figures + result tables; feeds the README and paper figures.
+8. **Full batch execution + manifest/audit + README / figure-ready outputs.**
 
 Each phase ends with a review checkpoint (per superpowers workflow).
 
-## 14. Open / deferred
+## 15. Open / deferred
 
 - HuggingFace push of standardized packages — deferred; outputs local for now (config flag to add later).
 - LLM narration of audit log — deferred (paper "agent" framing), does not affect outputs.
