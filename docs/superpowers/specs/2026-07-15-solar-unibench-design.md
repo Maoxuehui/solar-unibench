@@ -121,7 +121,7 @@ Operators (in the base):
 - `_apply_quality_audit_and_features()` — night-zeroing (`cos_zenith <= 0`), `clearness_index`, `quality_flag`, physical clamp to `[0, capacity]`.
 - `generate_brr_channel()` — RGB→4-channel with BRR (from `extensions.py`).
 - `extrapolate_with_uncertainty()` — TV-L1 optical flow + semi-Lagrangian warp + divergence-based uncertainty (from `extensions.py`, moved to `operators/optical_flow.py`).
-- `_reverse_geolocate()` — grid search minimizing residual between observed clearness pattern and clearsky; validated against existing `GEFCom2014_data/geo_location.py`.
+- `_reverse_geolocate()` — **recovery via the clear-sky method**: grid-search the lat/lon minimizing residual between the observed clearness/surface-radiation diurnal pattern and the pvlib clear-sky model. **Correctness validated by the TSR method**: independently verify recovered coords by comparing theoretical top-of-atmosphere solar radiation (pure solar geometry from recovered coords, cloud-free by construction) against the dataset's `VAR178 (TSR)` field; low residual confirms the recovery. Reuse/validate against existing `GEFCom2014_data/geo_location.py`, `clearsky_output.txt`, `geo_location_results.csv`.
 - `run_pipeline()` — load → clearsky → quality → (tensors) → save + manifest + audit log.
 
 **Corrections to the methodology's reference code:** fix the Ineichen call signature; index `solpos`/merge on `timestamp_utc` correctly; ensure `entity_id` is preserved through merges.
@@ -130,7 +130,7 @@ Operators (in the base):
 
 | Adapter | Raw parsing | Tabular target | Tensors produced |
 |---|---|---|---|
-| **gefcom** | `GEFCom2014_data/Solar/Task *` (train/predictors CSVs + xlsx); reverse-geolocate 3 anonymous zones | `pv_power_normalized` | none |
+| **gefcom** | **Solar track only** — `GEFCom2014_data/Solar/Task *` (train/predictors CSVs + xlsx); the Load/Wind/Price tracks are **not** used. Recover the 3 anonymous zones' geo via the **clear-sky method**, validated by the **TSR method** | `pv_power_normalized` | none |
 | **folsom** | `Folsom_data/Folsom_{irradiance,weather,NAM_*,satellite}.csv` + `Folsom_sky_images_*.tar.bz2` | GHI/DNI/DHI + kt | `sky_images.zarr` |
 | **skippd** | HF parquet (`default/era5/gfs/labels`) after `download_skippd.py` | PV + irradiance + kt (full) | `sky_images.zarr`, `satellite_future.zarr` |
 | **sunlake** | per-station PCCI (zarr/parquet) + `context/` + `ctx_opt_flow/` | GHI + kt | `satellite_future.zarr` (reuse existing opt-flow where present) |
@@ -180,12 +180,13 @@ Repair primitives: delete+realign, physical-context interpolation, outlier clamp
 
 **Goal:** empirically demonstrate that each pipeline operation (alignment, feature engineering, quality audit) improves downstream utility, plus diagnostic figures of the data itself. Every figure is rendered through the **dataviz skill** design system (consistent palette, light/dark, accessible). Figures → `figures/` (gitignored); numeric results → `figures/results/*.csv`.
 
-Each experiment is specified as **hypothesis → method → metric → figure**, and implemented as a pure function `(loader, out_dir) -> {figures, metrics}` that reads only the standardized packages (fully reproducible). `scripts/run_experiments.py` runs E1–E8 (subset via `--only E1,E3`).
+Each experiment is specified as **hypothesis → method → metric → figure**, and implemented as a pure function `(loader, out_dir) -> {figures, metrics}` that reads only the standardized packages (fully reproducible). `scripts/run_experiments.py` runs E1–E9 (subset via `--only E1,E3`).
 
-**E1 — Reverse-geolocation accuracy + downstream value (GEFCom).** *Hypothesis: recovered coordinates are accurate and the clear-sky features they unlock improve forecasting.*
-- **Blind test:** run `_reverse_geolocate()` on **Folsom** (known coords) → report recovered-vs-true lat/lon error and great-circle MAE (km). Then recover GEFCom's 3 anonymous zones.
+**E1 — Geo-recovery (clear-sky) accuracy + TSR validation + downstream value (GEFCom).** *Hypothesis: the clear-sky method recovers accurate coords (confirmed independently by TSR), and the features those coords unlock improve forecasting.*
+- **Blind test:** run clear-sky recovery on **Folsom** (known coords) → recovered-vs-true lat/lon error + great-circle MAE (km). Then recover GEFCom's 3 anonymous zones.
+- **TSR validation:** for each recovered coord, compare theoretical TOA solar radiation (from recovered geometry) against the dataset's `VAR178 (TSR)` field; report residual / R² as the independent correctness check.
 - **Downstream ablation:** MLP on GEFCom (a) raw PV lags vs (b) + `cos_zenith / ghi_clearsky / clearness_index` from recovered coords → ΔMAE / Forecast Skill.
-- Figures: `fig_geo_blindtest.png` (recovered vs true on map + error bars), `fig_geo_skill_gain.png`.
+- Figures: `fig_geo_blindtest.png` (recovered vs true on map + error bars), `fig_geo_tsr_validation.png` (TSR theoretical vs observed, per zone), `fig_geo_skill_gain.png`.
 
 **E2 — Clear-sky / clearness-index feature value (all 4 datasets).** *Hypothesis: physics anchors beat raw endogenous features.*
 - Ablation: baseline features vs +clear-sky anchors, per dataset.
@@ -214,6 +215,11 @@ Each experiment is specified as **hypothesis → method → metric → figure**,
 **E8 — Unified benchmark results (baselines × datasets).** *One standardized eval proving the benchmark is uniform.*
 - All baselines on all datasets at the three horizons, skill vs Smart Persistence.
 - Figures: `fig_benchmark_heatmap.png` (model × dataset × horizon), `results_benchmark.csv`.
+
+**E9 — Data governance vs. model complexity (the "治理重于模型" thesis; centerpiece).** *Hypothesis: cleaning + alignment buys more metric gain than scaling model complexity — i.e., a simple model on well-governed data can match or beat a complex model on raw data.*
+- **2-axis ablation:** data state {**raw / unaligned / uncleaned** vs **pipeline-cleaned + aligned**} × model complexity {Smart Persistence → LightGBM → MLP → LSTM → Transformer}, on all datasets at the chosen horizon. The "raw" state is the standardized-but-pre-quality/unaligned frame (a `--raw` snapshot the base pipeline emits *before* the quality-audit + alignment stages), so both arms share identical parsing and split boundaries — the only difference is governance.
+- **Key contrasts:** (i) Δ from *data hygiene* = same model, raw→cleaned; (ii) Δ from *complexity* = same data, simplest→most-complex model. Report the **crossover** where "simple + clean ≥ complex + raw" — the empirical proof that governance dominates complexification.
+- Figures: `fig_governance_vs_complexity.png` (skill heatmap over {data state × model}), `fig_cleaning_delta.png` (per-dataset skill gain attributable to cleaning/alignment alone vs. to model upgrade).
 
 ## 12. Execution, error handling, robustness
 
