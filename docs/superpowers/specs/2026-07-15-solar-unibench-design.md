@@ -112,6 +112,18 @@ Missing modalities → file absent. Loader probes existence/NaN to switch modali
 - `surface_albedo` default **0.2** when unknown.
 - clearness_index clip **[0, 1.5]**; physical clamp to `[0, capacity_kw]`.
 
+### 4.6 Splits — frozen train/val/test (`split` column + manifest)
+To guarantee **fair horizontal comparison**, the benchmark — not the user — owns the split. Each standardized dataset carries a frozen, versioned split as a **`split` column inside `time_series.parquet`** (`split ∈ {train, val, test}`), with a thin `splits_manifest.json` for provenance. Single source of truth, zero joins, self-consistent (no drift between data and split).
+- `SolarUniBenchLoader.load_tabular(dataset, split=...)` filters the column; rows are labeled at build time, so test data cannot leak into training by accident. The `split` column is optional in the contract (present after `build_splits`, absent from `--raw` packages).
+- **Default strategy — temporal, per-entity, leak-free:** chronological split within each `entity_id`. `test` is taken first from a dataset-specific cutoff (`test_start`), then the remainder is split train/val by `val_ratio`.
+- **Per-dataset natural test sets (honor the source, stronger than arbitrary ratios):**
+  - **GEFCom** → `test_start = 2014-06-01` (the competition's held-out `Solution to Task 15` future month); Tasks 1–14 split train/val.
+  - **Folsom** → `test_start = 2016-01-01` (2016 held out).
+  - **SunLake** → `test_start = 2021-01-01` (2021–2022 held out).
+  - **SKIPPD** → reuse its official HF train/test (`strategy: predefined`); carve val from train.
+- `splits_manifest.json` records cutoffs, ratios, counts, and a `splits_version` tag so any re-run reproduces the exact same split.
+- **Spatial protocol (cross-domain zero-shot), separate** — `configs/splits.yaml` also defines leave-one-dataset-out folds (train on 3 → zero-shot test on the 4th); this is benchmark-level, not a per-row label.
+
 ## 5. Base pipeline & operators (`pipeline/base.py`, `pipeline/operators/`)
 
 `BaseSolarPipeline` (ABC) — constructor `(raw_data_dir, output_dir, dataset_name, config)`. Adapters implement `load_and_standardize_raw() -> (df_meta, df_ts)` and `process_and_save_tensors(df_ts)`.
@@ -156,10 +168,10 @@ Repair primitives: delete+realign, physical-context interpolation, outlier clamp
 ## 9. Loader & downstream API (`loader.py`)
 
 - `SolarUniBenchLoader`:
-  - `load_tabular(dataset, split=None) -> df` — merged metadata + time_series.
+  - `load_tabular(dataset, split=None) -> df` — merged metadata + time_series, **filtered by the frozen split** when `split ∈ {train, val, test}` (§4.6). Unsplit rows are excluded.
   - `get_tensor_cube(dataset, kind) -> zarr.Array` — lazy `DirectoryStore`; HTTP-mappable later.
 - `SolarUniBenchDataset(torch.utils.data.Dataset)` — fixed column/tensor names so a batch can mix all four datasets; modality auto-switch.
-- Splits (`splits.py`): `temporal_split` (time cutoff) and `spatial_split` (leave-one-dataset-out for cross-domain zero-shot).
+- Splits (`splits.py` + `scripts/build_splits.py`, config `configs/splits.yaml`): `make_splits()` (per-entity chronological, dataset-specific `test_start`/`val_ratio`; `predefined` strategy for SKIPPD in Phase 3) and `spatial_split` (leave-one-dataset-out for cross-domain zero-shot). `build()` stamps the `split` column **into** `time_series.parquet` and writes `splits_manifest.json`.
 
 ## 10. Forecasting framework & baselines (`forecast/`)
 
@@ -241,7 +253,7 @@ Plus a **contract-conformance test** each adapter must pass (schema, dtypes, key
 ## 14. Phased plan (build strategy C — vertical spike then layers)
 
 1. **Env + scaffold + contract + tests harness.**
-2. **Vertical spike:** GEFCom2014 tabular end-to-end (incl. reverse-geolocation) — locks base class, contract, CLI.
+2. **Vertical spike:** GEFCom2014 tabular end-to-end (incl. reverse-geolocation) **+ frozen train/val/test split** — locks base class, contract, CLI, and splits.
 3. **Tabular layer:** Folsom, SKIPPD, SunLake standardized parquet (Tables 1–4).
 4. **zarr/image layer:** Folsom sky (RGB+BRR), SKIPPD sky+satellite, SunLake satellite (full optical-flow + uncertainty).
 5. **Loader + splits + PyTorch Dataset.**

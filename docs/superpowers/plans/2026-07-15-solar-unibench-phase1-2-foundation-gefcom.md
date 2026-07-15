@@ -6,11 +6,11 @@
 
 **Architecture:** An OOP "operator assembly line": a `BaseSolarPipeline` abstract class holds all physics (clear-sky, quality audit, reverse-geolocation, TSR validation); per-dataset adapters only parse raw → standardized frames. A single `DataContract` (`contract.py`) is the source of truth every adapter must satisfy. Operators are ported from the existing, already-prototyped `solar_benchmark_dataset/GEFCom2014_data/geo_location.py`.
 
-**Tech Stack:** Python 3.12, pandas, pyarrow (parquet), pvlib (clear-sky/solar position), numpy/scipy, pytest (TDD), tqdm. Conda env `solar-unibench` on Windows 11 / Git Bash.
+**Tech Stack:** Python 3.10 (existing `solar_uni` env), pandas, pyarrow (parquet), pvlib (clear-sky/solar position), numpy/scipy, pytest (TDD), tqdm. Windows 11 / Git Bash.
 
 ## Global Constraints
 
-- **Environment:** dedicated conda env `solar-unibench` (Python 3.12). Do NOT install into base Anaconda. Phase 1+2 uses a core dep set only (`requirements-core.txt`); torch/zarr/opencv come in later phase plans.
+- **Environment:** the existing conda env **`solar_uni`** (Python 3.10.20) is this project's venv — run everything inside it via `conda run -n solar_uni`. numpy/pandas/pyarrow are already present; the remaining core deps (pvlib, scipy, scikit-learn, pytest, tqdm, pyyaml, matplotlib) are installed into it. torch/zarr/opencv/xarray/datasets come in later phase plans. Do NOT use base Anaconda.
 - **Branch:** work on existing branch `feat/solar-unibench-build`. Commit after every task (frequent commits).
 - **TDD strictly:** every unit test runs on **synthetic fixtures** (no 69 GB of real data in the test suite). Real-data runs are smoke tests, separate from `pytest`.
 - **UTC at ingest:** every timestamp is parsed then normalized to `timestamp_utc` (UTC) before leaving an adapter. GEFCom `TIMESTAMP` (`YYYYMMDD HH:MM`) is already UTC per the competition spec.
@@ -42,7 +42,10 @@ solar-unibench/
 ├── solarunibench/operators/reverse_geolocate.py          # Task 5
 ├── solarunibench/operators/tsr_validation.py             # Task 6
 ├── solarunibench/operators/quality.py                    # Task 7
+├── solarunibench/splits.py                               # Task 13
+├── configs/splits.yaml                                   # Task 13
 ├── scripts/build_dataset.py                              # Task 10
+├── scripts/build_splits.py                               # Task 13
 └── tests/
     ├── __init__.py                                       # Task 1
     ├── conftest.py                                       # Task 1 (synthetic fixtures factory)
@@ -56,6 +59,8 @@ solar-unibench/
     ├── test_gefcom_adapter.py                            # Task 9
     ├── test_build_dataset_cli.py                         # Task 10
     ├── test_gefcom_contract.py                           # Task 11
+    ├── test_splits.py                                    # Task 13
+    ├── test_build_splits_cli.py                          # Task 13
     └── test_gefcom_geo_integration.py                    # Task 12
 ```
 
@@ -69,14 +74,13 @@ solar-unibench/
 **Interfaces:**
 - Produces: an importable `solarunibench` package and a `tests/synthetic_gefcom()` fixture factory (used by Tasks 2, 8, 9). Signature: `synthetic_gefcom(n_hours=48, n_zones=3, seed=0) -> tuple[pd.DataFrame, pd.DataFrame]` returning `(df_meta, df_ts)` with contract-like columns.
 
-- [ ] **Step 1: Create the conda env and install core deps**
+- [ ] **Step 1: Verify the `solar_uni` env has core deps**
 
-Run (Git Bash):
+The project env `solar_uni` already exists (Python 3.10.20) with numpy/pandas/pyarrow. Ensure the remaining core deps are installed (run from Git Bash):
 ```bash
-conda create -n solar-unibench python=3.12 -y
-conda run -n solar-unibench pip install numpy pandas pyarrow pvlib scipy scikit-learn pytest tqdm pyyaml matplotlib
+conda run -n solar_uni pip install pvlib scipy scikit-learn pytest tqdm pyyaml matplotlib
 ```
-Expected: installs complete; `conda run -n solar-unibench python -c "import pandas, pvlib, pyarrow; print('ok')"` prints `ok`.
+Expected: installs complete; `conda run -n solar_uni python -c "import pandas, pvlib, pyarrow, scipy, sklearn, pytest; print('ok')"` prints `ok`.
 
 - [ ] **Step 2: Write `requirements-core.txt`**
 
@@ -185,8 +189,8 @@ def synthetic_gefcom(n_hours: int = 48, n_zones: int = 3, seed: int = 0) -> tupl
 
 Run:
 ```bash
-conda run -n solar-unibench python -c "import solarunibench; print(solarunibench.__version__)"
-conda run -n solar-unibench python -m pytest
+conda run -n solar_unipython -c "import solarunibench; print(solarunibench.__version__)"
+conda run -n solar_unipython -m pytest
 ```
 Expected: prints `0.1.0`; pytest reports `no tests ran` (0 passed, 0 failed) — collection works.
 
@@ -273,7 +277,7 @@ def test_contract_constants_present():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_contract.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_contract.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'solarunibench.contract'`.
 
 - [ ] **Step 3: Write `solarunibench/contract.py`**
@@ -335,7 +339,7 @@ def validate_time_series(df: pd.DataFrame) -> None:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_contract.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_contract.py -v`
 Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
@@ -399,7 +403,7 @@ def test_solar_noon_to_longitude():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_solar_geometry.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_solar_geometry.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/solar_geometry.py`**
@@ -448,7 +452,7 @@ def solar_noon_to_longitude(peak_utc_hour: float) -> float:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_solar_geometry.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_solar_geometry.py -v`
 Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
@@ -511,7 +515,7 @@ def test_clearsky_simple_matches_ineichen_shape_daytime():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_clearsky.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_clearsky.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/clearsky.py`**
@@ -576,7 +580,7 @@ def clearsky_ghi_simple(times: pd.DatetimeIndex, lat_deg: float, lon_deg: float,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_clearsky.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_clearsky.py -v`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -623,7 +627,7 @@ def test_recovers_known_site_within_tolerance():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_reverse_geolocate.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_reverse_geolocate.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/reverse_geolocate.py`**
@@ -668,7 +672,7 @@ def reverse_geolocate(times: pd.DatetimeIndex, power: np.ndarray,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_reverse_geolocate.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_reverse_geolocate.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -724,7 +728,7 @@ def test_tsr_validation_low_r2_for_wrong_lat():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_tsr_validation.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_tsr_validation.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/tsr_validation.py`**
@@ -777,7 +781,7 @@ def validate_with_tsr(times: pd.DatetimeIndex, tsr_hourly: np.ndarray,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_tsr_validation.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_tsr_validation.py -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -836,7 +840,7 @@ def test_pv_clamped_to_capacity():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_quality.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_quality.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/quality.py`**
@@ -871,7 +875,7 @@ def apply_quality_audit(df_ts: pd.DataFrame, capacity: float = 1.0) -> pd.DataFr
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_quality.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_quality.py -v`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -939,7 +943,7 @@ def test_raw_snapshot_is_pre_governance(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_base_pipeline.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_base_pipeline.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/pipeline/base.py`**
@@ -1045,7 +1049,7 @@ class BaseSolarPipeline(ABC):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_base_pipeline.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_base_pipeline.py -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -1110,7 +1114,7 @@ def test_gefcom_loads_three_zones_and_parses_timestamps(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_gefcom_adapter.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_gefcom_adapter.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/pipeline/adapters/gefcom.py`**
@@ -1197,7 +1201,7 @@ class GEFCom2014Pipeline(BaseSolarPipeline):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_gefcom_adapter.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_gefcom_adapter.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1241,7 +1245,7 @@ def test_cli_builds_gefcom_from_fixture(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_build_dataset_cli.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_build_dataset_cli.py -v`
 Expected: FAIL — `FileNotFoundError` (no `scripts/build_dataset.py`).
 
 - [ ] **Step 3: Write `scripts/build_dataset.py`**
@@ -1288,7 +1292,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_build_dataset_cli.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_build_dataset_cli.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1335,7 +1339,7 @@ def test_gefcom_package_satisfies_contract(tmp_path):
 
 - [ ] **Step 2: Run and verify it passes**
 
-Run: `conda run -n solar-unibench python -m pytest tests/test_gefcom_contract.py -v`
+Run: `conda run -n solar_unipython -m pytest tests/test_gefcom_contract.py -v`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -1384,8 +1388,8 @@ def test_real_gefcom_recovers_three_zones_and_validates_tsr(tmp_path):
 
 Run:
 ```bash
-conda run -n solar-unibench python -m pytest tests/test_gefcom_geo_integration.py -v   # SKIPPED
-RUN_SLOW=1 conda run -n solar-unibench python -m pytest tests/test_gefcom_geo_integration.py -v   # runs on real data
+conda run -n solar_unipython -m pytest tests/test_gefcom_geo_integration.py -v   # SKIPPED
+RUN_SLOW=1 conda run -n solar_unipython -m pytest tests/test_gefcom_geo_integration.py -v   # runs on real data
 ```
 Expected: first SKIPPED; second runs and PASSes (coords for 3 zones; TSR R² reported in `_last_validation`).
 
@@ -1398,12 +1402,220 @@ git commit -m "test(gefcom): real-data geo-recovery + TSR validation integration
 
 ---
 
+### Task 13: Frozen train/val/test splits for GEFCom (`splits.py` + `build_splits.py`)
+
+Stamp a frozen, leak-free `split` column into GEFCom's `time_series.parquet`: `test` = the competition's held-out future month (`timestamp >= 2014-06-01`, i.e. Solution to Task 15), the remainder split chronologically into train/val. Also writes `splits_manifest.json` (cutoffs + `splits_version`). Generalizes to the other datasets via `configs/splits.yaml` (temporal strategy now; SKIPPD's `predefined` strategy is implemented in Phase 3).
+
+**Files:**
+- Create: `solarunibench/splits.py`, `scripts/build_splits.py`, `configs/splits.yaml`
+- Test: `tests/test_splits.py`, `tests/test_build_splits_cli.py`
+
+**Interfaces:**
+- Consumes: `time_series.parquet` produced by Tasks 9–10.
+- Produces: `make_splits(df_ts, cfg) -> pd.DataFrame` (adds a `split` column); `build(dataset_dir, cfg, version) -> manifest` (stamps the `split` column back into `time_series.parquet` in place + writes `splits_manifest.json`); a CLI driving it.
+
+- [ ] **Step 1: Write `configs/splits.yaml`**
+
+```yaml
+splits_version: "1.0"
+gefcom2014:
+  strategy: temporal
+  test_start: "2014-06-01"   # Solution to Task 15 (held-out future month)
+  val_ratio: 0.1             # of the pre-test remainder
+folsom:
+  strategy: temporal
+  test_start: "2016-01-01"
+  val_ratio: 0.1
+sunlake:
+  strategy: temporal
+  test_start: "2021-01-01"
+  val_ratio: 0.1
+skippd:
+  strategy: predefined       # reuse official HF train/test; carve val from train (Phase 3)
+  val_ratio: 0.1
+spatial:                     # cross-domain leave-one-dataset-out (benchmark-level)
+  folds:
+    - {train: [gefcom2014, folsom, skippd], test: [sunlake]}
+    - {train: [gefcom2014, folsom, sunlake], test: [skippd]}
+    - {train: [gefcom2014, skippd, sunlake], test: [folsom]}
+    - {train: [folsom, skippd, sunlake], test: [gefcom2014]}
+```
+
+- [ ] **Step 2: Write the failing test `tests/test_splits.py`**
+
+```python
+import pandas as pd
+from solarunibench.splits import make_splits
+
+
+def _ts():
+    # GEFCom-like: 2013-01-01 .. 2014-06-30 hourly, one zone
+    times = pd.date_range("2013-01-01", "2014-06-30 23:00", freq="1h", tz="UTC")
+    return pd.DataFrame({"timestamp_utc": times, "entity_id": "GEFCOM_ZONE_1"})
+
+
+def test_test_set_is_the_held_out_future_month():
+    cfg = {"strategy": "temporal", "test_start": "2014-06-01", "val_ratio": 0.1}
+    out = make_splits(_ts(), cfg)
+    test = out[out["split"] == "test"]
+    assert test["timestamp_utc"].min() >= pd.Timestamp("2014-06-01", tz="UTC")
+    assert test["timestamp_utc"].max() <= pd.Timestamp("2014-06-30 23:00", tz="UTC")
+
+
+def test_no_leakage_train_and_val_before_test():
+    cfg = {"strategy": "temporal", "test_start": "2014-06-01", "val_ratio": 0.1}
+    out = make_splits(_ts(), cfg)
+    train_max = out[out["split"] == "train"]["timestamp_utc"].max()
+    val_max = out[out["split"] == "val"]["timestamp_utc"].max()
+    test_min = out[out["split"] == "test"]["timestamp_utc"].min()
+    assert train_max < test_min
+    assert val_max < test_min
+
+
+def test_every_row_labeled():
+    cfg = {"strategy": "temporal", "test_start": "2014-06-01", "val_ratio": 0.1}
+    out = make_splits(_ts(), cfg)
+    assert set(out["split"].unique()) <= {"train", "val", "test"}
+    assert out["split"].notna().all()
+```
+
+- [ ] **Step 3: Run test to verify it fails**
+
+Run: `conda run -n solar_uni python -m pytest tests/test_splits.py -v`
+Expected: FAIL — `ModuleNotFoundError`.
+
+- [ ] **Step 4: Write `solarunibench/splits.py`**
+
+```python
+"""Frozen train/val/test splits. Per-entity chronological; dataset-specific test cutoff."""
+import json
+from pathlib import Path
+import pandas as pd
+
+
+def make_splits(df_ts: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Return df_ts with an added `split` column in {train, val, test}, per entity.
+
+    Temporal strategy: rows with timestamp >= test_start are `test`; the most recent
+    `val_ratio` fraction of the remainder is `val`; the rest is `train` — leak-free.
+    """
+    strategy = cfg["strategy"]
+    if strategy != "temporal":
+        raise NotImplementedError(f"split strategy '{strategy}' is implemented in a later phase")
+    out = df_ts.copy()
+    labels = pd.Series("train", index=out.index, dtype="object")
+    test_start = pd.Timestamp(cfg["test_start"], tz="UTC")
+    val_ratio = float(cfg.get("val_ratio", 0.1))
+    for _, idx in out.groupby("entity_id").groups.items():
+        sub = out.loc[idx].sort_values("timestamp_utc")
+        is_test = sub["timestamp_utc"] >= test_start
+        rest = sub[~is_test]
+        n_val = max(1, int(len(rest) * val_ratio))
+        val_idx = rest.index[-n_val:]
+        labels.loc[sub.index[is_test]] = "test"
+        labels.loc[val_idx] = "val"
+    out["split"] = labels.values
+    return out
+
+
+def build(dataset_dir, cfg: dict, splits_version: str) -> dict:
+    """Stamp the `split` column into time_series.parquet (in place) + write manifest."""
+    dataset_dir = Path(dataset_dir)
+    ts_path = dataset_dir / "time_series.parquet"
+    df_ts = pd.read_parquet(ts_path)
+    splits = make_splits(df_ts, cfg)
+    # write the full table back WITH the new split column (single source of truth)
+    splits.to_parquet(ts_path, index=False)
+    manifest = {"dataset": dataset_dir.name, "splits_version": splits_version,
+                "strategy": cfg.get("strategy"),
+                "counts": {k: int(v) for k, v in splits["split"].value_counts().to_dict().items()}}
+    (dataset_dir / "splits_manifest.json").write_text(json.dumps(manifest, indent=2))
+    return manifest
+```
+
+- [ ] **Step 5: Run test to verify it passes**
+
+Run: `conda run -n solar_uni python -m pytest tests/test_splits.py -v`
+Expected: PASS (3 tests).
+
+- [ ] **Step 6: Write `scripts/build_splits.py` + `tests/test_build_splits_cli.py`**
+
+`scripts/build_splits.py`:
+```python
+"""CLI: build frozen splits.parquet for a dataset from configs/splits.yaml."""
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import yaml
+from solarunibench.splits import build
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Build frozen train/val/test splits")
+    ap.add_argument("--dataset", required=True)
+    ap.add_argument("--output-root", default=None)
+    args = ap.parse_args(argv)
+
+    root = Path(__file__).resolve().parents[1]
+    cfg_all = yaml.safe_load((root / "configs" / "splits.yaml").read_text())
+    version = cfg_all.pop("splits_version", "1.0")
+    paths = yaml.safe_load((root / "configs" / "paths.yaml").read_text())
+    out_root = Path(args.output_root or paths["output_root"])
+    manifest = build(out_root / args.dataset, cfg_all[args.dataset], version)
+    print(json.dumps(manifest, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+```
+
+`tests/test_build_splits_cli.py`:
+```python
+import subprocess
+import sys
+import pandas as pd
+
+
+def test_cli_writes_gefcom_splits(tmp_path):
+    from tests.test_gefcom_adapter import _write_fixture
+    from solarunibench.pipeline.adapters.gefcom import GEFCom2014Pipeline
+    _write_fixture(tmp_path)
+    GEFCom2014Pipeline(raw_data_dir=str(tmp_path / "GEFCom2014_data"),
+                       output_dir=str(tmp_path / "out"), dataset_name="gefcom2014").run_pipeline()
+    out = tmp_path / "out"
+    cmd = [sys.executable, "scripts/build_splits.py", "--dataset", "gefcom2014",
+           "--output-root", str(out)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    ts = pd.read_parquet(out / "gefcom2014" / "time_series.parquet")
+    assert "split" in ts.columns
+    assert set(ts["split"].unique()) <= {"train", "val", "test"}
+    assert (out / "gefcom2014" / "splits_manifest.json").exists()
+```
+
+Note: the GEFCom fixture's short time range predates `test_start`, so the CLI test only asserts the split domain and the manifest — the true future-month cutoff is exercised by the real-data run in Task 12.
+
+- [ ] **Step 7: Run + commit**
+
+```bash
+conda run -n solar_uni python -m pytest tests/test_build_splits_cli.py tests/test_splits.py -v
+git add solarunibench/splits.py scripts/build_splits.py configs/splits.yaml tests/test_splits.py tests/test_build_splits_cli.py
+git commit -m "feat(splits): frozen train/val/test splits + CLI"
+```
+
+---
+
 ## Definition of Done (Phase 1+2)
 
-- `conda run -n solar-unibench python -m pytest` → all fast unit tests green.
+- `conda run -n solar_unipython -m pytest` → all fast unit tests green.
 - `RUN_SLOW=1 ... pytest tests/test_gefcom_geo_integration.py` → recovers 3 zones, TSR-validated.
 - `python scripts/build_dataset.py --dataset gefcom2014` writes a contract-conformant `data/standardized/gefcom2014/{metadata,time_series}.parquet` + `manifest.json`.
-- All 12 tasks committed on `feat/solar-unibench-build`.
+- `python scripts/build_splits.py --dataset gefcom2014` stamps a `split` column (train/val/test) into `time_series.parquet` + writes `splits_manifest.json`.
+- All 13 tasks committed on `feat/solar-unibench-build`.
 
 ## Next phases (separate plans, each self-contained)
 
