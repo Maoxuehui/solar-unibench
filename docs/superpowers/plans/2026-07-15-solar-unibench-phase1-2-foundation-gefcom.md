@@ -189,8 +189,8 @@ def synthetic_gefcom(n_hours: int = 48, n_zones: int = 3, seed: int = 0) -> tupl
 
 Run:
 ```bash
-conda run -n solar_unipython -c "import solarunibench; print(solarunibench.__version__)"
-conda run -n solar_unipython -m pytest
+conda run -n solar_uni python -c "import solarunibench; print(solarunibench.__version__)"
+conda run -n solar_uni python -m pytest
 ```
 Expected: prints `0.1.0`; pytest reports `no tests ran` (0 passed, 0 failed) — collection works.
 
@@ -277,7 +277,7 @@ def test_contract_constants_present():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_contract.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_contract.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'solarunibench.contract'`.
 
 - [ ] **Step 3: Write `solarunibench/contract.py`**
@@ -339,7 +339,7 @@ def validate_time_series(df: pd.DataFrame) -> None:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_contract.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_contract.py -v`
 Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
@@ -403,7 +403,7 @@ def test_solar_noon_to_longitude():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_solar_geometry.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_solar_geometry.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/solar_geometry.py`**
@@ -452,7 +452,7 @@ def solar_noon_to_longitude(peak_utc_hour: float) -> float:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_solar_geometry.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_solar_geometry.py -v`
 Expected: PASS (5 tests).
 
 - [ ] **Step 5: Commit**
@@ -515,7 +515,7 @@ def test_clearsky_simple_matches_ineichen_shape_daytime():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_clearsky.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_clearsky.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/clearsky.py`**
@@ -580,7 +580,7 @@ def clearsky_ghi_simple(times: pd.DatetimeIndex, lat_deg: float, lon_deg: float,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_clearsky.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_clearsky.py -v`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -627,7 +627,7 @@ def test_recovers_known_site_within_tolerance():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_reverse_geolocate.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_reverse_geolocate.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/reverse_geolocate.py`**
@@ -672,7 +672,7 @@ def reverse_geolocate(times: pd.DatetimeIndex, power: np.ndarray,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_reverse_geolocate.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_reverse_geolocate.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -728,7 +728,7 @@ def test_tsr_validation_low_r2_for_wrong_lat():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_tsr_validation.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_tsr_validation.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/tsr_validation.py`**
@@ -781,7 +781,7 @@ def validate_with_tsr(times: pd.DatetimeIndex, tsr_hourly: np.ndarray,
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_tsr_validation.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_tsr_validation.py -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -840,7 +840,7 @@ def test_pv_clamped_to_capacity():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_quality.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_quality.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/operators/quality.py`**
@@ -875,7 +875,7 @@ def apply_quality_audit(df_ts: pd.DataFrame, capacity: float = 1.0) -> pd.DataFr
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_quality.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_quality.py -v`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -943,7 +943,7 @@ def test_raw_snapshot_is_pre_governance(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_base_pipeline.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_base_pipeline.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/pipeline/base.py`**
@@ -1049,7 +1049,7 @@ class BaseSolarPipeline(ABC):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_base_pipeline.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_base_pipeline.py -v`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -1114,7 +1114,7 @@ def test_gefcom_loads_three_zones_and_parses_timestamps(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_gefcom_adapter.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_gefcom_adapter.py -v`
 Expected: FAIL — `ModuleNotFoundError`.
 
 - [ ] **Step 3: Write `solarunibench/pipeline/adapters/gefcom.py`**
@@ -1201,7 +1201,7 @@ class GEFCom2014Pipeline(BaseSolarPipeline):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_gefcom_adapter.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_gefcom_adapter.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1245,7 +1245,7 @@ def test_cli_builds_gefcom_from_fixture(tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_build_dataset_cli.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_build_dataset_cli.py -v`
 Expected: FAIL — `FileNotFoundError` (no `scripts/build_dataset.py`).
 
 - [ ] **Step 3: Write `scripts/build_dataset.py`**
@@ -1292,7 +1292,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_build_dataset_cli.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_build_dataset_cli.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1339,7 +1339,7 @@ def test_gefcom_package_satisfies_contract(tmp_path):
 
 - [ ] **Step 2: Run and verify it passes**
 
-Run: `conda run -n solar_unipython -m pytest tests/test_gefcom_contract.py -v`
+Run: `conda run -n solar_uni python -m pytest tests/test_gefcom_contract.py -v`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -1388,8 +1388,8 @@ def test_real_gefcom_recovers_three_zones_and_validates_tsr(tmp_path):
 
 Run:
 ```bash
-conda run -n solar_unipython -m pytest tests/test_gefcom_geo_integration.py -v   # SKIPPED
-RUN_SLOW=1 conda run -n solar_unipython -m pytest tests/test_gefcom_geo_integration.py -v   # runs on real data
+conda run -n solar_uni python -m pytest tests/test_gefcom_geo_integration.py -v   # SKIPPED
+RUN_SLOW=1 conda run -n solar_uni python -m pytest tests/test_gefcom_geo_integration.py -v   # runs on real data
 ```
 Expected: first SKIPPED; second runs and PASSes (coords for 3 zones; TSR R² reported in `_last_validation`).
 
@@ -1611,7 +1611,7 @@ git commit -m "feat(splits): frozen train/val/test splits + CLI"
 
 ## Definition of Done (Phase 1+2)
 
-- `conda run -n solar_unipython -m pytest` → all fast unit tests green.
+- `conda run -n solar_uni python -m pytest` → all fast unit tests green.
 - `RUN_SLOW=1 ... pytest tests/test_gefcom_geo_integration.py` → recovers 3 zones, TSR-validated.
 - `python scripts/build_dataset.py --dataset gefcom2014` writes a contract-conformant `data/standardized/gefcom2014/{metadata,time_series}.parquet` + `manifest.json`.
 - `python scripts/build_splits.py --dataset gefcom2014` stamps a `split` column (train/val/test) into `time_series.parquet` + writes `splits_manifest.json`.
