@@ -11,13 +11,17 @@ from solarunibench.splits import build
 
 
 def main(argv=None):
+    root = Path(__file__).resolve().parents[1]
+    cfg_all = yaml.safe_load((root / "configs" / "splits.yaml").read_text())
+    # Per-dataset keys exclude the top-level version stamp and the benchmark-level
+    # `spatial` cross-domain folds entry (not a per-dataset config).
+    dataset_choices = sorted(k for k in cfg_all if k not in ("splits_version", "spatial"))
+
     ap = argparse.ArgumentParser(description="Build frozen train/val/test splits")
-    ap.add_argument("--dataset", required=True)
+    ap.add_argument("--dataset", required=True, choices=dataset_choices)
     ap.add_argument("--output-root", default=None)
     args = ap.parse_args(argv)
 
-    root = Path(__file__).resolve().parents[1]
-    cfg_all = yaml.safe_load((root / "configs" / "splits.yaml").read_text())
     version = cfg_all.pop("splits_version", "1.0")
     paths = yaml.safe_load((root / "configs" / "paths.yaml").read_text())
     out_root = Path(args.output_root or paths["output_root"])
