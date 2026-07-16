@@ -26,7 +26,7 @@ def _build_pkg(root: Path, dataset="toy", n=8, with_split=True, with_sky=False):
         store = zarr.DirectoryStore(str(d / "sky_images.zarr"))
         g = zarr.group(store=store, overwrite=True)
         g.array("images", data=np.zeros((n, 4, 256, 256), np.float32), chunks=(1, 4, 256, 256), overwrite=True)
-        g.array("images_timestamps", data=np.array(times.strftime("%Y-%m-%dT%H:%M:%S%z").to_list()), chunks=(1,), overwrite=True)
+        g.array("images_timestamps", data=np.array([t.isoformat() for t in times]), chunks=(1,), overwrite=True)
 
 
 def test_load_tabular_merges_metadata_and_filters_split(tmp_path):
