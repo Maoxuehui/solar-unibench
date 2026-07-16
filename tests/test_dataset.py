@@ -39,3 +39,25 @@ def test_dataset_mixes_multiple_datasets(tmp_path):
     assert len(ds) == 2 * (10 - 3 - 2 + 1)
     seen = {ds[i]["dataset"] for i in range(len(ds))}
     assert seen == {"a", "b"}
+
+
+def test_dataset_decodes_uint8_image_to_float_ranges(tmp_path):
+    import numpy as np
+    _build_pkg(tmp_path, dataset="toy", n=10, with_split=True, with_sky=True)
+    ld = SolarUniBenchLoader(str(tmp_path))
+    ds = SolarUniBenchDataset(ld, ["toy"], split="train", target="ghi_actual",
+                              feature_cols=["ghi_clearsky"], lookback=3, horizon=2, return_images=True)
+    s = ds[0]
+    assert s["image"] is not None and s["image"].dtype == torch.float32
+    assert s["image"].shape == (3, 4, 256, 256)
+    assert float(s["image"][:, 3].min()) >= -1.0 - 1e-6 and float(s["image"][:, 3].max()) <= 1.0 + 1e-6
+    assert float(s["image"][:, :3].min()) >= 0.0 - 1e-6 and float(s["image"][:, :3].max()) <= 1.0 + 1e-6
+
+
+def test_dataset_raises_on_missing_target_column(tmp_path):
+    _build_pkg(tmp_path, dataset="toy", n=10, with_split=True)
+    ld = SolarUniBenchLoader(str(tmp_path))
+    import pytest
+    with pytest.raises(ValueError, match="missing required column"):
+        SolarUniBenchDataset(ld, ["toy"], split="train", target="no_such_column",
+                             feature_cols=["ghi_clearsky"], lookback=3, horizon=2)
