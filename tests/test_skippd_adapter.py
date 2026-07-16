@@ -61,8 +61,8 @@ def test_skippd_normalizes_pv_and_converts_pacific_to_utc(tmp_path):
     # parsed (first element = valid forecast time, UTC-naive) into a joinable UTC
     # stamp. The fixture's first valid time (19:00 UTC) aligns with a labels stamp,
     # so the merge must resolve the value we wrote (800.0). Train/test carry
-    # duplicate stamps, so the join fans out to several rows — assert the value is
-    # present, not a single-row cardinality.
+    # duplicate stamps; the adapter now dedups both labels and NWP frames before
+    # merging, so the join is 1:1 — assert the resolved value is present.
     gfs_col = "nwp_downward_shortwave_radiation_flux_cubic"
     assert gfs_col in df_ts.columns
     gfs_at_19 = df_ts.loc[

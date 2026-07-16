@@ -28,6 +28,11 @@ def test_real_folsom_builds(tmp_path):
     ts = pd.read_parquet(tmp_path / "folsom" / "time_series.parquet")
     assert len(ts) > 100_000  # ~1.5M rows on the real Folsom archive
     assert "ghi_clearsky" in ts.columns and ts["ghi_clearsky"].notna().any()
+    # UTC-alignment sanity: at the timestamp where ghi_actual is maximal (solar
+    # noon), the sun must be high — cos_zenith > 0.5. If the stamps were local
+    # time misinterpreted as UTC, solar noon would land far from max ghi_actual.
+    noon_zen = ts.loc[ts["ghi_actual"].idxmax(), "cos_zenith"]
+    assert noon_zen > 0.5, f"Folsom UTC misalignment: max-ghi_actual cos_zenith={noon_zen} (stamps may be local, not UTC)"
     # surface timing in the report without asserting a hard bound
     print(f"\n[Folsom integration] rows={len(ts)} entities={m['n_entities']} "
-          f"build_seconds={dt:.1f}")
+          f"noon_cos_zenith={noon_zen:.4f} build_seconds={dt:.1f}")

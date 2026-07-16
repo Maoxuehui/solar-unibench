@@ -15,15 +15,17 @@ class FolsomPipeline(BaseSolarPipeline):
         irr["timestamp_utc"] = pd.to_datetime(irr["timeStamp"], format="%Y-%m-%d %H:%M:%S").dt.tz_localize("UTC")
         irr = irr.rename(columns={"ghi": "ghi_actual", "dni": "dni_actual", "dhi": "dhi_actual"})
 
-        # weather (optional join)
+        # weather (optional join): Folsom_weather.csv are concurrent GROUND
+        # measurements, not forecasts -> namespace obs_* (per spec §4.2, nwp_* is
+        # reserved for forecasts). Only Folsom_NAM_*.csv is NWP (kept as nwp_*).
         wpath = root / "Folsom_weather.csv"
         if wpath.exists():
             w = pd.read_csv(wpath)
             w["timestamp_utc"] = pd.to_datetime(w["timeStamp"], format="%Y-%m-%d %H:%M:%S").dt.tz_localize("UTC")
-            w = w.rename(columns={"air_temp": "nwp_air_temp", "relhum": "nwp_relhum", "press": "nwp_press",
-                                  "windsp": "nwp_windsp", "winddir": "nwp_winddir"})
-            irr = irr.merge(w[["timestamp_utc", "nwp_air_temp", "nwp_relhum", "nwp_press",
-                               "nwp_windsp", "nwp_winddir"]], on="timestamp_utc", how="left")
+            w = w.rename(columns={"air_temp": "obs_air_temp", "relhum": "obs_relhum", "press": "obs_press",
+                                  "windsp": "obs_windsp", "winddir": "obs_winddir"})
+            irr = irr.merge(w[["timestamp_utc", "obs_air_temp", "obs_relhum", "obs_press",
+                               "obs_windsp", "obs_winddir"]], on="timestamp_utc", how="left")
 
         # NAM NWP: line 1 is a comment -> skiprows=1; temperature in K, pressure in Pa (kept as-is, namespaced)
         nam_files = sorted(glob.glob(str(root / "Folsom_NAM_*.csv")))
@@ -36,7 +38,7 @@ class FolsomPipeline(BaseSolarPipeline):
             irr = irr.merge(nam[["timestamp_utc"] + list(keep.values())], on="timestamp_utc", how="left")
 
         df_ts = irr[["timestamp_utc", "ghi_actual", "dni_actual", "dhi_actual"] +
-                    [c for c in irr.columns if c.startswith("nwp_")]].copy()
+                    [c for c in irr.columns if c.startswith(("nwp_", "obs_"))]].copy()
         df_ts["entity_id"] = FOLSOM["entity_id"]
         # Honest NaN: Folsom is irradiance-only (no PV sensor) — column is present but entirely null.
         df_ts["pv_power_normalized"] = pd.NA
