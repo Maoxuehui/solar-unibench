@@ -37,8 +37,19 @@ def build(dataset_dir, cfg: dict, splits_version: str) -> dict:
     splits = make_splits(df_ts, cfg)
     # write the full table back WITH the new split column (single source of truth)
     splits.to_parquet(ts_path, index=False)
+    # Per-split timestamp bounds (min/max `timestamp_utc`) make the frozen split
+    # fully self-documenting without re-reading configs/splits.yaml.
+    split_bounds = {}
+    for label, grp in splits.groupby("split"):
+        ts = grp["timestamp_utc"]
+        split_bounds[label] = {
+            "min": pd.Timestamp(ts.min()).isoformat(),
+            "max": pd.Timestamp(ts.max()).isoformat(),
+        }
     manifest = {"dataset": dataset_dir.name, "splits_version": splits_version,
                 "strategy": cfg.get("strategy"),
-                "counts": {k: int(v) for k, v in splits["split"].value_counts().to_dict().items()}}
+                "test_start": cfg.get("test_start"),
+                "counts": {k: int(v) for k, v in splits["split"].value_counts().to_dict().items()},
+                "split_bounds": split_bounds}
     (dataset_dir / "splits_manifest.json").write_text(json.dumps(manifest, indent=2))
     return manifest

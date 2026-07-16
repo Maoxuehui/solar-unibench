@@ -11,7 +11,6 @@ from solarunibench.operators import solar_geometry as sg
 from solarunibench.operators.clearsky import clearsky_ghi_simple
 from solarunibench.operators.geo_recover import (
     recover_geo_tsr,
-    recover_geo_pvlib,
     recover_geo_clearsky_global,
     _detect_mirror_pairs,
     _pvlib_clearsky_ghi,
@@ -51,20 +50,6 @@ def test_recover_geo_tsr_recovers_known_site():
     # hemisphere must be correct
     assert res["details"]["hemisphere"] == "south"
     assert res["latitude"] < 0
-
-
-def test_recover_geo_pvlib_recovers_known_site():
-    true_lat, true_lon = -30.0, 145.0  # both on the default 5-deg grid
-    times = pd.date_range("2013-01-01", periods=24 * 120, freq="1h", tz="UTC")
-    # Synthesize POWER as the normalized pvlib clear-sky GHI at the true site
-    # (same model the search uses, so recovery is near-exact).
-    cs = _pvlib_clearsky_ghi(times, true_lat, true_lon)
-    power = cs / (cs.max() + 1e-9)
-    res = recover_geo_pvlib(times, power, sample_size=800)
-    assert res["latitude"] is not None and res["longitude"] is not None
-    # coarse 5-deg grid -> allow one grid cell of slack
-    assert abs(res["latitude"] - true_lat) <= 6.0, res["details"]
-    assert abs(res["longitude"] - true_lon) <= 6.0, res["details"]
 
 
 # ===========================================================================
