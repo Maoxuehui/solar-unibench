@@ -1,0 +1,22 @@
+splits_version: "1.0"
+gefcom2014:
+  strategy: temporal
+  test_start: "2014-06-01"   # Solution to Task 15 (held-out future month)
+  val_ratio: 0.1             # of the pre-test remainder
+folsom:
+  strategy: temporal
+  test_start: "2016-01-01"
+  val_ratio: 0.1
+sunlake:
+  strategy: temporal
+  test_start: "2021-01-01"
+  val_ratio: 0.1
+skippd:
+  strategy: predefined       # reuse official HF train/test; carve val from train (Phase 3)
+  val_ratio: 0.1
+spatial:                     # cross-domain leave-one-dataset-out (benchmark-level)
+  folds:
+    - {train: [gefcom2014, folsom, skippd], test: [sunlake]}
+    - {train: [gefcom2014, folsom, sunlake], test: [skippd]}
+    - {train: [gefcom2014, skippd, sunlake], test: [folsom]}
+    - {train: [folsom, skippd, sunlake], test: [gefcom2014]}
