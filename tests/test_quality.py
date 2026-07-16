@@ -30,3 +30,47 @@ def test_clearness_index_bounded():
 def test_pv_clamped_to_capacity():
     out = quality.apply_quality_audit(_df(), capacity=1.0)
     assert out["pv_power_normalized"].max() <= 1.0
+
+
+def test_missing_modality_stays_all_nan_at_night():
+    # PV-less dataset (e.g. Folsom): pv_power_normalized is all-NA. The quality
+    # audit must NOT fabricate 0.0 at night for a sensor that doesn't exist
+    # (Honest NaN). The night row must still be flagged.
+    df = pd.DataFrame({
+        "cos_zenith": [-0.5, 0.5, 0.5],
+        "ghi_actual": [np.nan, 600.0, 400.0],
+        "ghi_clearsky": [0.0, 800.0, 800.0],
+        "pv_power_normalized": [np.nan, np.nan, np.nan],  # PV-less dataset
+    })
+    out = quality.apply_quality_audit(df, capacity=1.0)
+    assert out["pv_power_normalized"].isna().all()  # no fabricated night zero
+    assert out.loc[0, "quality_flag"] == 3  # night still flagged
+
+
+def test_all_na_ghi_modality_keeps_clearness_nan_at_night():
+    # A dataset with no irradiance sensor (ghi_actual entirely NA) must not have
+    # clearness_index fabricated to 0.0 at night — the ratio is undefined and
+    # must stay NaN (Honest NaN for a missing irradiance modality).
+    df = pd.DataFrame({
+        "cos_zenith": [-0.5, 0.5, 0.5],
+        "ghi_actual": [np.nan, np.nan, np.nan],  # missing irradiance modality
+        "ghi_clearsky": [0.0, 800.0, 800.0],
+        "pv_power_normalized": [np.nan, np.nan, np.nan],
+    })
+    out = quality.apply_quality_audit(df, capacity=1.0)
+    # ghi_actual stays all-NaN (clamp skipped), clearness stays NaN at night.
+    assert out["ghi_actual"].isna().all()
+    assert pd.isna(out.loc[0, "clearness_index"])
+
+
+def test_present_modality_at_night_is_still_zeroed():
+    # The normal case still works: a present (non-NA) PV value at night IS zeroed.
+    df = pd.DataFrame({
+        "cos_zenith": [-0.5, 0.5, 0.5],
+        "ghi_actual": [np.nan, 600.0, 400.0],
+        "ghi_clearsky": [0.0, 800.0, 800.0],
+        "pv_power_normalized": [0.2, 0.5, 0.4],  # PV present, night row has a value
+    })
+    out = quality.apply_quality_audit(df, capacity=1.0)
+    assert out.loc[0, "pv_power_normalized"] == 0.0  # night zeroed
+    assert out.loc[0, "quality_flag"] == 3
