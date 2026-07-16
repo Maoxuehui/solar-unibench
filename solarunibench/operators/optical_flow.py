@@ -12,7 +12,11 @@ def extrapolate_with_uncertainty(flow_u: np.ndarray, flow_v: np.ndarray,
     """Extrapolate `steps_k` future frames by repeated semi-Lagrangian warp of frame_t1.
 
     Returns (future (steps_k,H,W) float32, uncertainty (steps_k,H,W) float32 in [0,1]).
-    Uncertainty rises with lead step and with local flow divergence.
+    The second array is a reliability/confidence score: highest (=1) at short lead and
+    low flow divergence, decaying as lead step grows or local divergence rises. Despite
+    the parameter/contract name "uncertainty", high = reliable (per the methodology's
+    "物理靠谱程度" convention). The returned name is kept as `uncertainty` for contract
+    compatibility.
     """
     u = np.asarray(flow_u, dtype=np.float32)
     v = np.asarray(flow_v, dtype=np.float32)
@@ -25,7 +29,6 @@ def extrapolate_with_uncertainty(flow_u: np.ndarray, flow_v: np.ndarray,
     yy, xx = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
     alpha, beta = 0.02, 0.05  # lead-time decay / divergence penalty (per methodology)
     futures, unc = [], []
-    warped = frame.copy()
     for k in range(1, steps_k + 1):
         map_x = (xx + k * u).astype(np.float32)
         map_y = (yy + k * v).astype(np.float32)
