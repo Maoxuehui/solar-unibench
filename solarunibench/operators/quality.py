@@ -12,11 +12,17 @@ def apply_quality_audit(df_ts: pd.DataFrame, capacity: float = 1.0) -> pd.DataFr
 
     df["quality_flag"] = 0  # good
     night = df["cos_zenith"] <= 0
-    df.loc[night, ["ghi_actual", "pv_power_normalized"]] = 0.0
+    # Zero night values only for columns that actually exist — never fabricate a
+    # missing modality (Honest NaN). For GEFCom (PV-only, no ghi_actual) this must
+    # NOT create a ghi_actual column of fabricated zeros.
+    night_cols = [c for c in ("ghi_actual", "pv_power_normalized") if c in df.columns]
+    if night_cols:
+        df.loc[night, night_cols] = 0.0
     df.loc[night, "quality_flag"] = 3  # night
-    # night clearness_index must be 0.0 (ghi_clearsky ~= 0 at night would
-    # otherwise leave the pre-clip ratio clipped to 1.5); keep float32 dtype.
-    df.loc[night, "clearness_index"] = np.float32(0.0)
+    # Night clearness_index is only meaningful when ghi_actual exists; otherwise the
+    # ratio is already NaN and must stay NaN (don't fabricate 0.0 at night).
+    if "ghi_actual" in df.columns:
+        df.loc[night, "clearness_index"] = np.float32(0.0)
 
     # curtailment / clipping: PV pinned at capacity across daytime
     if "pv_power_normalized" in df:

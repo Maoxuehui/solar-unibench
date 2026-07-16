@@ -8,10 +8,11 @@ def _write_fixture(root: Path):
     solar.mkdir(parents=True)
     times = pd.date_range("2013-06-01 06:00", periods=12, freq="1h")
     stamp = times.strftime("%Y%m%d %H:%M")
+    rng = np.random.default_rng(0)  # deterministic shared fixture
     rows_p, rows_t = [], []
     for z in [1, 2, 3]:
         for s in stamp:
-            power = float(np.clip(np.random.rand(), 0, 1))
+            power = float(np.clip(rng.random(), 0, 1))
             rows_t.append({"ZONEID": z, "TIMESTAMP": s, "POWER": power})
             rows_p.append({"ZONEID": z, "TIMESTAMP": s, "VAR178": 1e6, "VAR169": 5e5,
                            "VAR78": 0, "VAR79": 0, "VAR134": 1e5, "VAR157": 50, "VAR164": 0.5,

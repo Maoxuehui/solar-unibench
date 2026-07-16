@@ -21,3 +21,7 @@ def test_gefcom_package_satisfies_contract(tmp_path):
     assert meta["dataset_source"].eq("gefcom2014").all()
     assert meta["geo_inferred"].all()  # all GEFCom coords are recovered
     assert ts["quality_flag"].isin([0, 1, 2, 3]).all()
+    # GEFCom is PV-only (no ground irradiance) → ghi_actual and clearness_index
+    # must be entirely NaN (Honest NaN), never fabricated night-zeros.
+    assert ts["ghi_actual"].isna().all()
+    assert ts["clearness_index"].isna().all()
