@@ -33,12 +33,18 @@ def test_real_skippd_sky(tmp_path):
     t0 = time.perf_counter()
     res = build_skippd_sky_zarr(src, out, limit=50)
     dt = time.perf_counter() - t0
-    arr = zarr.open(str(out), mode="r")["images"]
+    root = zarr.open(str(out), mode="r")
+    arr = root["images"]
     assert arr.shape == (res["n_frames"], 4, 256, 256)
     assert res["n_frames"] == 50
     assert arr.dtype.kind == "f"
+    # parallel timestamp index persists on real data
+    ts = root["images_timestamps"]
+    assert ts.shape[0] == arr.shape[0]
+    assert str(ts[0]).endswith("+00:00")  # ISO-8601 UTC
     print(f"\n[SKIPPD sky integration] frames={res['n_frames']} "
-          f"shape={arr.shape} build_seconds={dt:.1f}")
+          f"shape={arr.shape} ts_shape={ts.shape} ts0='{str(ts[0])}' "
+          f"build_seconds={dt:.1f}")
 
 
 @slow
@@ -52,12 +58,18 @@ def test_real_folsom_sky(tmp_path):
     t0 = time.perf_counter()
     res = build_folsom_sky_zarr([tar], out, limit=50)
     dt = time.perf_counter() - t0
-    arr = zarr.open(str(out), mode="r")["images"]
+    root = zarr.open(str(out), mode="r")
+    arr = root["images"]
     assert arr.shape[0] == 50
     assert arr.shape[1:] == (4, 256, 256)
     assert res["n_frames"] == 50
+    # parallel timestamp index persists on real data
+    ts = root["images_timestamps"]
+    assert ts.shape[0] == arr.shape[0]
+    assert str(ts[0]).endswith("+00:00")  # ISO-8601 UTC
     print(f"\n[Folsom sky integration] frames={res['n_frames']} "
-          f"shape={arr.shape} build_seconds={dt:.1f}")
+          f"shape={arr.shape} ts_shape={ts.shape} ts0='{str(ts[0])}' "
+          f"build_seconds={dt:.1f}")
 
 
 @slow
