@@ -46,6 +46,8 @@ def validate_time_series(df: pd.DataFrame) -> None:
     missing = [c for c in TS_COLUMNS if c not in df.columns]
     if missing:
         raise ContractError(f"time_series missing columns: {missing}")
+    if df.duplicated(subset=["timestamp_utc", "entity_id"]).any():
+        raise ContractError("time_series has duplicate (timestamp_utc, entity_id) keys")
     if "quality_flag" in df.columns:
         bad = set(df["quality_flag"].dropna().unique()) - VALID_QUALITY_FLAGS
         if bad:

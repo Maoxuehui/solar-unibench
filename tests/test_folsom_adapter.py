@@ -36,7 +36,8 @@ def test_folsom_loads_one_entity_utc_and_namespaces_nwp(tmp_path):
     assert df_ts["timestamp_utc"].dt.tz is not None  # UTC-aware
     assert {"ghi_actual", "dni_actual", "dhi_actual"} <= set(df_ts.columns)
     assert "pv_power_normalized" in df_ts.columns and df_ts["pv_power_normalized"].isna().all()
-    assert any(c.startswith("nwp_") for c in df_ts.columns)  # NAM namespaced
+    assert any(c.startswith("nwp_") for c in df_ts.columns)  # NAM forecast -> nwp_*
+    assert any(c.startswith("obs_") for c in df_ts.columns)  # ground weather -> obs_*
 
 
 def test_folsom_run_pipeline_pv_stays_all_nan_including_night(tmp_path):
