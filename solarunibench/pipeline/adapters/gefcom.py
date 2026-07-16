@@ -112,7 +112,6 @@ class GEFCom2014Pipeline(BaseSolarPipeline):
                 agree = (cs_hemi == tsr_hemi)
             else:
                 agree = None
-            mirror_resolved = has_mirror and tsr_hemi is not None
 
             def _nn(x):
                 return float("nan") if x is None else float(x)
@@ -146,7 +145,6 @@ class GEFCom2014Pipeline(BaseSolarPipeline):
                     "tsr_hemisphere": tsr_hemi,
                     "hemispheres_agree": agree,
                     "mirror_pair_count": len(mirror_pairs),
-                    "mirror_resolved_by_tsr": mirror_resolved,
                     "mirror_pairs": mirror_pairs,
                 },
             }

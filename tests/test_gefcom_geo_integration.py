@@ -59,7 +59,9 @@ def test_real_gefcom_recovers_three_zones_and_validates_tsr(tmp_path):
         # df_meta coord is the TSR coord when VAR178 is present.
         assert dis["coord_source"] == "tsr", f"{eid}: expected TSR coord when VAR178 present"
         agree_rows.append(dis["hemispheres_agree"])
-    # Report (non-load-bearing) -- hemisphere agreement should hold for real AUS zones.
+    # Report-only (non-load-bearing) diagnostic: on real cloudy PV, clear-sky often
+    # does NOT agree with TSR on hemisphere (clear-sky is unreliable on cloudy PV),
+    # so no agreement is asserted here -- this just prints the per-zone value.
     print("\n=== GEFCom hemisphere agreement (clear-sky-global vs TSR) ===")
     print("per-zone agree:", {eid: val[eid]["disambiguation"]["hemispheres_agree"] for eid in val})
 

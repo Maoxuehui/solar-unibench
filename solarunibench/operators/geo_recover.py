@@ -16,11 +16,7 @@ Three complementary methods ported/extended from the reference ``geo_location.py
   candidates and flags N/S mirror pairs (the inherent hemisphere ambiguity of
   clear-sky MSE on cloudy PV).
 
-* **Method 5 (legacy) -- ``recover_geo_pvlib``**: the original coarse single-best
-  pvlib grid search (5 deg step, returns one coord). Retained as a documented
-  baseline / cross-check; superseded for recovery by the global variant.
-
-Both clear-sky methods reuse :func:`_pvlib_clearsky_ghi`. The TSR method reuses the
+The clear-sky method reuses :func:`_pvlib_clearsky_ghi`. The TSR method reuses the
 pure solar-geometry helpers in :mod:`solarunibench.operators.solar_geometry`
 (``toa_daily_irradiation``, ``solar_noon_to_longitude``, ...). The simplified
 clear-sky match (Method 3) is retained in :mod:`solarunibench.operators.reverse_geolocate`
@@ -31,7 +27,7 @@ import numpy as np
 import pandas as pd
 from . import solar_geometry as sg
 
-__all__ = ["recover_geo_tsr", "recover_geo_pvlib", "recover_geo_clearsky_global"]
+__all__ = ["recover_geo_tsr", "recover_geo_clearsky_global"]
 
 
 # ==================================================================
@@ -153,7 +149,7 @@ def recover_geo_tsr(times: pd.DatetimeIndex, tsr_hourly: np.ndarray) -> dict:
 
 
 # ==================================================================
-# Method 5: pvlib Ineichen clear-sky grid search
+# Shared pvlib Ineichen clear-sky helper (used by the global method below)
 # ==================================================================
 
 def _pvlib_clearsky_ghi(times: pd.DatetimeIndex, lat: float, lon: float,
@@ -172,118 +168,6 @@ def _pvlib_clearsky_ghi(times: pd.DatetimeIndex, lat: float, lon: float,
     cs = pvlib.clearsky.ineichen(app_zen, am_abs, linke_turbidity=linke_turbidity,
                                  altitude=0.0)
     return cs["ghi"].to_numpy(dtype=float)
-
-
-def recover_geo_pvlib(times: pd.DatetimeIndex, power: np.ndarray, sample_size: int = 800,
-                      lat_grid=None, lon_grid=None, offsets=None) -> dict:
-    """Method 5: recover ``{latitude, longitude, details}`` via pvlib clear-sky match.
-
-    Samples POWER (uniform stride to ~``sample_size`` points), estimates a timezone
-    guess from the median sunrise UTC hour, then 2-D grid-searches (lat, lon)
-    minimizing peak-normalized MSE between POWER and the pvlib Ineichen clear-sky GHI.
-
-    Parameters
-    ----------
-    times : hourly UTC timestamps.
-    power : POWER (pv output, unit-less/normalized) aligned to ``times``.
-    sample_size : cap on the number of points used (uniform stride subsampling).
-    lat_grid / lon_grid : search grids. Defaults are coarse (5 deg step) so the
-        search finishes in reasonable time on real data.
-    offsets : vestigial in the reference (the offset loop did not alter the
-        clearsky computation); kept for API compatibility and reported in details.
-
-    Notes
-    -----
-    The reference ``infer_geo_from_pvlib`` looped over UTC offsets, but the offset
-    never entered the ``Location.get_clearsky`` call (the same UTC timestamps and
-    ``lon`` were used regardless), so it was a 5x no-op. We therefore run a single
-    2-D (lat, lon) pass -- mathematically identical, ~5x faster.
-    """
-    power = pd.Series(np.asarray(power, dtype=float), index=pd.DatetimeIndex(times)).sort_index()
-
-    # Uniform subsample to bound runtime (preserves seasonal coverage).
-    if len(power) > sample_size:
-        step = max(1, len(power) // sample_size)
-        power = power.iloc[::step][:sample_size]
-    times_s = power.index
-    pvals = power.to_numpy()
-    daytime = pvals > 0.01
-
-    # A clearsky-shape fit needs many daytime samples; short-circuit otherwise
-    # (also keeps tiny synthetic fixtures fast).
-    if int(daytime.sum()) < 50:
-        return {
-            "latitude": None, "longitude": None,
-            "details": {
-                "method": "pvlib clear-sky grid search",
-                "status": "skipped: insufficient daytime samples",
-                "n_daytime": int(daytime.sum()),
-                "sunrise_median_utc": float("nan"),
-                "sample_size": int(len(power)),
-            },
-        }
-
-    # Timezone guess from median sunrise hour (purely informational).
-    sunrise_hours = []
-    for _date, group in power.groupby(power.index.date):
-        day = group[group > 0.01]
-        if len(day) > 0:
-            sunrise_hours.append(day.index[0].hour + day.index[0].minute / 60.0)
-    sunrise_median = float(np.median(sunrise_hours)) if sunrise_hours else 12.0
-    tz_guess = 6.0 - sunrise_median
-
-    if lat_grid is None:
-        lat_grid = np.arange(-60, 61, 5.0)
-    if lon_grid is None:
-        lon_grid = np.arange(-180, 181, 5.0)
-    if offsets is None:
-        offsets = [tz_guess + d for d in (-2.0, -1.0, 0.0, 1.0, 2.0)]
-
-    best = None  # (mse, lat, lon, scale)
-    for lat in lat_grid:
-        lat = float(lat)
-        for lon in lon_grid:
-            lon = float(lon)
-            try:
-                cs_ghi = _pvlib_clearsky_ghi(times_s, lat, lon)
-            except Exception:
-                continue
-            mask = daytime & (cs_ghi > 1.0)
-            if mask.sum() < 50:
-                continue
-            scale = float(pvals[mask].max() / (cs_ghi[mask].max() + 1e-9))
-            mse = float(np.mean((pvals[mask] - cs_ghi[mask] * scale) ** 2))
-            if best is None or mse < best[0]:
-                best = (mse, lat, lon, scale)
-
-    if best is None:
-        return {
-            "latitude": None, "longitude": None,
-            "details": {
-                "method": "pvlib clear-sky grid search",
-                "status": "no valid solution",
-                "tz_offset_guess": tz_guess,
-                "sunrise_median_utc": sunrise_median,
-                "sample_size": int(len(power)),
-            },
-        }
-
-    mse, lat, lon, scale = best
-    return {
-        "latitude": float(lat),
-        "longitude": float(lon),
-        "details": {
-            "method": "pvlib clear-sky grid search",
-            "best_mse": mse,
-            "best_scale": scale,
-            "tz_offset_guess": tz_guess,
-            "best_offset": offsets[2] if len(offsets) == 5 else tz_guess,
-            "sunrise_median_utc": sunrise_median,
-            "sample_size": int(len(power)),
-            "lat_step": float(np.diff(lat_grid)[0]) if len(lat_grid) > 1 else 5.0,
-            "lon_step": float(np.diff(lon_grid)[0]) if len(lon_grid) > 1 else 5.0,
-        },
-    }
 
 
 # ==================================================================
@@ -345,8 +229,7 @@ def _detect_mirror_pairs(candidates, lat_tol: float = 5.0, lon_tol: float = 2.0)
 
 def recover_geo_clearsky_global(times: pd.DatetimeIndex, power: np.ndarray,
                                  sample_size: int = 2400, lat_grid=None, lon_grid=None,
-                                 offsets=None, top_n: int = 10,
-                                 random_state: int = 42) -> dict:
+                                 offsets=None, top_n: int = 10) -> dict:
     """Method 5 (global): DEFAULT clear-sky recovery with top-N + mirror detection.
 
     Faithful port of the reference ``infer_geo_from_pvlib`` (sunrise-median -> timezone
@@ -372,8 +255,6 @@ def recover_geo_clearsky_global(times: pd.DatetimeIndex, power: np.ndarray,
     offsets : vestigial in the reference (the offset loop never entered the
         ``get_clearsky`` call); kept for API compatibility and reported in details.
     top_n : number of best candidates to return.
-    random_state : accepted for API stability; currently unused because subsampling
-        is uniform-stride (not random).
 
     Returns
     -------
