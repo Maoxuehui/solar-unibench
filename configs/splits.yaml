@@ -12,7 +12,8 @@ sunlake:
   test_start: "2021-01-01"
   val_ratio: 0.1
 skippd:
-  strategy: predefined       # reuse official HF train/test; carve val from train (Phase 3)
+  strategy: temporal         # leak-free cutoff (official HF train/test temporally overlap)
+  test_start: "2019-01-01"
   val_ratio: 0.1
 spatial:                     # cross-domain leave-one-dataset-out (benchmark-level)
   folds:
