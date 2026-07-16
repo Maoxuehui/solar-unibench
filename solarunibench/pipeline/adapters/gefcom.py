@@ -1,17 +1,21 @@
 """GEFCom2014 adapter — Solar track only.
 
-Geo-recovery is performed with three methods and cross-validated against TSR
-(top-of-atmosphere radiation, pure geometry):
+Geo-recovery uses two **complementary** methods, selected by data availability:
 
-* **Primary** -- ``recover_geo_tsr`` (Method 1, analytical TSR/VAR178). Its lat/lon
-  populate ``df_meta`` (``geo_inferred=True``).
-* **Cross-check** -- ``recover_geo_pvlib`` (Method 5, pvlib clear-sky grid search
-  on POWER).
-* **Baseline** -- ``reverse_geolocate`` (Method 3, simplified clear-sky match),
-  retained for comparison.
+* **Default -- ``recover_geo_clearsky_global``** (Method 5 global, POWER only): pvlib
+  Ineichen clear-sky GHI on a global grid, gamma peak-normalized MSE. Returns the
+  top-N candidates and flags N/S mirror pairs (the inherent hemisphere ambiguity of
+  clear-sky MSE on cloudy PV). Always run (POWER is always present); it is the *only*
+  option when VAR178 is missing.
+* **Disambiguator -- ``recover_geo_tsr``** (Method 1, VAR178 analytical): precise,
+  no cloud interference, no gamma assumption. Run when ``VAR178`` is present. Its
+  coord populates ``df_meta`` and is used to **disambiguate** the clear-sky mirror
+  candidates (pick the hemisphere).
 
-``validate_with_tsr`` reports the R^2 of the primary coords against observed TSR.
-All three recoveries + the TSR validation are stashed on ``self._last_validation``.
+``reverse_geolocate`` (Method 3 simplified) is retained as a cheap baseline for the
+E1 comparison table. ``validate_with_tsr`` reports the R^2 of the chosen coords
+against observed TSR. All recoveries + disambiguation + TSR validation are stashed on
+``self._last_validation``.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -19,7 +23,7 @@ import numpy as np
 import pandas as pd
 from ..base import BaseSolarPipeline
 from ...operators.reverse_geolocate import reverse_geolocate
-from ...operators.geo_recover import recover_geo_tsr, recover_geo_pvlib
+from ...operators.geo_recover import recover_geo_tsr, recover_geo_clearsky_global
 from ...operators.tsr_validation import validate_with_tsr
 
 NWP_VARS = ["VAR78", "VAR79", "VAR134", "VAR157", "VAR164", "VAR165", "VAR166",
@@ -65,23 +69,50 @@ class GEFCom2014Pipeline(BaseSolarPipeline):
             times = pd.DatetimeIndex(g["timestamp_utc"])
             power = g["pv_power_normalized"].to_numpy(dtype=float)
             tsr = g["VAR178"].to_numpy(dtype=float) if "VAR178" in g else np.full(len(g), np.nan)
+            has_var178 = bool(np.isfinite(tsr).any())
 
-            # --- Primary recovery: TSR (VAR178) analytical ---
-            tsr_rec = recover_geo_tsr(times, tsr) if np.isfinite(tsr).any() else {
-                "latitude": None, "longitude": None, "details": {"method": "TSR (none: VAR178 missing)"}}
-            lat, lon = tsr_rec["latitude"], tsr_rec["longitude"]
+            # --- DEFAULT recovery: clear-sky global (POWER only) ---
+            cs_rec = recover_geo_clearsky_global(times, power)
+            cs_lat, cs_lon = cs_rec.get("latitude"), cs_rec.get("longitude")
+            mirror_pairs = cs_rec.get("details", {}).get("mirror_pairs", [])
+            has_mirror = bool(mirror_pairs)
 
-            # --- TSR validation of the primary coords (geometry self-consistency) ---
-            if lat is not None and lon is not None and np.isfinite(tsr).any():
+            # --- DISAMBIGUATOR: TSR (VAR178) analytical, when available ---
+            if has_var178:
+                tsr_rec = recover_geo_tsr(times, tsr)
+            else:
+                tsr_rec = {"latitude": None, "longitude": None,
+                           "details": {"method": "TSR (none: VAR178 missing)"}}
+            tsr_lat, tsr_lon = tsr_rec.get("latitude"), tsr_rec.get("longitude")
+
+            # --- Coord selection: TSR (precise) when available, else clear-sky best ---
+            # TSR also disambiguates the clear-sky N/S mirror candidates (picks hemisphere).
+            if tsr_lat is not None and tsr_lon is not None:
+                lat, lon = tsr_lat, tsr_lon
+                coord_source = "tsr"
+            else:
+                lat, lon = cs_lat, cs_lon  # may be None on tiny/empty fixtures
+                coord_source = "clearsky_global"
+
+            # --- TSR validation of the chosen coords (geometry self-consistency) ---
+            if lat is not None and lon is not None and has_var178:
                 val = validate_with_tsr(times, tsr, lat, lon)
             else:
                 val = {}
 
-            # --- Independent cross-check: pvlib clear-sky grid search on POWER ---
-            pvlib_rec = recover_geo_pvlib(times, power)
-
-            # --- Baseline: simplified clear-sky shape match (Method 3) ---
+            # --- Cheap Method-3 baseline (E1 comparison table) ---
             simple_rec = reverse_geolocate(times, power)
+
+            # --- Hemisphere agreement between clear-sky best and TSR ---
+            def _hemi(x):
+                return None if x is None else ("north" if float(x) >= 0 else "south")
+            cs_hemi = _hemi(cs_lat)
+            tsr_hemi = _hemi(tsr_lat)
+            if cs_hemi is not None and tsr_hemi is not None:
+                agree = (cs_hemi == tsr_hemi)
+            else:
+                agree = None
+            mirror_resolved = has_mirror and tsr_hemi is not None
 
             def _nn(x):
                 return float("nan") if x is None else float(x)
@@ -93,6 +124,8 @@ class GEFCom2014Pipeline(BaseSolarPipeline):
                 "local_timezone": "UTC", "surface_albedo": 0.2,
                 "capacity_kw": float("nan"), "slope": float("nan"), "azimuth": float("nan"),
                 "geo_inferred": True,
+                "geo_inferred_method": coord_source,
+                "clearsky_mirror_ambiguous": has_mirror and coord_source != "tsr",
             })
             nwp_present = [v for v in NWP_VARS if v in g.columns]
             for _, row in g.iterrows():
@@ -103,19 +136,28 @@ class GEFCom2014Pipeline(BaseSolarPipeline):
                 ts_rows.append(rec_row)
 
             self._last_validation[eid] = {
+                "clearsky_global": cs_rec,
                 "tsr_recovery": tsr_rec,
-                "pvlib_recovery": pvlib_rec,
                 "simplified_baseline": simple_rec,
                 "tsr_validation": val,
+                "disambiguation": {
+                    "coord_source": coord_source,
+                    "clearsky_best_hemisphere": cs_hemi,
+                    "tsr_hemisphere": tsr_hemi,
+                    "hemispheres_agree": agree,
+                    "mirror_pair_count": len(mirror_pairs),
+                    "mirror_resolved_by_tsr": mirror_resolved,
+                    "mirror_pairs": mirror_pairs,
+                },
             }
 
-            # One-line summary per zone.
-            pv = pvlib_rec.get("latitude"), pvlib_rec.get("longitude")
-            sb = simple_rec.get("latitude"), simple_rec.get("longitude")
-            r2 = val.get("r2_latitude", float("nan"))
-            print(f"[GEFCom {eid}] TSR=({_nn(lat):.2f},{_nn(lon):.2f}) "
-                  f"pvlib=({_nn(pv[0]):.2f},{_nn(pv[1]):.2f}) "
-                  f"simple=({_nn(sb[0]):.2f},{_nn(sb[1]):.2f}) tsr_r2_lat={r2:.3f}")
+            # One-line per-zone summary: clear-sky best, mirror flag, TSR coord, agreement.
+            agree_str = "NA" if agree is None else ("Y" if agree else "N")
+            mir_str = "Y" if has_mirror else "N"
+            print(f"[GEFCom {eid}] clearsky=({_nn(cs_lat):.1f},{_nn(cs_lon):.1f}) "
+                  f"mirror={mir_str} "
+                  f"tsr=({_nn(tsr_lat):.1f},{_nn(tsr_lon):.1f}) "
+                  f"agree={agree_str} -> meta=({_nn(lat):.1f},{_nn(lon):.1f})[{coord_source}]")
 
         df_meta = pd.DataFrame(meta_rows)
         df_ts = pd.DataFrame(ts_rows)
