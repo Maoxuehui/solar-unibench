@@ -28,9 +28,16 @@ def test_skippd_normalizes_pv_and_converts_pacific_to_utc(tmp_path):
                        output_dir=str(tmp_path / "out"), dataset_name="skippd")
     df_meta, df_ts = p.load_and_standardize_raw()
     assert df_ts["timestamp_utc"].dt.tz is not None
+    # Pacific -> UTC: the fixture's first stamp is 12:00 US/Pacific (summer DST,
+    # UTC-7), which must land at 19:00 UTC. Locks the tz conversion, not just
+    # tz-presence.
+    assert df_ts["timestamp_utc"].iloc[0].hour == 19
     # pv normalized to [0,1] by capacity 30.1
     assert df_ts["pv_power_normalized"].max() <= 1.0 + 1e-6
     assert df_ts["pv_power_normalized"].min() >= 0.0
+    # Pin the PV max value: fixture peaks at 29.0 raw / 30.1 capacity = 0.9634...
+    # (guards against both a wrong capacity constant and a missing normalization).
+    assert abs(df_ts["pv_power_normalized"].max() - 29.0 / 30.1) < 1e-6
     # ghi_actual absent (Honest NaN) — SKIPPD has no ground irradiance
     assert "ghi_actual" in df_ts.columns and df_ts["ghi_actual"].isna().all()
     # ERA5 namespaced
