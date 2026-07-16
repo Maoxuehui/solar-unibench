@@ -16,24 +16,13 @@ DATA_ROOT = os.environ.get("SOLAR_UNIBENCH_DATA_ROOT",
 slow = pytest.mark.skipif(not os.environ.get("RUN_SLOW"), reason="set RUN_SLOW=1")
 
 
-# Known gap (pre-existing, surfaced by this integration test): the real SKIPPD
-# GFS `time_forecast` column is object-dtype where each cell is a 2-element
-# datetime64 ndarray (forecast init time + lead-step index), NOT a scalar
-# tz-aware timestamp. The adapter's `pd.to_datetime(nwp[key]).dt.tz_convert(...)`
-# raises TypeError on it (Task 2 only exercised ERA5 on the synthetic fixture
-# and assumed GFS time_forecast was scalar US/Pacific). The correct join
-# semantics need the SKIPPD GFS schema; until the adapter is fixed this test
-# xfails. ERA5 parses cleanly and would satisfy the `nwp_` column assertion on
-# its own. Tracked as a Phase 3+ SKIPPD adapter hardening item.
-_skip_gfs_xfail = pytest.mark.xfail(
-    reason="SKIPPD adapter GFS time_forecast (object ndarray) not yet parsed; "
-           "ERA5-only path works. Pre-existing adapter gap, see test header.",
-    strict=False, raises=(TypeError, ValueError, KeyError),
-)
+# Previously xfailed: the real SKIPPD GFS `time_forecast` column is object-dtype
+# where each cell is a 2-element datetime64[us] ndarray (valid forecast time +
+# sentinel). The adapter now extracts [0] and localizes to UTC, so the GFS join
+# resolves on real data and this is a hard assertion.
 
 
 @slow
-@_skip_gfs_xfail
 def test_real_skippd_builds(tmp_path):
     p = SKIPPDPipeline(raw_data_dir=f"{DATA_ROOT}/SKIPPD_all",
                        output_dir=str(tmp_path), dataset_name="skippd")
@@ -46,5 +35,8 @@ def test_real_skippd_builds(tmp_path):
     assert pv.between(0.0, 1.0).all()  # normalized by capacity 30.1
     # at least one namespaced NWP column (ERA5 and/or GFS) is present
     assert any(c.startswith("nwp_") for c in ts.columns)
+    gfs_cols = [c for c in ts.columns if c.startswith("nwp_") and "radiation" in c.lower()]
     print(f"\n[SKIPPD integration] rows={len(ts)} entities={m['n_entities']} "
-          f"pv_max={pv.max():.4f} build_seconds={dt:.1f}")
+          f"pv_max={pv.max():.4f} build_seconds={dt:.1f} "
+          f"nwp_cols={sum(c.startswith('nwp_') for c in ts.columns)} "
+          f"gfs_radiation_cols={len(gfs_cols)}")
