@@ -50,4 +50,12 @@ class FolsomPipeline(BaseSolarPipeline):
         return df_meta, df_ts
 
     def process_and_save_tensors(self, df_ts: pd.DataFrame) -> None:
-        return None  # sky/satellite imagery is Phase 4
+        """Build the sky-image zarr (RGB+BRR, 256x256) from the Folsom tarballs.
+
+        Bounded by ``self.config.get("image_limit", 200)``. Streams every
+        ``Folsom_sky_images_*.tar.bz2`` in the raw dir; Folsom has no satellite.
+        """
+        from ...imaging.folsom_sky import build_folsom_sky_zarr
+        limit = self.config.get("image_limit", 200)
+        tar_paths = sorted(Path(self.raw_data_dir).glob("Folsom_sky_images_*.tar.bz2"))
+        build_folsom_sky_zarr(tar_paths, self.output_dir / "sky_images.zarr", limit=limit)

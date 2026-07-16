@@ -75,4 +75,16 @@ class SKIPPDPipeline(BaseSolarPipeline):
         return df_meta, df_ts
 
     def process_and_save_tensors(self, df_ts: pd.DataFrame) -> None:
-        return None  # sky images / satellite are Phase 4
+        """Build the sky-image zarr (RGB+BRR, 256x256) from SKIPPD_all/default.
+
+        Bounded by ``self.config.get("image_limit", 200)``. SKIPPD carries no
+        satellite modality in this snapshot, so no ``satellite_future.zarr`` is
+        written (honest absence).
+        """
+        from ...imaging.skippd_sky import build_skippd_sky_zarr
+        limit = self.config.get("image_limit", 200)
+        build_skippd_sky_zarr(
+            Path(self.raw_data_dir) / "default",
+            self.output_dir / "sky_images.zarr",
+            limit=limit,
+        )
