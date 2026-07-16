@@ -8,7 +8,7 @@ import pandas as pd
 import cv2
 from PIL import Image
 from ..operators.brr import generate_brr_channel
-from ..operators.zarr_io import SkyImageZarr
+from ..operators.zarr_io import SkyImageZarr, write_array
 
 
 def _decode(member_bytes, size=256):
@@ -33,13 +33,39 @@ def iter_folsom_sky_frames(tar_path, size=256):
             yield _ts_from_name(m.name), generate_brr_channel(_decode(data, size))
 
 
+def _to_utc_iso(ts) -> str:
+    """ISO-8601 UTC string from a tz-aware (or UTC-localizable) timestamp."""
+    t = pd.Timestamp(ts)
+    if t.tz is None:
+        t = t.tz_localize("UTC")
+    return t.tz_convert("UTC").isoformat()
+
+
 def build_folsom_sky_zarr(tar_paths, out_path, limit=500) -> dict:
+    """Stream Folsom sky tarballs into sky_images.zarr.
+
+    Writes two arrays into the store:
+      - ``images``           (N, 4, 256, 256) float32  (RGB+BRR cube, unchanged)
+      - ``images_timestamps`` (N,) <U25               (ISO-8601 UTC per frame)
+
+    The timestamp index is persisted now so Phase 5 cross-modal alignment does
+    not need to re-stream the 49 GB tarballs.
+    """
     store = SkyImageZarr(out_path, overwrite=True)
     n = 0
+    timestamps = []
+    done = False
     for tp in tar_paths:
-        for _ts, frame in iter_folsom_sky_frames(tp):
+        if done:
+            break
+        for ts, frame in iter_folsom_sky_frames(tp):
             store.append(frame)
+            timestamps.append(_to_utc_iso(ts))
             n += 1
             if limit and n >= limit:
-                return {"n_frames": n, "out_path": str(out_path)}
+                done = True
+                break
+    # Parallel timestamp index (ISO-8601 UTC strings). Additive write keeps the
+    # `images` cube untouched; one string per chunk for cheap per-frame reads.
+    write_array(out_path, "images_timestamps", np.array(timestamps), chunks=(1,))
     return {"n_frames": n, "out_path": str(out_path)}

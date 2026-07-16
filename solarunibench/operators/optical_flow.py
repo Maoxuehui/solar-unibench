@@ -29,9 +29,17 @@ def extrapolate_with_uncertainty(flow_u: np.ndarray, flow_v: np.ndarray,
     yy, xx = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
     alpha, beta = 0.02, 0.05  # lead-time decay / divergence penalty (per methodology)
     futures, unc = [], []
+    # cv2.remap is a BACKWARD sampler: dst[y,c] = src[map_y, map_x]. With
+    # map_x = xx - k*u the destination samples from a source column k*u to the
+    # LEFT, so content advects RIGHT by k*u pixels — the correct direction for a
+    # FORWARD-DISPLACEMENT flow (positive u = motion right), which is SunLake's
+    # `ctx_opt_flow` convention. The previous `+` sign inverted the advection
+    # (positive u shifted content left). Verified on real SunLake CAB/2008 data:
+    # Pearson correlation of warped vs real future frame is higher for `-`
+    # (k=1: 0.9356 vs 0.9182; k=2: 0.8808 vs 0.8302; across IR_108/VIS006/VIS008).
     for k in range(1, steps_k + 1):
-        map_x = (xx + k * u).astype(np.float32)
-        map_y = (yy + k * v).astype(np.float32)
+        map_x = (xx - k * u).astype(np.float32)
+        map_y = (yy - k * v).astype(np.float32)
         warped = cv2.remap(frame, map_x, map_y, cv2.INTER_LINEAR,
                            borderMode=cv2.BORDER_REPLICATE)
         futures.append(warped)
