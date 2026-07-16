@@ -7,6 +7,11 @@ from torch.utils.data import Dataset
 from .loader import SolarUniBenchLoader
 
 DEFAULT_FEATURES = ["ghi_clearsky", "cos_zenith", "clearness_index"]
+# Canonical timestamp string used to key the image index AND to format the TS
+# column. Both sides are routed through pd.Timestamp(...).strftime(TS_FMT) so a
+# match is robust to the adapter's "+00:00" (colon) ISO form vs strftime's
+# "+0000" (no colon) form, datetime64, or string inputs.
+TS_FMT = "%Y-%m-%dT%H:%M:%S%z"
 
 
 class SolarUniBenchDataset(Dataset):
@@ -34,15 +39,16 @@ class SolarUniBenchDataset(Dataset):
             img_ts = loader.get_image_timestamps(ds) if return_images else None
             cube = loader.get_tensor_cube(ds, "sky_images") if return_images else None
             self._img_cube[ds] = cube
-            self._img_index[ds] = ({str(t): i for i, t in enumerate(np.asarray(img_ts))}
-                                   if img_ts is not None else None)
+            self._img_index[ds] = (
+                {pd.Timestamp(str(t)).strftime(TS_FMT): i for i, t in enumerate(np.asarray(img_ts))}
+                if img_ts is not None else None)
             fmap = {}
             for eid, g in df.groupby("entity_id", sort=True):
                 g = g.sort_values(ts_col).reset_index(drop=True)
                 feat = g[self._all_feat].to_numpy(dtype=np.float32) if all(
                     c in g.columns for c in self._all_feat) else None
                 tgt = g[self.target].to_numpy(dtype=np.float32) if self.target in g.columns else None
-                tss = g[ts_col].dt.strftime("%Y-%m-%dT%H:%M:%S%z").to_numpy()
+                tss = g[ts_col].dt.strftime(TS_FMT).to_numpy()
                 fmap[eid] = (tss, feat, tgt)
                 n = len(g)
                 for start in range(0, n - lookback - horizon + 1, stride):
