@@ -44,10 +44,17 @@ def build_sunlake_satellite_zarr(hub_path: str, out_path, station="CAB", year="2
     import deeplake  # lazy
     ds = deeplake.load(hub_path)
     pfx = f"{year}_nonhrv"
-    ctx = ds[f"{pfx}/context/data"][0].numpy()        # (M, 11, 64, 64)
-    flow = ds[f"{pfx}/ctx_opt_flow/data"][0].numpy()  # (M, 22, 64, 64)
+    # SunLake hub `context/data` has shape (M, 11, 64, 64) where M = number of
+    # timesteps (~7926 for CAB/2008). Indexing `[0]` returns a SINGLE frame
+    # (11, 64, 64), not the series — read the whole tensor instead. When a bound
+    # is requested, slice the hub tensor directly so we never materialize the
+    # full ~7926-frame cube (deeplake supports python slicing on tensors).
     if limit_frames:
-        ctx = ctx[:limit_frames]; flow = flow[:limit_frames]
+        ctx = ds[f"{pfx}/context/data"][:limit_frames].numpy().astype(np.float32)
+        flow = ds[f"{pfx}/ctx_opt_flow/data"][:limit_frames].numpy().astype(np.float32)
+    else:
+        ctx = ds[f"{pfx}/context/data"].numpy().astype(np.float32)        # (M, 11, 64, 64)
+        flow = ds[f"{pfx}/ctx_opt_flow/data"].numpy().astype(np.float32)  # (M, 22, 64, 64)
     future, unc = extrapolate_context_series(ctx, flow, channels=list(range(ctx.shape[1])),
                                              steps_k=steps_k)
     out_path = Path(out_path)
