@@ -8,8 +8,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import yaml
 from solarunibench.pipeline.adapters.gefcom import GEFCom2014Pipeline
+from solarunibench.pipeline.adapters.folsom import FolsomPipeline
+from solarunibench.pipeline.adapters.skippd import SKIPPDPipeline
+from solarunibench.pipeline.adapters.sunlake import SunLakePipeline
 
-ADAPTERS = {"gefcom2014": GEFCom2014Pipeline}
+ADAPTERS = {
+    "gefcom2014": GEFCom2014Pipeline,
+    "folsom": FolsomPipeline,
+    "skippd": SKIPPDPipeline,
+    "sunlake": SunLakePipeline,
+}
+RAW_SUBDIRS = {
+    "gefcom2014": "GEFCom2014_data",
+    "folsom": "Folsom_data",
+    "skippd": "SKIPPD_all",
+    "sunlake": "SunLake_data",
+}
 
 
 def main(argv=None):
@@ -27,7 +41,7 @@ def main(argv=None):
 
     adapter_cls = ADAPTERS[args.dataset]
     # dataset-specific raw subdir
-    raw_dir = str(Path(data_root) / {"gefcom2014": "GEFCom2014_data"}.get(args.dataset, ""))
+    raw_dir = str(Path(data_root) / RAW_SUBDIRS[args.dataset])
     pipe = adapter_cls(raw_data_dir=raw_dir, output_dir=output_root, dataset_name=args.dataset)
     manifest = pipe.run_pipeline(raw=args.raw, limit=args.limit)
     print(json.dumps(manifest, indent=2))
