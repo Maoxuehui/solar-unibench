@@ -6,9 +6,17 @@ import pandas as pd
 def apply_quality_audit(df_ts: pd.DataFrame, capacity: float = 1.0) -> pd.DataFrame:
     df = df_ts.copy()
     eps = 1e-6
-    df["clearness_index"] = np.clip(
-        df.get("ghi_actual", np.nan) / (df.get("ghi_clearsky", np.nan) + eps), 0.0, 1.5
-    ).astype("float32")
+    # clearness_index = ghi_actual / ghi_clearsky, but ONLY when ghi_actual is
+    # meaningfully present. An object-dtype all-NA `ghi_actual` column (e.g. a
+    # PV-only dataset where the irradiance modality is filled with pd.NA) would
+    # crash the `.astype("float32")` on NAType — and a missing irradiance
+    # modality has no defined clearness anyway (Honest NaN). Guard the division.
+    if "ghi_actual" in df.columns and df["ghi_actual"].notna().any():
+        df["clearness_index"] = np.clip(
+            df["ghi_actual"] / (df.get("ghi_clearsky", np.nan) + eps), 0.0, 1.5
+        ).astype("float32")
+    else:
+        df["clearness_index"] = np.nan
 
     df["quality_flag"] = 0  # good
     night = df["cos_zenith"] <= 0

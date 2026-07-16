@@ -74,3 +74,20 @@ def test_present_modality_at_night_is_still_zeroed():
     out = quality.apply_quality_audit(df, capacity=1.0)
     assert out.loc[0, "pv_power_normalized"] == 0.0  # night zeroed
     assert out.loc[0, "quality_flag"] == 3
+
+
+def test_object_dtype_all_na_ghi_does_not_crash():
+    # An object-dtype all-NA `ghi_actual` column (a missing irradiance modality
+    # filled with pd.NA) must NOT crash the clearness-index computation. The
+    # unguarded `np.clip(...).astype("float32")` raised TypeError on NAType.
+    # Guarded path: clearness_index is all-NaN (Honest NaN for absent modality).
+    df = pd.DataFrame({
+        "cos_zenith": [-0.5, 0.5, 0.5],
+        "ghi_actual": pd.Series([pd.NA, pd.NA, pd.NA], dtype=object),  # object all-NA
+        "ghi_clearsky": [0.0, 800.0, 800.0],
+        "pv_power_normalized": [np.nan, np.nan, np.nan],
+    })
+    out = quality.apply_quality_audit(df, capacity=1.0)
+    assert "clearness_index" in out.columns
+    assert out["clearness_index"].isna().all()  # no crash, all-NaN result
+    assert out["ghi_actual"].isna().all()  # clamp skipped for missing modality
