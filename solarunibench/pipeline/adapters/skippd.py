@@ -33,7 +33,17 @@ class SKIPPDPipeline(BaseSolarPipeline):
             nwp = _read_split(root, cfg)
             if nwp.empty:
                 continue
-            nwp["timestamp_utc"] = pd.to_datetime(nwp[key]).dt.tz_convert("UTC")
+            if cfg == "ERA5":
+                # valid_time is a tz-aware scalar (US/Pacific) -> convert to UTC.
+                nwp["timestamp_utc"] = pd.to_datetime(nwp[key]).dt.tz_convert("UTC")
+            else:  # GFS: time_forecast is an object-dtype column of 2-element
+                # datetime64[us] ndarrays — first element is the valid forecast time
+                # (UTC-naive), second is a sentinel/placeholder (epoch+1us) to discard.
+                # pd.to_datetime on the raw arrays raises TypeError, so extract [0].
+                first = nwp[key].apply(
+                    lambda a: a[0] if hasattr(a, "__len__") and not isinstance(a, str) else a
+                )
+                nwp["timestamp_utc"] = pd.to_datetime(first, utc=False).dt.tz_localize("UTC")
             feat = [c for c in nwp.columns if c not in (key, "timestamp_utc", "latitude", "longitude")]
             nwp = nwp.rename(columns={c: f"nwp_{c}" for c in feat})
             df_ts = df_ts.merge(nwp[["timestamp_utc"] + [f"nwp_{c}" for c in feat]],
