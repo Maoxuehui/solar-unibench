@@ -35,8 +35,14 @@ def test_real_skippd_builds(tmp_path):
     assert pv.between(0.0, 1.0).all()  # normalized by capacity 30.1
     # at least one namespaced NWP column (ERA5 and/or GFS) is present
     assert any(c.startswith("nwp_") for c in ts.columns)
-    gfs_cols = [c for c in ts.columns if c.startswith("nwp_") and "radiation" in c.lower()]
+    # GFS-specific NWP columns must be present on real data — these variable
+    # names (downward_shortwave_radiation_flux, total_cloud_cover_entire_atmosphere)
+    # are GFS-only, so a GFS->ERA5-only regression would fail here.
+    gfs_cols = [c for c in ts.columns
+                if c.startswith("nwp_downward_shortwave_radiation_flux")
+                or c.startswith("nwp_total_cloud_cover_entire_atmosphere")]
+    assert len(gfs_cols) > 0, "GFS NWP columns missing — GFS join regressed"
     print(f"\n[SKIPPD integration] rows={len(ts)} entities={m['n_entities']} "
           f"pv_max={pv.max():.4f} build_seconds={dt:.1f} "
           f"nwp_cols={sum(c.startswith('nwp_') for c in ts.columns)} "
-          f"gfs_radiation_cols={len(gfs_cols)}")
+          f"gfs_cols={len(gfs_cols)}")
