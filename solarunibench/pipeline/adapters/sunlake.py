@@ -29,4 +29,19 @@ class SunLakePipeline(BaseSolarPipeline):
         return df_meta, df_ts
 
     def process_and_save_tensors(self, df_ts: pd.DataFrame) -> None:
-        return None  # satellite context/opt_flow is Phase 4
+        """Build the satellite future zarr (optical-flow extrapolation) from the
+        SunLake hub. Bounded by ``self.config.get("image_limit", 200)`` frames.
+
+        Imagery is pulled on-demand from ``hub://crossvivit/SunLake`` per build
+        (not materialized locally) using SunLake's precomputed ``ctx_opt_flow``.
+        """
+        from ...imaging.sunlake_satellite import build_sunlake_satellite_zarr
+        limit_frames = self.config.get("image_limit", 200)
+        build_sunlake_satellite_zarr(
+            "hub://crossvivit/SunLake",
+            self.output_dir,
+            station="CAB",
+            year="2008",
+            limit_frames=limit_frames,
+            steps_k=12,
+        )
