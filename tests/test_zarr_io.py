@@ -20,3 +20,12 @@ def test_write_array(tmp_path):
     arr = zarr.open(str(tmp_path / "x.zarr"), mode="r")["ctx"]
     assert arr.shape == (2, 3)
     np.testing.assert_array_equal(arr[:], data)
+
+
+def test_write_array_multiple_arrays_same_store(tmp_path):
+    p = tmp_path / "sat.zarr"
+    write_array(p, "context", np.zeros((2, 3), np.float32), chunks=(1, 3))
+    write_array(p, "future", np.ones((4, 2, 3), np.float32), chunks=(1, 1, 3))
+    root = zarr.open(str(p), mode="r")
+    assert "context" in root and "future" in root
+    assert root["context"].shape == (2, 3) and root["future"].shape == (4, 2, 3)

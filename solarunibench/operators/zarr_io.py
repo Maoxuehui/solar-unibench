@@ -35,5 +35,5 @@ class SkyImageZarr:
 def write_array(path, name: str, data: np.ndarray, chunks) -> None:
     path = Path(path)
     store = zarr.DirectoryStore(str(path))
-    root = zarr.group(store=store, overwrite=True)
-    root.array(name, data=np.asarray(data), chunks=chunks, overwrite=True)
+    root = zarr.open_group(store=store, mode="a")  # append/open: do NOT wipe existing arrays
+    root.array(name, data=np.asarray(data), chunks=chunks, overwrite=True)  # overwrite only THIS array
