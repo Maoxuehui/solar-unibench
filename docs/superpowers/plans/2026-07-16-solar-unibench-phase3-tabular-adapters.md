@@ -16,7 +16,7 @@
 - **UTC at ingest:** every timestamp normalized to `timestamp_utc` before leaving an adapter. Folsom `timeStamp` = **UTC-naive** (tz_localize UTC). SKIPPD `time` = **US/Pacific tz-aware** (tz_convert UTC). SunLake `time_utc` = **UTC** already.
 - **Honest NaN:** Folsom/SunLake have **no PV** (`pv_power_normalized` NaN); SKIPPD has **no ground irradiance** (`ghi_actual` NaN; ERA5 `ssrd` is NWP → `nwp_*`). The Phase 1+2 quality-audit guard ensures missing modalities stay NaN.
 - **Naming:** contract columns from `contract.py`; dataset NWP columns namespaced `nwp_*` (extras allowed by the validator).
-- **Coords are known** (geo_inferred=False): Folsom 38.67/−121.15/elev 100/tz America/Los_Angeles; SKIPPD 37.42/−122.17/tz America/Los_Angeles, capacity_kw=30.1; SunLake per-station (from `tensor_info.json`, see Task 5).
+- **Coords are known** (geo_inferred=False): Folsom 38.67/−121.15/elev 100/tz America/Los_Angeles; SKIPPD 37.42/−122.17/tz America/Los_Angeles, capacity_kw=30.1; SunLake per-station (from `tensor_info.json`, see Task 3).
 - **SunLake data:** pull tabular PCCI (GHI) only from `hub://crossvivit/SunLake` (public, read-only) — NOT the satellite imagery (that's Phase 4).
 
 ---
@@ -28,22 +28,22 @@ solar-unibench/
 ├── solarunibench/pipeline/adapters/
 │   ├── folsom.py          # Task 1
 │   ├── skippd.py          # Task 2
-│   └── sunlake.py         # Task 6
+│   └── sunlake.py         # Task 4
 ├── solarunibench/dataset_meta.py   # Task 1 — known per-dataset station metadata (coords/capacity)
 ├── scripts/
-│   ├── pull_sunlake_tabular.py     # Task 5 — hub → local parquet
-│   └── build_dataset.py            # Task 7 — extend ADAPTERS + RAW_SUBDIRS
+│   ├── pull_sunlake_tabular.py     # Task 3 — hub → local parquet
+│   └── build_dataset.py            # Task 5 — extend ADAPTERS + RAW_SUBDIRS
 └── tests/
     ├── test_folsom_adapter.py      # Task 1
     ├── test_skippd_adapter.py      # Task 2
-    ├── test_sunlake_pull.py        # Task 5
-    ├── test_sunlake_adapter.py     # Task 6
-    ├── test_folsom_contract.py     # Task 8
-    ├── test_skippd_contract.py     # Task 8
-    ├── test_sunlake_contract.py    # Task 8
-    ├── test_folsom_integration.py  # Task 8 (slow)
-    ├── test_skippd_integration.py  # Task 8 (slow)
-    └── test_sunlake_integration.py # Task 8 (slow)
+    ├── test_sunlake_pull.py        # Task 3
+    ├── test_sunlake_adapter.py     # Task 4
+    ├── test_folsom_contract.py     # Task 6
+    ├── test_skippd_contract.py     # Task 6
+    ├── test_sunlake_contract.py    # Task 6
+    ├── test_folsom_integration.py  # Task 6 (slow)
+    ├── test_skippd_integration.py  # Task 6 (slow)
+    └── test_sunlake_integration.py # Task 6 (slow)
 ```
 
 ---
@@ -326,11 +326,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 3–4: (reserved for SunLake pull + adapter — defined in Tasks 5–6 below)
-
----
-
-### Task 5: SunLake tabular pull from Activeloop hub
+### Task 3: SunLake tabular pull from Activeloop hub
 
 **Files:**
 - Create: `scripts/pull_sunlake_tabular.py`, `tests/test_sunlake_pull.py`
@@ -466,13 +462,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 6: SunLake adapter
+### Task 4: SunLake adapter
 
 **Files:**
 - Create: `solarunibench/pipeline/adapters/sunlake.py`, `tests/test_sunlake_adapter.py`
 
 **Interfaces:**
-- Consumes: `BaseSolarPipeline`, the pulled `sunlake_tabular.parquet` + `sunlake_stations.parquet` (Task 5).
+- Consumes: `BaseSolarPipeline`, the pulled `sunlake_tabular.parquet` + `sunlake_stations.parquet` (Task 3).
 - Produces: `SunLakePipeline(BaseSolarPipeline)`.
 
 - [ ] **Step 1: Write the failing test `tests/test_sunlake_adapter.py`**
@@ -557,7 +553,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 7: Wire all three adapters into `build_dataset.py`
+### Task 5: Wire all three adapters into `build_dataset.py`
 
 **Files:**
 - Modify: `scripts/build_dataset.py`
@@ -593,7 +589,7 @@ RAW_SUBDIRS = {
 
 And in `main`, replace the inline subdir lookup with: `raw_dir = str(Path(data_root) / RAW_SUBDIRS[args.dataset])`, and change `choices=sorted(ADAPTERS)` to `choices=sorted(ADAPTERS)` (unchanged, now 4 entries).
 
-- [ ] **Step 3: Verify** the CLI dispatches all four (no new test file needed — extend the existing `tests/test_build_dataset_cli.py` is optional; the per-adapter integration tests in Task 8 cover the CLI path). Smoke check:
+- [ ] **Step 3: Verify** the CLI dispatches all four (no new test file needed — extend the existing `tests/test_build_dataset_cli.py` is optional; the per-adapter integration tests in Task 6 cover the CLI path). Smoke check:
 
 Run: `conda run -n solar_uni python scripts/build_dataset.py --help`
 Expected: `--dataset` choices include `folsom, gefcom2014, skippd, sunlake`.
@@ -609,7 +605,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ---
 
-### Task 8: Contract conformance + real-data integration tests (all three)
+### Task 6: Contract conformance + real-data integration tests (all three)
 
 **Files:**
 - Create: `tests/test_folsom_contract.py`, `tests/test_skippd_contract.py`, `tests/test_sunlake_contract.py`, `tests/test_folsom_integration.py`, `tests/test_skippd_integration.py`, `tests/test_sunlake_integration.py`
@@ -661,7 +657,7 @@ def test_real_folsom_builds_and_splits(tmp_path):
     assert "ghi_clearsky" in ts.columns and ts["ghi_clearsky"].notna().any()
 ```
 
-Write analogous `test_skippd_integration.py` (assert `n_entities == 1`, pv normalized in [0,1], ERA5 cols present) and `test_sunlake_integration.py` (requires the Task-5 pull to have run; assert `n_entities == 6`, GHI present). For SunLake, the integration test should first call `pull_sunlake_tabular` if `sunlake_tabular.parquet` is absent — or skip with a clear message if the pull hasn't been done.
+Write analogous `test_skippd_integration.py` (assert `n_entities == 1`, pv normalized in [0,1], ERA5 cols present) and `test_sunlake_integration.py` (requires the Task-3 pull to have run; assert `n_entities == 6`, GHI present). For SunLake, the integration test should first call `pull_sunlake_tabular` if `sunlake_tabular.parquet` is absent — or skip with a clear message if the pull hasn't been done.
 
 - [ ] **Step 3: Update `configs/splits.yaml`** — change the `skippd` entry from `strategy: predefined` to a leak-free temporal split:
 ```yaml
@@ -692,11 +688,11 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - `conda run -n solar_uni python -m pytest -q` → all fast unit tests green.
 - `python scripts/pull_sunlake_tabular.py` writes `sunlake_tabular.parquet` (6 stations).
 - `python scripts/build_dataset.py --dataset {folsom,skippd,sunlake}` each writes a contract-conformant standardized package.
-- `python scripts/build_splits.py --dataset {folsom,skippd,sunlake}` stamps train/val/test (folsom 2016 / sunlake 2021 temporal; skippd changed to temporal `test_start: 2019-01-01` in Task 8 Step 2).
+- `python scripts/build_splits.py --dataset {folsom,skippd,sunlake}` stamps train/val/test (folsom 2016 / sunlake 2021 temporal; skippd changed to temporal `test_start: 2019-01-01` in Task 6 Step 3).
 - `RUN_SLOW=1` integration tests pass for folsom + skippd (sunlake after pull).
 
 ## Note: SKIPPD split strategy (decided)
-`configs/splits.yaml` currently sets SKIPPD `strategy: predefined`, but SKIPPD's official HF train/test split **temporally overlaps** (both span 2017–2019 — it tags specific days, not a clean cutoff), which is a leakage risk for a benchmark. For Phase 3 we use a **leak-free temporal split** instead: Task 8 Step 2 updates `configs/splits.yaml` to `skippd: {strategy: temporal, test_start: "2019-01-01", val_ratio: 0.1}`. (`make_splits` already implements `temporal`; no `predefined` work needed.) If the exact official split is later required, `predefined` can be implemented then — out of scope for Phase 3.
+`configs/splits.yaml` currently sets SKIPPD `strategy: predefined`, but SKIPPD's official HF train/test split **temporally overlaps** (both span 2017–2019 — it tags specific days, not a clean cutoff), which is a leakage risk for a benchmark. For Phase 3 we use a **leak-free temporal split** instead: Task 6 Step 3 updates `configs/splits.yaml` to `skippd: {strategy: temporal, test_start: "2019-01-01", val_ratio: 0.1}`. (`make_splits` already implements `temporal`; no `predefined` work needed.) If the exact official split is later required, `predefined` can be implemented then — out of scope for Phase 3.
 
 ## Next phases
 - **Phase 4:** zarr/image layer — Folsom sky images (BRR), SKIPPD sky images, SunLake/SKIPPD satellite optical-flow + uncertainty (requires full SunLake imagery pull).
