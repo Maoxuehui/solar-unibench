@@ -8,11 +8,13 @@ together.
 
 Design notes
 ------------
-* ``create_features`` produces four blocks per the Phase 6a contract:
-  ``X_past[n, lb, Fp]``, ``Y[n, horizon]``, ``times[n]`` and an optional future
-  context block ``X_future[n, horizon, Ff]`` (carries future ``ghi_clearsky`` /
-  ``cos_zenith`` so the physical Smart Persistence baseline and tabular models
-  share one interface). ``X_future`` is ``None`` when those columns are absent.
+* ``create_features`` produces five blocks per the Phase 6a + benchmark-integrity
+  contract: ``X_past[n, lb, Fp]``, ``Y[n, horizon]``, ``times[n]``, an optional
+  future context block ``X_future[n, horizon, Ff]`` (carries future
+  ``ghi_clearsky`` / ``cos_zenith`` so the physical Smart Persistence baseline
+  and tabular models share one interface), and an optional ``cos_zenith_issue``
+  per-sample array used by the daytime-window evaluator.
+  ``X_future``/``cos_zenith_issue`` are ``None`` when those columns are absent.
 * Windowing is entity-aware: rows are sorted by ``entity_id`` then
   ``timestamp_utc`` and grouped per entity, so a window never spans two entities.
 * A missing target column raises :class:`ValueError` (Honest NaN) rather than
@@ -34,6 +36,7 @@ import pandas as pd
 import yaml
 
 from ..loader import SolarUniBenchLoader
+from .scaling import PhysicalFeatureScaler
 
 # Repo-relative config path for the default ``output_root`` resolution.
 _PATHS_YAML = Path(__file__).resolve().parents[2] / "configs" / "paths.yaml"
@@ -76,17 +79,27 @@ class PipelineConfig:
 
 
 class FeatureEngineer(ABC):
-    """Transform a tabular frame into windowed (X_past, Y, times, X_future)."""
+    """Transform a tabular frame into windowed features for the pipeline.
+
+    Returns the 5-tuple ``(X_past, Y, times, X_future, cos_zenith_issue)``:
+
+    * ``X_past``  — ``(n, lb, Fp)`` past feature block (target first).
+    * ``Y``       — ``(n, horizon)`` target over the horizon.
+    * ``times``   — ``(n,)`` forecast-issue timestamps.
+    * ``X_future``— ``(n, horizon, Ff)`` future-context block when the future
+      columns are present, else ``None``.
+    * ``cos_zenith_issue`` — ``(n,)`` issue-time ``cos_zenith`` per sample when
+      ``cos_zenith`` is a column (used by the daytime-window evaluator), else
+      ``None``. Always ``None`` when ``cos_zenith`` is absent.
+    """
 
     @abstractmethod
     def create_features(
         self, df: pd.DataFrame, lookback: int, horizon: int, stride: int
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
-        """Return ``(X_past[n, lb, Fp], Y[n, horizon], times[n], X_future | None)``.
-
-        ``X_future`` has shape ``(n, horizon, Ff)`` when future-context columns
-        are available, otherwise ``None``.
-        """
+    ) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None
+    ]:
+        """Return ``(X_past, Y, times, X_future, cos_zenith_issue)`` — see class."""
         raise NotImplementedError
 
 
@@ -126,6 +139,9 @@ class EndogenousFeatureEngineer(FeatureEngineer):
     * ``Y`` is the target over the forecast horizon.
     * ``X_future`` stacks ``[ghi_clearsky, cos_zenith]`` across the horizon when
       both columns are present (else ``None``).
+    * ``cos_zenith_issue`` is the per-sample ``cos_zenith`` at the forecast-issue
+      timestamp when ``cos_zenith`` is a column (else ``None``); feeds the
+      daytime-window evaluator.
     """
 
     def __init__(self, target: str, feature_cols: list[str] | None = None):
@@ -134,7 +150,7 @@ class EndogenousFeatureEngineer(FeatureEngineer):
 
     def create_features(
         self, df: pd.DataFrame, lookback: int, horizon: int, stride: int = 1
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
         if lookback <= 0 or horizon <= 0 or stride <= 0:
             raise ValueError(
                 f"lookback, horizon, stride must be positive (got {lookback}, {horizon}, {stride})"
@@ -152,11 +168,15 @@ class EndogenousFeatureEngineer(FeatureEngineer):
         past_cols = [self.target] + [c for c in self.feature_cols if c in df.columns]
         have_future = all(c in df.columns for c in _FUTURE_COLS)
         future_cols = list(_FUTURE_COLS) if have_future else []
+        # Issue-time cos_zenith per sample feeds the daytime-window evaluator.
+        # None when cos_zenith is absent (graceful backward-compat).
+        have_cz = "cos_zenith" in df.columns
 
         xp_windows: list[np.ndarray] = []
         y_windows: list[np.ndarray] = []
         t_windows: list[np.ndarray] = []
         xf_windows: list[np.ndarray] = []
+        cz_windows: list[np.ndarray] = []
 
         df_sorted = df.sort_values(["entity_id", "timestamp_utc"], kind="mergesort")
         for _, g in df_sorted.groupby("entity_id", sort=False):
@@ -166,6 +186,7 @@ class EndogenousFeatureEngineer(FeatureEngineer):
             tgt = g[self.target].to_numpy(dtype=float)
             ts = _to_datetime64_ns(g["timestamp_utc"])
             fut = g[future_cols].to_numpy(dtype=float) if future_cols else None
+            cz_col = g["cos_zenith"].to_numpy(dtype=float) if have_cz else None
 
             last_start = n - lookback - horizon
             for start in range(0, last_start + 1, stride):
@@ -175,6 +196,10 @@ class EndogenousFeatureEngineer(FeatureEngineer):
                 t_windows.append(ts[start + lookback])  # forecast-issue time
                 if fut is not None:
                     xf_windows.append(fut[horizon_slice])
+                if cz_col is not None:
+                    # cos_zenith at the forecast-issue timestamp (aligned with
+                    # ``times``); last_start bounds guarantee index validity.
+                    cz_windows.append(cz_col[start + lookback])
 
         n_w = len(xp_windows)
         n_past_feat = len(past_cols)
@@ -197,7 +222,15 @@ class EndogenousFeatureEngineer(FeatureEngineer):
             )
         else:
             X_future = None
-        return X_past, Y, times, X_future
+        if have_cz:
+            cos_zenith_issue = (
+                np.stack(cz_windows, axis=0).astype(float)
+                if n_w
+                else np.empty((0,), dtype=float)
+            )
+        else:
+            cos_zenith_issue = None
+        return X_past, Y, times, X_future, cos_zenith_issue
 
 
 def _flatten_window_features(
@@ -231,17 +264,30 @@ def _to_datetime64_ns(series: pd.Series) -> np.ndarray:
 
 
 class SolarForecastPipeline:
-    """Load -> engineer -> fit -> predict harness for solar forecasting."""
+    """Load -> scale -> engineer -> fit -> predict harness for solar forecasting.
+
+    A :class:`PhysicalFeatureScaler` (default-on) is fit on the TRAIN frame
+    only and applied to both TRAIN and TEST frames BEFORE feature engineering
+    — this makes the irradiance ÷ 1500 physical-constant normalization and
+    the train-fit NWP z-scoring global across the pipeline, fixing the MLP
+    divergence caused by unscaled ``ghi_clearsky`` ∈ [0, ~1100] sitting next
+    to a target ∈ [0, 1]. Pass ``scaler=`` explicitly to ablate (e.g. a no-op
+    scaler recovers raw, unscaled features); pass ``None`` to use the default
+    :class:`PhysicalFeatureScaler`.
+    """
 
     def __init__(
         self,
         config: PipelineConfig,
         feature_engineer: FeatureEngineer,
         model: ForecastModel,
+        scaler: PhysicalFeatureScaler | None = None,
     ):
         self.config = config
         self.feature_engineer = feature_engineer
         self.model = model
+        # Default-on (fixes MLP); injectable for ablation (raw vs scaled).
+        self.scaler = scaler if scaler is not None else PhysicalFeatureScaler()
 
     def run(self, df_provider=None) -> dict:
         """Execute the pipeline and return ``{pred, y_true, times, model_name}``.
@@ -255,22 +301,42 @@ class SolarForecastPipeline:
         df_train = self._load_split(_TRAIN_SPLIT, df_provider)
         df_test = self._load_split(_TEST_SPLIT, df_provider)
 
+        # Global physical scaling on raw frames BEFORE feature engineering.
+        # Fit on TRAIN only (zero leakage) and apply the same stats to TEST.
+        # When the frame has no irradiance/NWP cols this is an exact no-op.
+        self.scaler.fit(df_train)
+        df_train = self.scaler.transform(df_train)
+        df_test = self.scaler.transform(df_test)
+
         lb = self.config.lookback
         hz = self.config.horizon
         st = self.config.stride
-        xp_tr, y_tr, t_tr, xf_tr = self.feature_engineer.create_features(df_train, lb, hz, st)
-        xp_te, y_te, t_te, xf_te = self.feature_engineer.create_features(df_test, lb, hz, st)
+        xp_tr, y_tr, t_tr, xf_tr, _ = self.feature_engineer.create_features(
+            df_train, lb, hz, st
+        )
+        xp_te, y_te, t_te, xf_te, cz_issue_te = self.feature_engineer.create_features(
+            df_test, lb, hz, st
+        )
 
         # Positional call so any conforming model works regardless of whether it
         # spells the future-context parameter ``X_future`` or ``Xf``.
         self.model.fit(xp_tr, y_tr, t_tr, xf_tr)
         pred = self.model.predict(xp_te, t_te, xf_te)
-        return {
+        result = {
             "pred": pred,
             "y_true": y_te,
             "times": t_te,
             "model_name": self.model.name,
         }
+
+        # Daytime-window anti-fraud metrics (cos_zenith > 0.05). Computed only
+        # when the feature engineer exposed an issue-time cos_zenith per test
+        # sample — graceful no-op otherwise (keeps legacy frames working).
+        if cz_issue_te is not None:
+            from .metrics import daytime_metrics
+
+            result["daytime"] = daytime_metrics(y_te, pred, cz_issue_te)
+        return result
 
     # -- internals ---------------------------------------------------------
 
