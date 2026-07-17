@@ -113,6 +113,52 @@ def test_real_sunlake_warp_direction():
     print(f"\n[SunLake warp direction] -={m_minus:.4f} += {m_plus:.4f}")
 
 
+@slow
+def test_real_sunlake_forward_splat_beats_remap():
+    """Real-data sanity: the authoritative forward-splat warp must correlate at least
+    as well with the real future frame as the naive cv2.remap(minus-sign) backward warp.
+
+    Locks the Phase 6b forward-splat revision (forward_warp) against regression vs the
+    previous backward-sample implementation. Multi-channel: IR_108, VIS006, VIS008.
+    """
+    import cv2
+    import deeplake
+    from solarunibench.operators.optical_flow import forward_warp
+
+    ds = deeplake.load("hub://crossvivit/SunLake")
+    ctx = ds["2008_nonhrv/context/data"][:8].numpy().astype(np.float32)
+    flow = ds["2008_nonhrv/ctx_opt_flow/data"][:8].numpy().astype(np.float32)
+    M, C, H, W = ctx.shape
+
+    def _remap(frame, u, v, k):
+        yy, xx = np.meshgrid(np.arange(H), np.arange(W), indexing="ij")
+        return cv2.remap(frame, (xx - k * u).astype(np.float32),
+                         (yy - k * v).astype(np.float32),
+                         cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+
+    def _pearson(a, b):
+        a = a.ravel().astype(np.float64); b = b.ravel().astype(np.float64)
+        a -= a.mean(); b -= b.mean()
+        na = np.linalg.norm(a); nb = np.linalg.norm(b)
+        return 0.0 if na == 0 or nb == 0 else float(np.dot(a, b) / (na * nb))
+
+    corr_splat, corr_remap = [], []
+    for ci in (4, 7, 8):  # IR_108, VIS006, VIS008
+        for t in range(M - 2):
+            real = ctx[t + 2, ci]
+            vx = flow[t + 1, 2 * ci]; vy = flow[t + 1, 2 * ci + 1]
+            base = ctx[t + 1, ci]
+            corr_splat.append(_pearson(forward_warp(base, vx, vy, k=1), real))
+            corr_remap.append(_pearson(_remap(base, vx, vy, 1), real))
+    m_splat = float(np.mean(corr_splat))
+    m_remap = float(np.mean(corr_remap))
+    assert m_splat >= m_remap - 1e-3, (
+        f"forward-splat should match/beat cv2.remap on real SunLake: "
+        f"splat={m_splat:.4f} remap={m_remap:.4f}"
+    )
+    print(f"\n[SunLake splat vs remap] splat={m_splat:.4f} remap={m_remap:.4f}")
+
+
 # ---------------------------------------------------------------------------
 # Phase 6b Task 1 — forward-splat revision (Step A: splat helper + meshgrid)
 # ---------------------------------------------------------------------------
@@ -167,12 +213,12 @@ def test_meshgrid_is_cached():
 # ---------------------------------------------------------------------------
 
 def test_forward_warp_advects_right_and_fills_disocclusion():
-    # forward_warp(frame, u, v, steps=1) must net-advect by 1*flow (right for u>0)
+    # forward_warp(frame, u, v, k=1) must net-advect by 1*flow (right for u>0)
     # and fill disocclusion holes (finite everywhere).
     from solarunibench.operators.optical_flow import forward_warp
     frame = np.zeros((32, 32), np.float32); frame[10:20, 10:18] = 1.0
     u = np.full((32, 32), 4.0, np.float32); v = np.zeros((32, 32), np.float32)
-    out = forward_warp(frame, u, v, steps=1)
+    out = forward_warp(frame, u, v, k=1)
     assert out.shape == (32, 32) and out.dtype == np.float32
     # net advection +4: bright square lands at cols 14:22
     assert out[10:20, 14:22].max() > 0.9
@@ -183,12 +229,12 @@ def test_forward_warp_advects_right_and_fills_disocclusion():
 
 
 def test_forward_warp_steps_scales_displacement():
-    # forward_warp(frame, u, v, steps=k) nets k*flow (one-shot / direct).
+    # forward_warp(frame, u, v, k) nets k*flow (one-shot / direct).
     from solarunibench.operators.optical_flow import forward_warp
     frame = np.zeros((32, 32), np.float32); frame[10:20, 8:16] = 1.0
     u = np.full((32, 32), 3.0, np.float32); v = np.zeros((32, 32), np.float32)
-    out1 = forward_warp(frame, u, v, steps=1)   # +3 -> cols 11:19
-    out2 = forward_warp(frame, u, v, steps=2)   # +6 -> cols 14:22
+    out1 = forward_warp(frame, u, v, k=1)   # +3 -> cols 11:19
+    out2 = forward_warp(frame, u, v, k=2)   # +6 -> cols 14:22
     assert out1[10:20, 11:19].max() > 0.9
     assert out2[10:20, 14:22].max() > 0.9
 
@@ -197,7 +243,7 @@ def test_forward_warp_negative_flow_advects_left():
     from solarunibench.operators.optical_flow import forward_warp
     frame = np.zeros((32, 32), np.float32); frame[10:20, 14:22] = 1.0
     u = np.full((32, 32), -2.0, np.float32); v = np.zeros((32, 32), np.float32)
-    out = forward_warp(frame, u, v, steps=1)    # -2 -> cols 12:20
+    out = forward_warp(frame, u, v, k=1)    # -2 -> cols 12:20
     assert out[10:20, 12:20].max() > 0.9
     assert np.all(np.isfinite(out))
 
@@ -207,8 +253,8 @@ def test_forward_warp_hole_fill_modes():
     from solarunibench.operators.optical_flow import forward_warp
     frame = np.zeros((32, 32), np.float32); frame[10:20, 10:18] = 1.0
     u = np.full((32, 32), 4.0, np.float32); v = np.zeros((32, 32), np.float32)
-    out_nearest = forward_warp(frame, u, v, steps=1, hole_fill="nearest")
-    out_inpaint = forward_warp(frame, u, v, steps=1, hole_fill="inpaint")
+    out_nearest = forward_warp(frame, u, v, k=1, hole_fill="nearest")
+    out_inpaint = forward_warp(frame, u, v, k=1, hole_fill="inpaint")
     assert np.all(np.isfinite(out_nearest)) and np.all(np.isfinite(out_inpaint))
     # square still advected to the same place under both fills
     assert out_nearest[10:20, 14:22].max() > 0.9
