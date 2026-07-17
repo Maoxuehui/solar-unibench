@@ -6,6 +6,11 @@ MAPE additionally guards against zero denominators. ``skill_vs_reference``
 follows the convention **0 = parity** with the reference forecast (e.g. Smart
 Persistence) and **positive = better than reference**.
 
+``daytime_metrics`` is the anti-fraud headline evaluator for solar forecasting:
+it scores only daytime samples (``cos_zenith > threshold``, default 0.05) so
+that nighttime rows (target ≈ prediction ≈ 0 → residual ≈ 0) cannot fraudulently
+deflate MAE/RMSE. The per-sample mask is broadcast over the forecast horizon.
+
 Shapes
 ------
 - Point metrics (``mae``/``rmse``/``mape``/``skill_vs_reference``): ``y_true`` and
@@ -15,6 +20,9 @@ Shapes
   convenience, a 2-D ``quantile_pred`` of shape ``(Q, horizon)`` (single sample,
   leading axis omitted) or ``(n, Q)`` (single-step horizon omitted) is also
   accepted and reshaped automatically.
+- ``daytime_metrics``: ``y_true``/``pred`` of shape ``(n,)`` or ``(n, horizon)``
+  with a per-sample ``cos_zenith`` of shape ``(n,)`` (or ``(n, horizon)`` — the
+  first horizon step is taken as the issue-time label).
 """
 from __future__ import annotations
 
@@ -27,6 +35,7 @@ __all__ = [
     "skill_vs_reference",
     "pinball_loss",
     "crps",
+    "daytime_metrics",
 ]
 
 
@@ -185,3 +194,103 @@ def crps(y_true, quantile_pred, quantiles) -> float:
     if not mask.any():
         return float("nan")
     return float(integrand[mask].mean())
+
+
+# ---------------------------------------------------------------------------
+# Daytime-window evaluator (anti-fraud headline metric for solar forecasting)
+# ---------------------------------------------------------------------------
+# Solar-forecasting eval discipline: score only DAYTIME samples (sun above the
+# horizon, away from horizon noise) so that nighttime rows — where both target
+# and prediction are ≈ 0 and the residual is therefore ≈ 0 — cannot fraudulently
+# deflate MAE/RMSE. The user's threshold is ``cos_zenith > 0.05``.
+
+_DAYTIME_DEFAULT_THRESHOLD = 0.05
+
+
+def _per_sample_cos_zenith(cos_zenith, n: int) -> np.ndarray:
+    """Coerce ``cos_zenith`` to a 1-D per-sample array of length ``n``.
+
+    Accepts either:
+
+    * a 1-D array of length ``n`` (one issue-time cos_zenith per sample), or
+    * a 2-D array of shape ``(n, H)`` (e.g. the ``X_future`` cos_zenith channel
+      across the horizon) — the issue-time (first horizon step) column is used
+      to derive an unambiguous per-sample daytime label.
+    """
+    cz = np.asarray(cos_zenith, dtype=float)
+    if cz.ndim == 2:
+        cz = cz[:, 0]
+    if cz.shape != (n,):
+        raise ValueError(
+            f"cos_zenith must be per-sample of shape ({n},) or (n, H); got {cz.shape}"
+        )
+    return cz
+
+
+def daytime_metrics(
+    y_true,
+    y_pred,
+    cos_zenith,
+    threshold: float = _DAYTIME_DEFAULT_THRESHOLD,
+    reference=None,
+) -> dict:
+    """Daytime-windowed MAE/RMSE/skill (``cos_zenith > threshold`` anti-fraud filter).
+
+    Standard solar-forecasting evaluation discipline: score only daytime samples
+    so that nighttime rows (target ≈ 0, prediction ≈ 0 → residual ≈ 0) cannot
+    fraudulently deflate MAE/RMSE. The mask is computed per-sample from the
+    issue-time ``cos_zenith`` and **broadcast over the full forecast horizon** —
+    a sample is either entirely scored (daytime) or entirely dropped (nighttime).
+
+    Parameters
+    ----------
+    y_true, y_pred : array-like, shape ``(n,)`` or ``(n, horizon)``
+        Ground truth and prediction. NaN-safe (NaNs are masked out, not
+        counted) via :func:`mae`/:func:`rmse`.
+    cos_zenith : array-like, shape ``(n,)`` or ``(n, horizon)``
+        Issue-time solar-zenith cosine per sample. A 2-D array is collapsed to
+        per-sample via its first horizon column.
+    threshold : float, default 0.05
+        Sample is *daytime* when ``cos_zenith > threshold``.
+    reference : array-like, optional
+        Same shape as ``y_pred``. If given, a ``Daytime_skill`` entry is
+        computed via :func:`skill_vs_reference` on the daytime-masked arrays
+        (sign: 0 = parity, positive = better than reference); otherwise the
+        key is omitted.
+
+    Returns
+    -------
+    dict
+        ``Daytime_MAE``, ``Daytime_RMSE``, ``n_daytime``, ``n_total``, and
+        ``Daytime_skill`` only when ``reference`` is provided. MAE/RMSE are
+        ``nan`` if no daytime samples survive.
+    """
+    y = np.asarray(y_true, dtype=float)
+    p = np.asarray(y_pred, dtype=float)
+    if y.ndim == 1:
+        y = y[:, None]
+    if p.ndim == 1:
+        p = p[:, None]
+    n = y.shape[0]
+    cz_per_sample = _per_sample_cos_zenith(cos_zenith, n)
+
+    day_mask = (cz_per_sample > threshold) & np.isfinite(cz_per_sample)  # (n,)
+    n_daytime = int(day_mask.sum())
+
+    y_day = y[day_mask]
+    p_day = p[day_mask]
+
+    out = {
+        "Daytime_MAE": mae(y_day, p_day),
+        "Daytime_RMSE": rmse(y_day, p_day),
+        "n_daytime": n_daytime,
+        "n_total": int(n),
+    }
+
+    if reference is not None:
+        r = np.asarray(reference, dtype=float)
+        if r.ndim == 1:
+            r = r[:, None]
+        out["Daytime_skill"] = skill_vs_reference(y_day, p_day, r[day_mask])
+
+    return out
