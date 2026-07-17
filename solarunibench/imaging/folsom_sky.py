@@ -5,17 +5,15 @@ import tarfile
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import cv2
 from PIL import Image
 from ..operators.brr import generate_brr_channel
 from ..operators.zarr_io import SkyImageZarr, write_array
+from .resize import downsample_if_larger
 
 
 def _decode(member_bytes, size=256):
     arr = np.array(Image.open(io.BytesIO(member_bytes)).convert("RGB"))
-    if arr.shape[:2] != (size, size):
-        arr = cv2.resize(arr, (size, size), interpolation=cv2.INTER_AREA)
-    return arr
+    return downsample_if_larger(arr, size)
 
 
 def _ts_from_name(name: str):
@@ -45,7 +43,8 @@ def build_folsom_sky_zarr(tar_paths, out_path, limit=500) -> dict:
     """Stream Folsom sky tarballs into sky_images.zarr.
 
     Writes two arrays into the store:
-      - ``images``           (N, 4, 256, 256) float32  (RGB+BRR cube, unchanged)
+      - ``images``           (N, 4, H, W) uint8  (RGB+BRR cube; H,W per resolution
+                            policy — native if <=256 else downsampled to 256)
       - ``images_timestamps`` (N,) <U25               (ISO-8601 UTC per frame)
 
     The timestamp index is persisted now so Phase 5 cross-modal alignment does

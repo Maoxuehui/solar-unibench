@@ -27,8 +27,8 @@ def test_build_skippd_sky_zarr(tmp_path):
     root = zarr.open(str(out), mode="r")
     arr = root["images"]
     assert arr.shape[0] == 4  # 3 train + 1 test (capped at limit=4)
-    assert arr.shape[1:] == (4, 256, 256)
-    assert arr.dtype == np.float32
+    assert arr.shape[1:] == (4, 64, 64)  # 64x64 fixture <= 256 -> kept as-is
+    assert arr.dtype == np.uint8
     assert res["n_frames"] == arr.shape[0]
 
 
