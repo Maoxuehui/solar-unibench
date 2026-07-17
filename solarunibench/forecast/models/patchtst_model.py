@@ -35,13 +35,12 @@ Design notes
 """
 from __future__ import annotations
 
-import random
-
 import numpy as np
 import torch
 from torch import nn
 
 from ..core import ForecastModel
+from ._torch_base import TorchForecastMixin, fit_loop
 
 # Valid tokenization variants. ``patchtst`` patches along lookback; ``vanilla``
 # treats each lookback step as a token (no patching — a plain TS-Transformer).
@@ -124,7 +123,7 @@ class _PatchTSTNet(nn.Module):
         return self.head(pooled)  # (n, horizon)
 
 
-class PatchTSTModel(ForecastModel):
+class PatchTSTModel(TorchForecastMixin, ForecastModel):
     """PatchTST-style channel-independent Transformer forecaster.
 
     Parameters
@@ -208,10 +207,12 @@ class PatchTSTModel(ForecastModel):
         Y: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> None:
         """Train the PatchTST encoder + linear head with Adam + MAE (L1) loss.
 
-        ``times`` / ``X_future`` are accepted only to honor the
+        ``times`` / ``X_future`` / ``images`` are accepted only to honor the
         :class:`ForecastModel` signature; the transformer consumes the
         ``X_past`` sequence alone.
         """
@@ -250,23 +251,20 @@ class PatchTSTModel(ForecastModel):
             dropout=self.dropout,
             variant=self.variant,
         ).to(self.device)
-        optimizer = torch.optim.Adam(self._net.parameters(), lr=self.lr)
         loss_fn = nn.L1Loss()  # MAE — robust, matches the Phase 6b spec.
 
         Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
         Yt = torch.from_numpy(Y).to(self.device)
 
-        self._net.train()
-        idx = np.arange(n)
-        for _ in range(self.epochs):
-            np.random.shuffle(idx)
-            for start in range(0, n, self.batch_size):
-                batch = idx[start : start + self.batch_size]
-                optimizer.zero_grad()
-                pred = self._net(Xt[batch])
-                loss = loss_fn(pred, Yt[batch])
-                loss.backward()
-                optimizer.step()
+        fit_loop(
+            self._net,
+            Xt,
+            Yt,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            lr=self.lr,
+            loss_fn=loss_fn,
+        )
         return None
 
     def predict(
@@ -274,6 +272,8 @@ class PatchTSTModel(ForecastModel):
         X_past: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> np.ndarray:
         """Return predictions of shape ``(n, horizon)`` as float32 numpy."""
         if self._net is None:
@@ -287,27 +287,3 @@ class PatchTSTModel(ForecastModel):
         with torch.no_grad():
             pred = self._net(Xt).cpu().numpy().astype(np.float32)
         return pred
-
-    # -- internals -----------------------------------------------------------
-
-    @staticmethod
-    def _resolve_device(device: str | torch.device | None) -> torch.device:
-        if device is not None:
-            return torch.device(device)
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    @staticmethod
-    def _seed(seed: int) -> None:
-        """Seed Python/NumPy/Torch and force cuDNN into deterministic mode."""
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-
-    @staticmethod
-    def _sanitize(t: torch.Tensor) -> torch.Tensor:
-        """Replace NaN/inf lookback features with 0 (Honest NaN imputation)."""
-        return torch.nan_to_num(t, nan=0.0, posinf=0.0, neginf=0.0)
