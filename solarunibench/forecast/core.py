@@ -34,6 +34,7 @@ import pandas as pd
 import yaml
 
 from ..loader import SolarUniBenchLoader
+from .scaling import PhysicalFeatureScaler
 
 # Repo-relative config path for the default ``output_root`` resolution.
 _PATHS_YAML = Path(__file__).resolve().parents[2] / "configs" / "paths.yaml"
@@ -231,17 +232,30 @@ def _to_datetime64_ns(series: pd.Series) -> np.ndarray:
 
 
 class SolarForecastPipeline:
-    """Load -> engineer -> fit -> predict harness for solar forecasting."""
+    """Load -> scale -> engineer -> fit -> predict harness for solar forecasting.
+
+    A :class:`PhysicalFeatureScaler` (default-on) is fit on the TRAIN frame
+    only and applied to both TRAIN and TEST frames BEFORE feature engineering
+    — this makes the irradiance ÷ 1500 physical-constant normalization and
+    the train-fit NWP z-scoring global across the pipeline, fixing the MLP
+    divergence caused by unscaled ``ghi_clearsky`` ∈ [0, ~1100] sitting next
+    to a target ∈ [0, 1]. Pass ``scaler=`` explicitly to ablate (e.g. a no-op
+    scaler recovers raw, unscaled features); pass ``None`` to use the default
+    :class:`PhysicalFeatureScaler`.
+    """
 
     def __init__(
         self,
         config: PipelineConfig,
         feature_engineer: FeatureEngineer,
         model: ForecastModel,
+        scaler: PhysicalFeatureScaler | None = None,
     ):
         self.config = config
         self.feature_engineer = feature_engineer
         self.model = model
+        # Default-on (fixes MLP); injectable for ablation (raw vs scaled).
+        self.scaler = scaler if scaler is not None else PhysicalFeatureScaler()
 
     def run(self, df_provider=None) -> dict:
         """Execute the pipeline and return ``{pred, y_true, times, model_name}``.
@@ -254,6 +268,13 @@ class SolarForecastPipeline:
         """
         df_train = self._load_split(_TRAIN_SPLIT, df_provider)
         df_test = self._load_split(_TEST_SPLIT, df_provider)
+
+        # Global physical scaling on raw frames BEFORE feature engineering.
+        # Fit on TRAIN only (zero leakage) and apply the same stats to TEST.
+        # When the frame has no irradiance/NWP cols this is an exact no-op.
+        self.scaler.fit(df_train)
+        df_train = self.scaler.transform(df_train)
+        df_test = self.scaler.transform(df_test)
 
         lb = self.config.lookback
         hz = self.config.horizon
