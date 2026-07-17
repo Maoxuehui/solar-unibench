@@ -34,29 +34,56 @@ TASKS = list(range(1, 16))
 class GEFCom2014Pipeline(BaseSolarPipeline):
     def load_and_standardize_raw(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         solar = Path(self.raw_data_dir) / "Solar"
-        frames = []
-        for t in TASKS:
-            tdir = solar / f"Task {t}"
-            train = tdir / f"train{t}.csv"
-            pred = tdir / f"predictors{t}.csv"
-            if not train.exists() and not pred.exists():
-                continue
-            parts = []
-            if train.exists():
-                parts.append(pd.read_csv(train))
-            if pred.exists():
-                pp = pd.read_csv(pred)
-                if "POWER" in pp.columns and train.exists():
-                    pp = pp.drop(columns=["POWER"])
-                parts.append(pp)
-            df = parts[0] if len(parts) == 1 else parts[0].merge(parts[1], on=["ZONEID", "TIMESTAMP"], how="outer")
-            frames.append(df)
-        # Append the held-out solution target rows (POWER truth) for Task 15
+
+        # --- POWER series: all train{t}, dedup keep LAST (train15 is the superset of
+        # every prior train task). Then Solution.combine_first(train) so the
+        # 2014-06 blind-period real POWER overrides train's NaN rows. This is the
+        # fix for the benchmark-integrity bug where the old per-task concat +
+        # drop_duplicates(keep="first") let the predictors/NaN row precede (and
+        # silently evict) the Solution truth for the blind period.
+        pow_frames = [pd.read_csv(solar / f"Task {t}" / f"train{t}.csv") for t in TASKS
+                      if (solar / f"Task {t}" / f"train{t}.csv").exists()]
+        if pow_frames:
+            train_pow = (pd.concat(pow_frames, ignore_index=True)
+                         .drop_duplicates(subset=["ZONEID", "TIMESTAMP"], keep="last")
+                         .set_index(["ZONEID", "TIMESTAMP"]))
+        else:
+            train_pow = pd.DataFrame(columns=["POWER"]).set_index(["ZONEID", "TIMESTAMP"])
+            train_pow["POWER"] = pd.Series(dtype=float)
         sol = solar / "Solution to Task 15" / "Solution to Task 15.csv"
         if sol.exists():
-            frames.append(pd.read_csv(sol))
-        raw = pd.concat(frames, ignore_index=True)
-        raw = raw.drop_duplicates(subset=["ZONEID", "TIMESTAMP"]).sort_values(["ZONEID", "TIMESTAMP"])
+            sol_df = pd.read_csv(sol).set_index(["ZONEID", "TIMESTAMP"])
+            # Solution wins where its POWER is non-null; train fills the rest.
+            power = sol_df.combine_first(train_pow).reset_index()
+        else:
+            power = train_pow.reset_index()
+
+        # --- NWP series: all predictors{t} (drop any POWER col), dedup keep LAST
+        # (predictors15 is the superset of every prior predictors task).
+        nwp_frames = []
+        for t in TASKS:
+            p = solar / f"Task {t}" / f"predictors{t}.csv"
+            if p.exists():
+                pp = pd.read_csv(p)
+                if "POWER" in pp.columns:
+                    pp = pp.drop(columns=["POWER"])
+                nwp_frames.append(pp)
+        if nwp_frames:
+            nwp = (pd.concat(nwp_frames, ignore_index=True)
+                   .drop_duplicates(subset=["ZONEID", "TIMESTAMP"], keep="last"))
+        else:
+            nwp = pd.DataFrame(columns=["ZONEID", "TIMESTAMP"])
+
+        raw = (power.merge(nwp, on=["ZONEID", "TIMESTAMP"], how="outer")
+                   .sort_values(["ZONEID", "TIMESTAMP"]).reset_index(drop=True))
+
+        # Audit print (benchmark-integrity): confirm the 2014-06 blind period
+        # POWER was revived (previously lost to dedup-keep-first).
+        _jun = raw[(raw["TIMESTAMP"] >= "20140601 00:00") & (raw["TIMESTAMP"] < "20140701 00:00")]
+        if len(_jun):
+            print(f"[GEFCom fix audit] 2014-06 rows={len(_jun)} "
+                  f"POWER non-null={int(_jun['POWER'].notna().sum())} "
+                  f"max={float(_jun['POWER'].max()):.4f}")
 
         raw["timestamp_utc"] = pd.to_datetime(raw["TIMESTAMP"], format="%Y%m%d %H:%M", utc=True)
         raw = raw.rename(columns={"ZONEID": "zone", "POWER": "pv_power_normalized"})
