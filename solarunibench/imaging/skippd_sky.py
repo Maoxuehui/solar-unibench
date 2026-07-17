@@ -1,21 +1,19 @@
-"""SKIPPD sky-image -> sky_images.zarr (RGB+BRR, 256x256). Reads default/{train,test} parquet."""
+"""SKIPPD sky-image -> sky_images.zarr (RGB+BRR, native-or-256). Reads default/{train,test} parquet."""
 from __future__ import annotations
 from pathlib import Path
 import io
 import numpy as np
 import pandas as pd
-import cv2
 from PIL import Image
 from ..operators.brr import generate_brr_channel
 from ..operators.zarr_io import SkyImageZarr, write_array
+from .resize import downsample_if_larger
 
 
 def _decode_resize(img_entry, size=256):
     buf = io.BytesIO(img_entry["bytes"])
     arr = np.array(Image.open(buf).convert("RGB"))
-    if arr.shape[:2] != (size, size):
-        arr = cv2.resize(arr, (size, size), interpolation=cv2.INTER_AREA)
-    return arr
+    return downsample_if_larger(arr, size)
 
 
 def _to_utc_iso(ts) -> str:
@@ -31,7 +29,8 @@ def build_skippd_sky_zarr(parquet_dir, out_path, limit=500) -> dict:
     """Stream SKIPPD sky-image parquets into sky_images.zarr.
 
     Writes two arrays into the store:
-      - ``images``           (N, 4, 256, 256) float32  (RGB+BRR cube, unchanged)
+      - ``images``           (N, 4, H, W) uint8  (RGB+BRR cube; H,W per resolution
+                            policy — native if <=256 else downsampled to 256)
       - ``images_timestamps`` (N,) <U25               (ISO-8601 UTC per frame)
 
     The SKIPPD `time` column is US/Pacific tz-aware; it is converted to UTC and

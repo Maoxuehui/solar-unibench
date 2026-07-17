@@ -35,6 +35,11 @@ class SolarUniBenchDataset(Dataset):
             df = loader.load_tabular(ds, split=split)
             if df.empty:
                 continue
+            missing = [c for c in self._all_feat if c not in df.columns]
+            if missing:
+                raise ValueError(
+                    f"[{ds}] cannot window: missing required column(s) {missing}. "
+                    f"target='{self.target}', features={self._all_feat}.")
             ts_col = "timestamp_utc"
             img_ts = loader.get_image_timestamps(ds) if return_images else None
             cube = loader.get_tensor_cube(ds, "sky_images") if return_images else None
@@ -45,9 +50,8 @@ class SolarUniBenchDataset(Dataset):
             fmap = {}
             for eid, g in df.groupby("entity_id", sort=True):
                 g = g.sort_values(ts_col).reset_index(drop=True)
-                feat = g[self._all_feat].to_numpy(dtype=np.float32) if all(
-                    c in g.columns for c in self._all_feat) else None
-                tgt = g[self.target].to_numpy(dtype=np.float32) if self.target in g.columns else None
+                feat = g[self._all_feat].to_numpy(dtype=np.float32)
+                tgt = g[self.target].to_numpy(dtype=np.float32)
                 tss = g[ts_col].dt.strftime(TS_FMT).to_numpy()
                 fmap[eid] = (tss, feat, tgt)
                 n = len(g)
@@ -69,10 +73,13 @@ class SolarUniBenchDataset(Dataset):
             "dataset": ds,
             "image": None,
         }
-        if self.return_images and self._img_index[ds] is not None:
+        if (self.return_images and self._img_index[ds] is not None
+                and self._img_cube[ds] is not None):
             cube = self._img_cube[ds]
             idx = self._img_index[ds]
             rows = [idx.get(str(t)) for t in tss[lb]]
             if all(r is not None for r in rows) and len(rows) == self.lookback:
-                sample["image"] = torch.from_numpy(np.stack([cube[r] for r in rows]).astype(np.float32))
+                from .imaging.load import load_sky_frame
+                dec = np.stack([load_sky_frame(cube, r) for r in rows])
+                sample["image"] = torch.from_numpy(dec.astype(np.float32))
         return sample
