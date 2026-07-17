@@ -6,6 +6,7 @@ from .core import (
     EndogenousFeatureEngineer,
     SolarForecastPipeline,
 )
+from .scaling import PhysicalFeatureScaler
 
 __all__ = [
     "PipelineConfig",
@@ -13,4 +14,5 @@ __all__ = [
     "ForecastModel",
     "EndogenousFeatureEngineer",
     "SolarForecastPipeline",
+    "PhysicalFeatureScaler",
 ]
