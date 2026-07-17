@@ -35,7 +35,7 @@ class SolarUniBenchDataset(Dataset):
             df = loader.load_tabular(ds, split=split)
             if df.empty:
                 continue
-            missing = [c for c in (self._all_feat + [self.target]) if c not in df.columns]
+            missing = [c for c in self._all_feat if c not in df.columns]
             if missing:
                 raise ValueError(
                     f"[{ds}] cannot window: missing required column(s) {missing}. "

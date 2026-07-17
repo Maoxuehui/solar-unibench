@@ -26,4 +26,6 @@ def load_sky_frame(cube, idx) -> np.ndarray:
     arr = np.asarray(cube[idx])
     if arr.shape[0] == 4:                              # uint8 RGB+BRR (SKIPPD)
         return decode_image(arr)
-    return generate_brr_channel(arr)                  # uint8 RGB only -> +BRR
+    if arr.ndim == 3 and arr.shape[0] == 3:           # uint8 RGB only (C,H,W) -> HWC -> +BRR
+        return generate_brr_channel(np.transpose(arr, (1, 2, 0)))
+    raise ValueError(f"unrecognized sky-image layout: dtype={arr.dtype}, shape={arr.shape}")
