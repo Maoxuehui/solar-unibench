@@ -41,6 +41,36 @@ parquet is never mutated):
   keep it in ``feature_cols`` per the task brief and ``fillna(0)`` so the
   column is harmless (LightGBM ignores it; MLP sees a constant). This is a
   documented data finding, not a framework behavior.
+
+Phase 6b Task 6 extension — deep baselines + consolidated skill table
+--------------------------------------------------------------------
+A second RUN_SLOW test (``test_deep_baselines_consolidated_daytime_skill``)
+adds the three Phase-6b deep baselines and prints ONE consolidated daytime
+skill table covering every model:
+
+* **LSTM + PatchTST on GEFCom** (tabular sequence models; same GEFCom frame,
+  same ``feature_cols`` as the trio above, lookback=12 / horizon=3 so the
+  sequence/patch tokenizers have a real lookback — ``patch_len=4`` needs
+  ``lookback >= 4``).
+* **CrossViViT on SKIPPD** (multimodal: tabular + sky images) via
+  ``EndogenousFeatureEngineer(..., return_images=True, image_loader=...,
+  image_dataset="skippd")`` so the image branch activates end-to-end.
+
+SKIPPD multimodal bounding (documented): the standardized SKIPPD sky cube
+holds only 2000 frames (2017-03-09 → 2017-05-13) and EVERY one of those
+timestamps sits in the original ``train`` split — the chronological
+``test``/``val`` splits have ZERO sky-image coverage, so CrossViViT's image
+branch cannot activate on them. We therefore carve a small, fully
+image-covered, fully DAYTIME slice (the first 400 image-matched rows — a
+2017-03-09 block, ``cos_zenith ∈ [0.05, 0.75]``) and re-stamp its ``split``
+70/30 so BOTH the fit and predict frames resolve sky images. The on-disk
+parquet is untouched (in-memory copy only).
+
+Deep models use TINY configs (``epochs=4``, small hidden) so the RUN_SLOW
+suite stays tractable; their daytime skill is REPORTED, not gated — a 4-epoch
+net is not expected to beat SmartPersistence, the point is that all three deep
+baselines run end-to-end on real standardized data through the full pipeline
+(default :class:`PhysicalFeatureScaler` + daytime evaluator).
 """
 from __future__ import annotations
 
@@ -85,6 +115,87 @@ def _gefcom_standardized_frame() -> "pd.DataFrame":
 def _provider(_config) -> "pd.DataFrame":
     """df_provider hook: returns the full GEFCom frame (train+val+test)."""
     return _gefcom_standardized_frame()
+
+
+# --- Phase 6b Task 6: deep baselines + consolidated skill table -------------
+
+# SKIPPD multimodal run. CrossViViT fuses tabular + sky images; the bounded
+# slice + re-split is documented in the module docstring.
+_SK_DATASET = "skippd"
+_SK_TARGET = "pv_power_normalized"
+_SK_FEATURE_COLS = ["ghi_clearsky", "cos_zenith", "clearness_index"]
+# First N image-matched rows (sorted by time): a fully image-covered, fully
+# DAYTIME 2017-03-09 block (cos_zenith ∈ [0.05, 0.75]).
+_SK_IMAGE_LIMIT = 400
+_SK_TRAIN_FRACTION = 0.70
+
+# Lookback/horizon/stride shared by EVERY model in the consolidated table so
+# each dataset's models are scored against SmartPersistence on IDENTICAL
+# windows / daytime masks (skill is directly comparable). 12/3 gives the
+# sequence/patch tokenizers a real lookback (patch_len=4 needs lookback >= 4)
+# while staying TINY.
+_DEEP_LOOKBACK = 12
+_DEEP_HORIZON = 3
+_DEEP_STRIDE = 3
+
+
+@functools.lru_cache(maxsize=1)
+def _skippd_image_covered_frame() -> "pd.DataFrame":
+    """Return a small, fully image-covered SKIPPD slice, re-split 70/30.
+
+    The standardized SKIPPD sky cube holds only 2000 frames (2017-03-09 →
+    2017-05-13) at ~1-min cadence, and EVERY one of those timestamps lives in
+    the original ``train`` split — the chronological ``test``/``val`` splits
+    have ZERO sky-image coverage. CrossViViT's image branch can only activate
+    end-to-end when BOTH the fit and predict frames resolve images, so we:
+
+    1. load the full SKIPPD tabular frame (in-memory copy; parquet untouched);
+    2. keep only rows whose ``timestamp_utc`` EXACTLY matches a sky-image
+       timestamp (the 2000 image-covered rows);
+    3. take the first ``_SK_IMAGE_LIMIT`` (sorted by time) — a small, fully
+       image-covered, fully DAYTIME 2017-03-09 slice;
+    4. re-stamp ``split`` so the first 70% are ``train`` and the last 30% are
+       ``test`` — BOTH halves image-covered and daytime.
+
+    ``clearness_index`` is entirely NaN in this package too, so it is
+    ``fillna(0)``-ed (harmless constant column) for parity with the GEFCom
+    treatment above.
+    """
+    import pandas as pd
+
+    from solarunibench.loader import SolarUniBenchLoader
+
+    loader = SolarUniBenchLoader(DATA_ROOT)
+    full = loader.load_tabular(_SK_DATASET).copy()
+    if "clearness_index" in full.columns:
+        full["clearness_index"] = full["clearness_index"].fillna(0.0)
+
+    img_ts = loader.get_image_timestamps(_SK_DATASET)
+    img_naive = (
+        pd.to_datetime([str(t) for t in np.asarray(img_ts)])
+        .tz_convert("UTC")
+        .tz_localize(None)
+        .floor("s")
+    )
+    img_set = pd.Index(img_naive)
+    raw = pd.to_datetime(full["timestamp_utc"])
+    tab_naive = raw.dt.tz_convert("UTC").dt.tz_localize(None).dt.floor("s")
+
+    covered = (
+        full[tab_naive.isin(img_set)]
+        .sort_values("timestamp_utc")
+        .head(_SK_IMAGE_LIMIT)
+        .reset_index(drop=True)
+        .copy()
+    )
+    cut = int(len(covered) * _SK_TRAIN_FRACTION)
+    covered["split"] = np.where(covered.index < cut, "train", "test")
+    return covered
+
+
+def _skippd_provider(_config) -> "pd.DataFrame":
+    """df_provider hook: returns the bounded image-covered SKIPPD slice."""
+    return _skippd_image_covered_frame()
 
 
 @slow
@@ -215,4 +326,205 @@ def _format_daytime_skill_table(*rows) -> str:
             f"{name:<20}{dm['Daytime_MAE']:>14.4f}{dm['Daytime_RMSE']:>14.4f}"
             f"{skill_str:>22}{dm['n_daytime']:>12}"
         )
+    return "\n".join(lines)
+
+
+@slow
+def test_deep_baselines_consolidated_daytime_skill(capsys):
+    """Run LSTM + PatchTST (GEFCom) and CrossViViT (SKIPPD multimodal) through
+    the pipeline + default :class:`PhysicalFeatureScaler` + daytime evaluator;
+    print ONE consolidated daytime skill table covering every model (SP,
+    LightGBM, MLP, LSTM, PatchTST on GEFCom; SP, CrossViViT on SKIPPD).
+
+    Asserts each deep model emits a finite ``Daytime_MAE`` with ``n_daytime > 0``
+    and that CrossViViT's image branch ACTIVATES (every lookback resolves a sky
+    frame on the bounded SKIPPD slice). Deep models use TINY configs (``epochs=4``,
+    small hidden) so the RUN_SLOW suite stays tractable; skill is REPORTED, not
+    gated — a 4-epoch net is not expected to beat SmartPersistence. The point is
+    that all three Phase-6b deep baselines run end-to-end on REAL standardized
+    data through the full pipeline.
+    """
+    from solarunibench.forecast.core import (
+        EndogenousFeatureEngineer,
+        PipelineConfig,
+        SolarForecastPipeline,
+    )
+    from solarunibench.forecast.models.crossvivit_model import CrossViViTModel
+    from solarunibench.forecast.models.lightgbm_model import LightGBMModel
+    from solarunibench.forecast.models.lstm_model import LSTMModel
+    from solarunibench.forecast.models.mlp_model import MLPModel
+    from solarunibench.forecast.models.patchtst_model import PatchTSTModel
+    from solarunibench.forecast.models.smart_persistence import SmartPersistenceModel
+    from solarunibench.loader import SolarUniBenchLoader
+
+    # ---------------- GEFCom: SP + LightGBM + MLP + LSTM + PatchTST ----------
+    # All five share one PipelineConfig + one FeatureEngineer → identical windows
+    # and daytime mask, so skill-vs-SP is directly comparable across the set.
+    cfg_gef = PipelineConfig(
+        dataset=DATASET,
+        target=TARGET,
+        lookback=_DEEP_LOOKBACK,
+        horizon=_DEEP_HORIZON,
+        stride=_DEEP_STRIDE,
+        feature_cols=FEATURE_COLS,
+        data_root=DATA_ROOT,
+    )
+    fe_gef = EndogenousFeatureEngineer(target=TARGET, feature_cols=FEATURE_COLS)
+
+    # TINY deep configs: few epochs, small hidden — keep RUN_SLOW tractable.
+    # ``seed=0`` makes fits reproducible (the torch baselines seed RNG + cuDNN).
+    lstm = LSTMModel(
+        hidden_size=32, num_layers=1, dropout=0.0, epochs=4, batch_size=64, seed=0
+    )
+    patch = PatchTSTModel(
+        d_model=32, n_heads=4, patch_len=4, stride=2, depth=1,
+        epochs=4, batch_size=64, seed=0,
+    )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        res_sp_gef = SolarForecastPipeline(
+            cfg_gef, fe_gef, SmartPersistenceModel()
+        ).run(df_provider=_provider)
+        res_lgb = SolarForecastPipeline(
+            cfg_gef, fe_gef, LightGBMModel()
+        ).run(df_provider=_provider)
+        res_mlp = SolarForecastPipeline(cfg_gef, fe_gef, MLPModel()).run(
+            df_provider=_provider
+        )
+        res_lstm = SolarForecastPipeline(cfg_gef, fe_gef, lstm).run(
+            df_provider=_provider
+        )
+        res_patch = SolarForecastPipeline(cfg_gef, fe_gef, patch).run(
+            df_provider=_provider
+        )
+
+    # ---------------- SKIPPD: SP + CrossViViT (multimodal, images ON) --------
+    cfg_sk = PipelineConfig(
+        dataset=_SK_DATASET,
+        target=_SK_TARGET,
+        lookback=_DEEP_LOOKBACK,
+        horizon=_DEEP_HORIZON,
+        stride=_DEEP_STRIDE,
+        feature_cols=_SK_FEATURE_COLS,
+        data_root=DATA_ROOT,
+    )
+    loader = SolarUniBenchLoader(DATA_ROOT)
+    # Image-aware engineer for CrossViViT; tabular-only engineer for the SP
+    # reference. Both produce IDENTICAL windows (image-attach is post-hoc and
+    # does not affect windowing) → comparable daytime skill.
+    fe_sk_img = EndogenousFeatureEngineer(
+        target=_SK_TARGET,
+        feature_cols=_SK_FEATURE_COLS,
+        return_images=True,
+        image_loader=loader,
+        image_dataset=_SK_DATASET,
+    )
+    fe_sk_tab = EndogenousFeatureEngineer(
+        target=_SK_TARGET, feature_cols=_SK_FEATURE_COLS
+    )
+
+    # Activation guard: confirm the image branch resolves on the TRAIN frame.
+    # Image-attach is keyed on timestamps (scale-invariant), so this pre-check
+    # on the raw frame exactly mirrors what the pipeline sees post-scaling; it
+    # also warms the FE's image-timestamp index cache for the run.
+    df_sk = _skippd_image_covered_frame()
+    df_sk_tr = df_sk[df_sk["split"] == "train"]
+    _, _, _, _, _, img_tr_check = fe_sk_img.create_features(
+        df_sk_tr, _DEEP_LOOKBACK, _DEEP_HORIZON, _DEEP_STRIDE
+    )
+    assert img_tr_check is not None, (
+        "CrossViViT image branch did not activate: every lookback must resolve a "
+        "sky frame on the bounded SKIPPD slice (got images=None on the train frame)"
+    )
+
+    # TINY CrossViViT (img_patch=8 → (32/8)^2 = 16 image tokens per frame).
+    cv = CrossViViTModel(
+        d_model=32, n_heads=4, depth=1, patch_len=4,
+        img_size=32, img_patch=8, in_channels=4,
+        epochs=4, batch_size=32, seed=0,
+    )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        res_sp_sk = SolarForecastPipeline(
+            cfg_sk, fe_sk_tab, SmartPersistenceModel()
+        ).run(df_provider=_skippd_provider)
+        res_cv = SolarForecastPipeline(cfg_sk, fe_sk_img, cv).run(
+            df_provider=_skippd_provider
+        )
+
+    # ---------------- Assert finite Daytime_MAE for the deep baselines -------
+    deep_results = {
+        "LSTM": res_lstm,
+        "PatchTST": res_patch,
+        "CrossViViT": res_cv,
+    }
+    for name, res in deep_results.items():
+        assert "daytime" in res, (
+            f"{name} pipeline did not emit a daytime metric block "
+            "(cos_zenith missing from frame?)"
+        )
+        dm = res["daytime"]
+        assert dm["n_daytime"] > 0, f"{name} has zero daytime test samples"
+        assert np.isfinite(dm["Daytime_MAE"]), (
+            f"{name} Daytime_MAE not finite: {dm['Daytime_MAE']}"
+        )
+        assert np.isfinite(dm["Daytime_RMSE"]), (
+            f"{name} Daytime_RMSE not finite: {dm['Daytime_RMSE']}"
+        )
+
+    # ---------------- Skill vs each dataset's SmartPersistence --------------
+    # Windows + daytime mask are deterministic per (cfg, frame) → identical
+    # across a dataset's models, so skill = 1 - mae_model / mae_SP is exact.
+    sp_gef_mae = res_sp_gef["daytime"]["Daytime_MAE"]
+    sp_sk_mae = res_sp_sk["daytime"]["Daytime_MAE"]
+    assert sp_gef_mae > 0, "GEFCom SmartPersistence Daytime_MAE == 0; skill undefined"
+    assert sp_sk_mae > 0, "SKIPPD SmartPersistence Daytime_MAE == 0; skill undefined"
+
+    gef_rows = [
+        ("SmartPersistence", res_sp_gef, float("nan")),
+        ("LightGBM", res_lgb, 1.0 - res_lgb["daytime"]["Daytime_MAE"] / sp_gef_mae),
+        ("MLP", res_mlp, 1.0 - res_mlp["daytime"]["Daytime_MAE"] / sp_gef_mae),
+        ("LSTM", res_lstm, 1.0 - res_lstm["daytime"]["Daytime_MAE"] / sp_gef_mae),
+        ("PatchTST", res_patch, 1.0 - res_patch["daytime"]["Daytime_MAE"] / sp_gef_mae),
+    ]
+    sk_rows = [
+        ("SmartPersistence", res_sp_sk, float("nan")),
+        ("CrossViViT", res_cv, 1.0 - res_cv["daytime"]["Daytime_MAE"] / sp_sk_mae),
+    ]
+
+    # Print BEFORE any further assertions so the table is always captured.
+    table = _format_consolidated_daytime_skill_table(
+        ("GEFCom2014", gef_rows), ("SKIPPD", sk_rows)
+    )
+    with capsys.disabled():
+        print(table)
+
+
+def _format_consolidated_daytime_skill_table(*dataset_blocks) -> str:
+    """Format the consolidated daytime skill table across datasets.
+
+    Each ``dataset_blocks`` item is ``(dataset_name, [(model, res, skill), ...])``.
+    Skill is ``1 - mae_model / mae_SP`` over the shared daytime mask
+    (0 = parity, positive = better than SmartPersistence); ``nan`` for the SP
+    reference row (printed as ``(reference)``).
+    """
+    lines = [
+        "",
+        "=== Consolidated daytime forecast skill "
+        "(reference: SmartPersistence, cos_zenith>0.05) ===",
+        f"{'model':<18}{'dataset':<14}{'Daytime_MAE':>13}{'Daytime_RMSE':>14}"
+        f"{'Daytime_skill-vs-SP':>22}{'n_daytime':>11}",
+    ]
+    for dataset, rows in dataset_blocks:
+        for name, res, skill in rows:
+            dm = res["daytime"]
+            skill_str = (
+                "(reference)" if name == "SmartPersistence" else f"{skill:+.4f}"
+            )
+            lines.append(
+                f"{name:<18}{dataset:<14}{dm['Daytime_MAE']:>13.4f}"
+                f"{dm['Daytime_RMSE']:>14.4f}{skill_str:>22}{dm['n_daytime']:>11}"
+            )
     return "\n".join(lines)
