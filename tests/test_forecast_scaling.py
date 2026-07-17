@@ -205,11 +205,11 @@ def test_custom_irradiance_max_changes_ceiling():
 class _NoOpModel(ForecastModel):
     """Records the design matrix it sees so the test can assert on scaling."""
 
-    def fit(self, X_past, Y, times=None, X_future=None):
+    def fit(self, X_past, Y, times=None, X_future=None, *, images=None):
         self.seen_X = X_past
         return None
 
-    def predict(self, X_past, times=None, X_future=None):
+    def predict(self, X_past, times=None, X_future=None, *, images=None):
         return np.zeros((len(X_past), 3), np.float32)
 
     @property

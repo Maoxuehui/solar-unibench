@@ -12,7 +12,7 @@ def _toy_df(n=60, target="pv_power_normalized"):
 def test_endogenous_windows_shapes():
     fe = EndogenousFeatureEngineer(target="pv_power_normalized",
         feature_cols=["ghi_clearsky", "cos_zenith", "clearness_index"])
-    Xp, Y, T, Xf, cz_issue = fe.create_features(_toy_df(), lookback=6, horizon=3, stride=1)
+    Xp, Y, T, Xf, cz_issue, images = fe.create_features(_toy_df(), lookback=6, horizon=3, stride=1)
     assert Xp.ndim == 3 and Xp.shape[1] == 6 and Y.shape[1] == 3
     assert Xf is not None and Xf.shape[1] == 3          # future clearsky+cos_zenith
     assert len(T) == Xp.shape[0] == Y.shape[0]
@@ -20,18 +20,20 @@ def test_endogenous_windows_shapes():
     # is a column in the toy df.
     assert cz_issue is not None
     assert cz_issue.shape == (Xp.shape[0],)
+    # 6th return: images — None by default (image-attach off; Phase 6b-T5).
+    assert images is None
 
 
 def test_endogenous_features_cos_zenith_issue_none_when_absent():
     """Backward-compat: when cos_zenith is NOT a column, 5th return is None."""
     df = _toy_df().drop(columns=["cos_zenith"])
     fe = EndogenousFeatureEngineer(target="pv_power_normalized")
-    _, _, _, _, cz_issue = fe.create_features(df, lookback=6, horizon=3, stride=1)
+    _, _, _, _, cz_issue, _ = fe.create_features(df, lookback=6, horizon=3, stride=1)
     assert cz_issue is None
 
 class _Const(ForecastModel):
-    def fit(self, Xp, Y, times=None, Xf=None): pass
-    def predict(self, Xp, times=None, Xf=None): return np.zeros((len(Xp), 3), np.float32)
+    def fit(self, Xp, Y, times=None, Xf=None, *, images=None): pass
+    def predict(self, Xp, times=None, Xf=None, *, images=None): return np.zeros((len(Xp), 3), np.float32)
     @property
     def name(self): return "const"
 
@@ -83,3 +85,93 @@ def test_target_missing_raises_value_error():
     bad = _toy_df().drop(columns=["pv_power_normalized"])
     with pytest.raises(ValueError):
         fe.create_features(bad, lookback=6, horizon=3, stride=1)
+
+
+# -- multimodal image-attach (Phase 6b-T5) ----------------------------------
+# The 6th create_features return: a per-window sky-image cube when image-attach
+# is configured (return_images=True + loader + dataset); None otherwise. Mirrors
+# SolarUniBenchDataset's exact-TS / nearest-neighbor attach.
+
+
+def test_endogenous_engineer_images_none_when_return_images_off():
+    """Default (image-attach off) → 6th return is None (tabular models unaffected)."""
+    fe = EndogenousFeatureEngineer(
+        target="pv_power_normalized",
+        feature_cols=["ghi_clearsky", "cos_zenith", "clearness_index"],
+    )
+    out = fe.create_features(_toy_df(), lookback=6, horizon=3, stride=1)
+    assert len(out) == 6  # 6-tuple contract
+    assert out[5] is None
+
+
+def test_return_images_requires_loader_and_dataset():
+    """return_images=True without a loader/dataset is a config error."""
+    with pytest.raises(ValueError):
+        EndogenousFeatureEngineer(target="pv_power_normalized", return_images=True)
+
+
+def test_endogenous_engineer_attaches_image_cube(tmp_path):
+    """With a sky-image package + return_images, the 6th return is the
+    per-window image cube (n, lookback, 4, H, W) — exact-TS attach."""
+    from tests.test_loader import _build_pkg
+    from solarunibench.loader import SolarUniBenchLoader
+
+    _build_pkg(tmp_path, dataset="toy", n=10, with_split=True, with_sky=True)
+    ld = SolarUniBenchLoader(str(tmp_path))
+    df = ld.load_tabular("toy", split="train")  # 8 rows
+    fe = EndogenousFeatureEngineer(
+        target="ghi_actual",
+        feature_cols=["ghi_clearsky"],
+        return_images=True,
+        image_loader=ld,
+        image_dataset="toy",
+    )
+    Xp, Y, T, Xf, cz_issue, images = fe.create_features(df, lookback=3, horizon=2, stride=1)
+    assert images is not None
+    n = Xp.shape[0]
+    assert images.shape == (n, 3, 4, 256, 256)  # (n, lookback, RGB+BRR, H, W)
+    assert images.dtype == np.float32
+    assert np.isfinite(images).all()
+    # RGB channels in [0,1]; the standardized sky cube is decoded float.
+    assert images[:, :, :3].min() >= 0.0 - 1e-6 and images[:, :, :3].max() <= 1.0 + 1e-6
+
+
+def test_pipeline_passes_images_to_model(tmp_path):
+    """The pipeline forwards the FeatureEngineer's image cube to fit/predict
+    via the ``images=`` kwarg (end-to-end multimodal wiring)."""
+    from tests.test_loader import _build_pkg
+    from solarunibench.loader import SolarUniBenchLoader
+
+    _build_pkg(tmp_path, dataset="toy", n=16, with_split=True, with_sky=True)
+    ld = SolarUniBenchLoader(str(tmp_path))
+    # Assign a balanced chronological split so BOTH train and test have enough
+    # rows to form windows (lookback=3, horizon=2 → need ≥5 rows each).
+    df = ld.load_tabular("toy").sort_values("timestamp_utc").reset_index(drop=True)
+    half = len(df) // 2
+    df["split"] = ["train"] * half + ["test"] * (len(df) - half)
+
+    seen = {"fit": None, "predict": None}
+
+    class _RecordingModel(ForecastModel):
+        def fit(self, Xp, Y, times=None, Xf=None, *, images=None):
+            seen["fit"] = None if images is None else images.shape
+            return None
+
+        def predict(self, Xp, times=None, Xf=None, *, images=None):
+            seen["predict"] = None if images is None else images.shape
+            return np.zeros((len(Xp), 2), np.float32)
+
+        @property
+        def name(self):
+            return "rec"
+
+    cfg = PipelineConfig(dataset="toy", target="ghi_actual", lookback=3, horizon=2)
+    fe = EndogenousFeatureEngineer(
+        target="ghi_actual", feature_cols=["ghi_clearsky"],
+        return_images=True, image_loader=ld, image_dataset="toy",
+    )
+    SolarForecastPipeline(cfg, fe, _RecordingModel()).run(df_provider=lambda c: df)
+    # The model observed a non-None image cube on BOTH fit and predict.
+    assert seen["fit"] is not None and seen["predict"] is not None
+    assert seen["fit"][1] == 3 and seen["predict"][1] == 3  # lookback axis
+    assert seen["fit"][2] == 4  # RGB + BRR channels

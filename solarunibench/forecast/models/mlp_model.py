@@ -105,11 +105,13 @@ class MLPModel(ForecastModel):
         Y: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> None:
         """Fit a single multi-output ``MLPRegressor`` on the flattened design.
 
-        ``times`` is accepted only to honor the :class:`ForecastModel` signature;
-        the MLP does not consume issue-time information here.
+        ``times`` / ``images`` are accepted only to honor the
+        :class:`ForecastModel` signature; the MLP is tabular-only.
         """
         X = _flatten_window_features(X_past, X_future)
         Y = np.asarray(Y, dtype=float)
@@ -129,6 +131,8 @@ class MLPModel(ForecastModel):
         X_past: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> np.ndarray:
         """Return predictions of shape ``(n, horizon)`` (multi-output)."""
         if self._model is None:
