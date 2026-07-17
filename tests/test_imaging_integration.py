@@ -35,9 +35,9 @@ def test_real_skippd_sky(tmp_path):
     dt = time.perf_counter() - t0
     root = zarr.open(str(out), mode="r")
     arr = root["images"]
-    assert arr.shape == (res["n_frames"], 4, 256, 256)
+    assert arr.shape == (res["n_frames"], 4, 64, 64)  # native SKIPPD is 64x64 -> kept (policy: never upsample)
     assert res["n_frames"] == 50
-    assert arr.dtype.kind == "f"
+    assert arr.dtype.kind == "u"  # uint8 since S-T2
     # parallel timestamp index persists on real data
     ts = root["images_timestamps"]
     assert ts.shape[0] == arr.shape[0]

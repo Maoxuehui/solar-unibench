@@ -14,12 +14,13 @@ IMAGE_COMPRESSOR = Blosc(cname="lz4", clevel=5, shuffle=Blosc.SHUFFLE)
 
 
 class SkyImageZarr:
-    """Append-only (N, 4, 256, 256) uint8 sky-image store, chunked (1,4,256,256).
+    """Append-only (N, 4, H, W) uint8 sky-image store, chunked (1,4,H,W).
 
-    ``append`` accepts the float32 frame from ``generate_brr_channel``
-    ([R,G,B in 0..1, BRR in -1..1]) and stores it quantized to uint8.
-    ``compressor`` defaults to IMAGE_COMPRESSOR (light lz4); pass None for
-    uncompressed uint8 (max read speed, larger on disk).
+    Spatial dims (H, W) are inferred from the first ``append``ed frame — no
+    hardcoded resolution. ``append`` accepts the float32 frame from
+    ``generate_brr_channel`` ([R,G,B in 0..1, BRR in -1..1]) and stores it
+    quantized to uint8. ``compressor`` defaults to IMAGE_COMPRESSOR (light lz4);
+    pass None for uncompressed uint8 (max read speed, larger on disk).
     """
 
     def __init__(self, path, overwrite: bool = True, compressor=IMAGE_COMPRESSOR):
@@ -30,16 +31,17 @@ class SkyImageZarr:
         self._arr = None
         self._n = 0
 
-    def _ensure(self):
+    def _ensure(self, frame: np.ndarray):
         if self._arr is None:
+            _, h, w = frame.shape
             self._arr = self.root.create_dataset(
-                "images", shape=(0, 4, 256, 256), chunks=(1, 4, 256, 256),
+                "images", shape=(0, 4, h, w), chunks=(1, 4, h, w),
                 dtype="uint8", compressor=self.compressor, overwrite=True)
 
     def append(self, frame: np.ndarray) -> None:
-        """frame: (4, 256, 256) float32 [RGB 0..1, BRR -1..1] — encoded to uint8."""
-        self._ensure()
-        u = encode_image(frame)[None, ...]  # (1,4,256,256) uint8
+        """frame: (4, H, W) float32 [RGB 0..1, BRR -1..1] — encoded to uint8."""
+        self._ensure(frame)
+        u = encode_image(frame)[None, ...]  # (1,4,H,W) uint8
         self._arr.append(u)
         self._n += 1
 
