@@ -65,12 +65,14 @@ class _FiniteTargetWindowFilter:
         self.inner = inner
 
     def create_features(self, df, lookback, horizon, stride):
-        Xp, Y, T, Xf = self.inner.create_features(df, lookback, horizon, stride)
+        Xp, Y, T, Xf, cz_issue = self.inner.create_features(df, lookback, horizon, stride)
         keep = np.isfinite(Y).all(axis=1) & np.isfinite(Xp[:, :, 0]).all(axis=1)
         Xp, Y, T = Xp[keep], Y[keep], T[keep]
         if Xf is not None:
             Xf = Xf[keep]
-        return Xp, Y, T, Xf
+        if cz_issue is not None:
+            cz_issue = cz_issue[keep]
+        return Xp, Y, T, Xf, cz_issue
 
 
 @functools.lru_cache(maxsize=1)
