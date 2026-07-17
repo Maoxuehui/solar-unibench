@@ -81,11 +81,13 @@ class LightGBMModel(ForecastModel):
         Y: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> None:
         """Fit one ``LGBMRegressor`` per horizon column of ``Y``.
 
-        ``times`` is accepted only to honor the :class:`ForecastModel` signature;
-        LightGBM does not consume issue-time information here.
+        ``times`` / ``images`` are accepted only to honor the
+        :class:`ForecastModel` signature; LightGBM is tabular-only.
         """
         X = _flatten_window_features(X_past, X_future)
         Y = np.asarray(Y, dtype=float)
@@ -107,6 +109,8 @@ class LightGBMModel(ForecastModel):
         X_past: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> np.ndarray:
         """Stack per-step predictions into ``(n, horizon)``."""
         if not self._models:
