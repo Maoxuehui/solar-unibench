@@ -1,10 +1,88 @@
-"""Optical-flow extrapolation + uncertainty (semi-Lagrangian warp + divergence decay).
+"""Optical-flow extrapolation + uncertainty (forward-splat + divergence decay).
 
 Takes a PRECOMPUTED flow field (u, v) so the extrapolation is decoupled from how the
 flow was obtained (SunLake ships ctx_opt_flow; synthetic tests pass a known flow).
+
+The warp core is the authoritative forward-splat method (per
+``docs/references/crossvivit_tscontext_dataset_ref.py`` ``warp_image``): the frame is
+resampled at the current position q = p + F, then bilinearly forward-splatted to
+r = p + (steps+1)·F. Collisions are averaged by bilinear weights; disocclusion holes
+are filled from the nearest covered pixel. The net advection is ``steps * flow``.
 """
+from functools import lru_cache
+
 import numpy as np
 import cv2
+
+
+@lru_cache(maxsize=64)
+def _meshgrid(h: int, w: int):
+    """Cached float32 pixel grid. Returns (yy[H,W], xx[H,W]) with ``indexing="ij"``."""
+    yy, xx = np.meshgrid(
+        np.arange(h, dtype=np.float32),
+        np.arange(w, dtype=np.float32),
+        indexing="ij",
+    )
+    return yy, xx
+
+
+def _bilinear_forward_splat(values, dst_x, dst_y, valid_mask=None):
+    """Bilinearly forward-splat source-grid ``values`` onto continuous destination coords.
+
+    P0: a single ``np.bincount`` pass accumulates ALL four corner contributions
+    (collision-averaged), matching the naive ``np.add.at`` reference exactly.
+
+    Args:
+        values: [H, W] source values.
+        dst_x, dst_y: [H, W] continuous destination coords.
+        valid_mask: optional [H, W] bool; False entries do not contribute.
+
+    Returns:
+        (output[H, W] collision-normalized (0 where uncovered), weight_sum[H, W]).
+    """
+    values = np.asarray(values, dtype=np.float32)
+    dst_x = np.asarray(dst_x, dtype=np.float32)
+    dst_y = np.asarray(dst_y, dtype=np.float32)
+    h, w = values.shape
+    valid_mask = (
+        np.ones((h, w), dtype=bool)
+        if valid_mask is None
+        else np.asarray(valid_mask, dtype=bool)
+    )
+    finite = (
+        np.isfinite(values) & np.isfinite(dst_x) & np.isfinite(dst_y) & valid_mask
+    )
+    x0 = np.floor(dst_x).astype(np.int64)
+    y0 = np.floor(dst_y).astype(np.int64)
+    wx = dst_x - x0
+    wy = dst_y - y0
+    n = h * w
+    flats, wlist, vlist = [], [], []
+    for dx, dy, ww in [
+        (0, 0, (1 - wx) * (1 - wy)),
+        (1, 0, wx * (1 - wy)),
+        (0, 1, (1 - wx) * wy),
+        (1, 1, wx * wy),
+    ]:
+        xi = x0 + dx
+        yi = y0 + dy
+        ok = finite & (xi >= 0) & (xi < w) & (yi >= 0) & (yi < h) & (ww > 0)
+        if not np.any(ok):
+            continue
+        flats.append(yi[ok] * w + xi[ok])
+        wlist.append(ww[ok])
+        vlist.append((values * ww)[ok])
+    if not flats:
+        return np.zeros((h, w), np.float32), np.zeros((h, w), np.float32)
+    flat = np.concatenate(flats)
+    ws = np.concatenate(wlist)
+    vs = np.concatenate(vlist)
+    weight = np.bincount(flat, weights=ws, minlength=n).astype(np.float32)
+    accum = np.bincount(flat, weights=vs, minlength=n).astype(np.float32)
+    out = np.zeros(n, np.float32)
+    covered = weight > 1e-6
+    out[covered] = accum[covered] / weight[covered]
+    return out.reshape(h, w), weight.reshape(h, w)
 
 
 def extrapolate_with_uncertainty(flow_u: np.ndarray, flow_v: np.ndarray,
