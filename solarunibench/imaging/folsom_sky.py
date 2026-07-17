@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from ..operators.brr import generate_brr_channel
-from ..operators.zarr_io import SkyImageZarr, write_array
+from ..operators.zarr_io import JPEGSkyStore, write_array
 from .resize import downsample_if_larger
 
 
@@ -22,7 +22,13 @@ def _ts_from_name(name: str):
 
 
 def iter_folsom_sky_frames(tar_path, size=256):
-    """Yield (timestamp_utc, frame(4,size,size)) for every .jpg in the tar.bz2."""
+    """Yield (timestamp_utc, frame(4,size,size)) for every .jpg in the tar.bz2.
+
+    Provided for callers that want pre-materialised 4-channel (RGB+BRR) frames.
+    The storage path (:func:`build_folsom_sky_zarr`) no longer uses this — it
+    stores JPEG-encoded RGB bytes and computes BRR on read — but the contract
+    (4-channel float32 frames) is preserved for backwards compatibility.
+    """
     with tarfile.open(tar_path, "r:bz2") as tf:
         for m in tf:
             if not m.isfile() or not m.name.lower().endswith(".jpg"):
@@ -40,31 +46,40 @@ def _to_utc_iso(ts) -> str:
 
 
 def build_folsom_sky_zarr(tar_paths, out_path, limit=500) -> dict:
-    """Stream Folsom sky tarballs into sky_images.zarr.
+    """Stream Folsom sky tarballs into sky_images.zarr (lossy JPEG RGB bytes).
 
     Writes two arrays into the store:
-      - ``images``           (N, 4, H, W) uint8  (RGB+BRR cube; H,W per resolution
-                            policy — native if <=256 else downsampled to 256)
+      - ``images``            (N,) object / VLenBytes  (Pillow-JPEG-encoded RGB
+                            bytes; H,W per resolution policy — native if <=256
+                            else downsampled to 256). BRR is NOT stored: it is
+                            computed on READ via ``load_sky_frame`` reusing
+                            ``generate_brr_channel``. ~12 GB at full Folsom
+                            scale (q90 @256²) vs. 106–203 GB lossless uint8.
       - ``images_timestamps`` (N,) <U25               (ISO-8601 UTC per frame)
 
     The timestamp index is persisted now so Phase 5 cross-modal alignment does
     not need to re-stream the 49 GB tarballs.
     """
-    store = SkyImageZarr(out_path, overwrite=True)
+    store = JPEGSkyStore(out_path, overwrite=True)
     n = 0
     timestamps = []
     done = False
     for tp in tar_paths:
         if done:
             break
-        for ts, frame in iter_folsom_sky_frames(tp):
-            store.append(frame)
-            timestamps.append(_to_utc_iso(ts))
-            n += 1
-            if limit and n >= limit:
-                done = True
-                break
+        with tarfile.open(tp, "r:bz2") as tf:
+            for m in tf:
+                if not m.isfile() or not m.name.lower().endswith(".jpg"):
+                    continue
+                data = tf.extractfile(m).read()
+                rgb = _decode(data)            # (H,W,3) RGB, resolution-policy applied
+                store.append(rgb)              # BRR deferred to load_sky_frame
+                timestamps.append(_to_utc_iso(_ts_from_name(m.name)))
+                n += 1
+                if limit and n >= limit:
+                    done = True
+                    break
     # Parallel timestamp index (ISO-8601 UTC strings). Additive write keeps the
-    # `images` cube untouched; one string per chunk for cheap per-frame reads.
+    # `images` array untouched; one string per chunk for cheap per-frame reads.
     write_array(out_path, "images_timestamps", np.array(timestamps), chunks=(1,))
     return {"n_frames": n, "out_path": str(out_path)}
