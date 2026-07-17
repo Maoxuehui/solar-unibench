@@ -81,7 +81,8 @@ class PipelineConfig:
 class FeatureEngineer(ABC):
     """Transform a tabular frame into windowed features for the pipeline.
 
-    Returns the 5-tuple ``(X_past, Y, times, X_future, cos_zenith_issue)``:
+    Returns the 6-tuple ``(X_past, Y, times, X_future, cos_zenith_issue,
+    images)``:
 
     * ``X_past``  — ``(n, lb, Fp)`` past feature block (target first).
     * ``Y``       — ``(n, horizon)`` target over the horizon.
@@ -91,20 +92,37 @@ class FeatureEngineer(ABC):
     * ``cos_zenith_issue`` — ``(n,)`` issue-time ``cos_zenith`` per sample when
       ``cos_zenith`` is a column (used by the daytime-window evaluator), else
       ``None``. Always ``None`` when ``cos_zenith`` is absent.
+    * ``images`` — ``(n, lb, 4, H, W)`` per-window sky/satellite image cube
+      (float32) when image-attach is configured and images resolve for every
+      window, else ``None``. ``None`` for tabular datasets / when image-attach
+      is off — tabular models are unaffected (Phase 6b-T5 multimodal extension).
     """
 
     @abstractmethod
     def create_features(
         self, df: pd.DataFrame, lookback: int, horizon: int, stride: int
     ) -> tuple[
-        np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
     ]:
-        """Return ``(X_past, Y, times, X_future, cos_zenith_issue)`` — see class."""
+        """Return ``(X_past, Y, times, X_future, cos_zenith_issue, images)``."""
         raise NotImplementedError
 
 
 class ForecastModel(ABC):
-    """Minimal model interface: fit on windows, predict a horizon vector."""
+    """Minimal model interface: fit on windows, predict a horizon vector.
+
+    The optional keyword-only ``images`` argument (Phase 6b-T5, multimodal
+    extension) carries the per-window sky/satellite image cube
+    ``(n, lookback, 4, H, W)`` for image-aware models (e.g. CrossViViT). It
+    defaults to ``None`` and is IGNORED by every tabular model — that keeps the
+    interface backward compatible (the tabular baselines simply add
+    ``*, images=None`` to their signatures and drop it).
+    """
 
     @abstractmethod
     def fit(
@@ -113,6 +131,8 @@ class ForecastModel(ABC):
         Y: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -122,6 +142,8 @@ class ForecastModel(ABC):
         X_past: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> np.ndarray:
         """Return predictions of shape ``(n, horizon)``."""
         raise NotImplementedError
@@ -142,15 +164,55 @@ class EndogenousFeatureEngineer(FeatureEngineer):
     * ``cos_zenith_issue`` is the per-sample ``cos_zenith`` at the forecast-issue
       timestamp when ``cos_zenith`` is a column (else ``None``); feeds the
       daytime-window evaluator.
+    * ``images`` — ``(n, lookback, 4, H, W)`` per-window sky-image cube when
+      image-attach is configured (``return_images=True`` with an
+      ``image_loader`` + ``image_dataset``) and every window's lookback resolves
+      images; otherwise ``None`` (tabular models unaffected). Image-attach
+      mirrors :class:`solarunibench.dataset.SolarUniBenchDataset`: exact-timestamp
+      match preferred, nearest-neighbor within ``match_tolerance`` fallback.
     """
 
-    def __init__(self, target: str, feature_cols: list[str] | None = None):
+    def __init__(
+        self,
+        target: str,
+        feature_cols: list[str] | None = None,
+        *,
+        return_images: bool = False,
+        image_loader: object | None = None,
+        image_dataset: str | None = None,
+        match_tolerance: pd.Timedelta | str | None = None,
+    ):
         self.target = target
         self.feature_cols: list[str] = list(feature_cols) if feature_cols else []
+        # Multimodal image-attach (Phase 6b-T5). Default off → 6th return is
+        # None and tabular models are unaffected. When ``return_images=True``,
+        # ``image_loader`` + ``image_dataset`` MUST be supplied; the dataset's
+        # sky-image cube + timestamps are attached per window.
+        self.return_images = return_images
+        self.image_loader = image_loader
+        self.image_dataset = image_dataset
+        self._match_tolerance = (
+            pd.Timedelta(match_tolerance) if match_tolerance is not None else None
+        )
+        if return_images and (image_loader is None or image_dataset is None):
+            raise ValueError(
+                "return_images=True requires both image_loader and image_dataset "
+                "(the sky-image cube source + dataset name)."
+            )
+        # Lazily built and cached on first create_features call.
+        self._img_index: _ImageIndex | None = None
+        self._img_cube = None
 
     def create_features(
         self, df: pd.DataFrame, lookback: int, horizon: int, stride: int = 1
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    ) -> tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+    ]:
         if lookback <= 0 or horizon <= 0 or stride <= 0:
             raise ValueError(
                 f"lookback, horizon, stride must be positive (got {lookback}, {horizon}, {stride})"
@@ -177,6 +239,9 @@ class EndogenousFeatureEngineer(FeatureEngineer):
         t_windows: list[np.ndarray] = []
         xf_windows: list[np.ndarray] = []
         cz_windows: list[np.ndarray] = []
+        # Per-window lookback timestamps — kept so the image-attach step can
+        # resolve sky frames for each window (exact-TS / NN-within-tolerance).
+        lb_ts_windows: list[np.ndarray] = []
 
         df_sorted = df.sort_values(["entity_id", "timestamp_utc"], kind="mergesort")
         for _, g in df_sorted.groupby("entity_id", sort=False):
@@ -194,6 +259,7 @@ class EndogenousFeatureEngineer(FeatureEngineer):
                 xp_windows.append(past[start : start + lookback])
                 y_windows.append(tgt[horizon_slice])
                 t_windows.append(ts[start + lookback])  # forecast-issue time
+                lb_ts_windows.append(ts[start : start + lookback])
                 if fut is not None:
                     xf_windows.append(fut[horizon_slice])
                 if cz_col is not None:
@@ -230,7 +296,50 @@ class EndogenousFeatureEngineer(FeatureEngineer):
             )
         else:
             cos_zenith_issue = None
-        return X_past, Y, times, X_future, cos_zenith_issue
+        images = self._build_images(lb_ts_windows)
+        return X_past, Y, times, X_future, cos_zenith_issue, images
+
+    # -- image attach --------------------------------------------------------
+
+    def _build_images(self, lb_ts_windows: list[np.ndarray]) -> np.ndarray | None:
+        """Resolve and stack the per-window sky-image cube, or None.
+
+        Returns ``(n, lookback, 4, H, W)`` float32 when image-attach is on AND
+        every window's lookback timestamps resolve to image-cube rows (exact-TS
+        match preferred, nearest-neighbor within ``match_tolerance`` fallback —
+        mirroring :class:`solarunibench.dataset.SolarUniBenchDataset`). Returns
+        ``None`` when image-attach is off, no image cube is available, or any
+        window misses — the model then degrades gracefully to tabular-only.
+        """
+        if not self.return_images or not lb_ts_windows:
+            return None
+        if self._img_index is None:
+            assert self.image_loader is not None and self.image_dataset is not None
+            img_ts = self.image_loader.get_image_timestamps(self.image_dataset)
+            self._img_cube = self.image_loader.get_tensor_cube(
+                self.image_dataset, "sky_images"
+            )
+            if img_ts is None or self._img_cube is None:
+                # No images for this dataset → tabular-only (Honest NaN).
+                self._img_index = _ImageIndex(np.asarray([]), self._match_tolerance)
+            else:
+                self._img_index = _ImageIndex(
+                    np.asarray(img_ts), self._match_tolerance
+                )
+        if self._img_cube is None:
+            return None
+
+        from ..imaging.load import load_sky_frame
+
+        cubes: list[np.ndarray] = []
+        for lb_ts in lb_ts_windows:
+            rows = self._img_index.rows_for(lb_ts)
+            if rows is None or len(rows) != len(lb_ts):
+                # All-or-nothing: a single unresolved window drops the image
+                # modality for the whole batch (models need a uniform array).
+                return None
+            cubes.append(np.stack([load_sky_frame(self._img_cube, r) for r in rows]))
+        return np.stack(cubes, axis=0).astype(np.float32)
 
 
 def _flatten_window_features(
@@ -261,6 +370,70 @@ def _to_datetime64_ns(series: pd.Series) -> np.ndarray:
         # Drop tz after anchoring to UTC wall-clock; safe across pandas versions.
         ts = ts.dt.tz_convert("UTC").dt.tz_localize(None)
     return ts.to_numpy().astype("datetime64[ns]")
+
+
+class _ImageIndex:
+    """Resolve per-window lookback timestamps to sky-image-cube rows.
+
+    Mirrors :class:`solarunibench.dataset.SolarUniBenchDataset`'s image-attach:
+    an exact-timestamp match is preferred; only on a miss, and only when a
+    ``tolerance`` is set, does it fall back to nearest-neighbor within the
+    tolerance (vectorized via a sorted :class:`pandas.DatetimeIndex`). Built
+    once from a dataset's image-timestamp array; ``rows_for`` resolves a whole
+    lookback window in one call.
+
+    Both sides (image timestamps and the tabular lookback timestamps) are
+    canonicalized to **naive UTC floored to the second** before matching, so a
+    match is robust to the adapter's tz-aware ``"+00:00"`` ISO form vs the
+    tz-stripped ``datetime64[ns]`` the FeatureEngineer carries internally.
+    """
+
+    @staticmethod
+    def _norm(t) -> pd.Timestamp:
+        """Canonicalize any timestamp to naive UTC, floored to the second.
+
+        ``str(t)`` first so numpy string scalars (image timestamp arrays) and
+        numpy datetime64s both parse via :class:`pandas.Timestamp`.
+        """
+        ts = pd.Timestamp(str(t))
+        if ts.tzinfo is not None:
+            ts = ts.tz_convert("UTC").tz_localize(None)
+        return ts.floor("s")
+
+    def __init__(self, img_ts: np.ndarray, tolerance: pd.Timedelta | None):
+        self.tolerance = tolerance
+        arr = np.asarray(img_ts)
+        # Exact-match dict: canonical naive-UTC Timestamp -> cube row.
+        self._exact = {self._norm(t): i for i, t in enumerate(arr)}
+        if tolerance is not None and len(arr) > 0:
+            decorated = sorted(
+                ((i, self._norm(t)) for i, t in enumerate(arr)), key=lambda x: x[1]
+            )
+            self._order = np.array([i for i, _ in decorated], dtype=np.intp)
+            self._sorted = pd.DatetimeIndex([t for _, t in decorated])
+        else:
+            self._order = None
+            self._sorted = None
+
+    def rows_for(self, lb_ts: np.ndarray) -> list[int] | None:
+        """Return one cube row per lookback timestamp, or None on any miss."""
+        lb = np.asarray(lb_ts)
+        if len(lb) == 0:
+            return None
+        normed = [self._norm(t) for t in lb]
+        rows = [self._exact.get(k) for k in normed]
+        if all(r is not None for r in rows) and len(rows) == len(lb):
+            return rows  # type: ignore[return-value]
+        # Nearest-neighbor fallback (only when a tolerance is configured).
+        if self.tolerance is None or self._sorted is None:
+            return None
+        targets = pd.DatetimeIndex(normed)
+        positions = self._sorted.get_indexer(
+            targets, method="nearest", tolerance=self.tolerance
+        )
+        if (positions < 0).any():
+            return None
+        return list(self._order[positions])
 
 
 class SolarForecastPipeline:
@@ -311,17 +484,25 @@ class SolarForecastPipeline:
         lb = self.config.lookback
         hz = self.config.horizon
         st = self.config.stride
-        xp_tr, y_tr, t_tr, xf_tr, _ = self.feature_engineer.create_features(
+        xp_tr, y_tr, t_tr, xf_tr, _, img_tr = self.feature_engineer.create_features(
             df_train, lb, hz, st
         )
-        xp_te, y_te, t_te, xf_te, cz_issue_te = self.feature_engineer.create_features(
-            df_test, lb, hz, st
-        )
+        (
+            xp_te,
+            y_te,
+            t_te,
+            xf_te,
+            cz_issue_te,
+            img_te,
+        ) = self.feature_engineer.create_features(df_test, lb, hz, st)
 
         # Positional call so any conforming model works regardless of whether it
-        # spells the future-context parameter ``X_future`` or ``Xf``.
-        self.model.fit(xp_tr, y_tr, t_tr, xf_tr)
-        pred = self.model.predict(xp_te, t_te, xf_te)
+        # spells the future-context parameter ``X_future`` or ``Xf``. ``images``
+        # is the Phase 6b-T5 multimodal extension: ``None`` for tabular datasets
+        # (every model accepts and ignores it); the per-window sky-image cube for
+        # image-aware models (CrossViViT).
+        self.model.fit(xp_tr, y_tr, t_tr, xf_tr, images=img_tr)
+        pred = self.model.predict(xp_te, t_te, xf_te, images=img_te)
         result = {
             "pred": pred,
             "y_true": y_te,

@@ -68,12 +68,14 @@ class SmartPersistenceModel(ForecastModel):
         Y: np.ndarray | None = None,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> None:
         """No-op. Per-sample κ is computed at predict time (see module docstring).
 
-        ``Y`` is accepted (and optional) only to honor the
+        ``Y`` / ``images`` are accepted (and optional) only to honor the
         :class:`ForecastModel` signature; smart persistence does not require a
-        training target.
+        training target and is tabular-only.
         """
         return None
 
@@ -82,6 +84,8 @@ class SmartPersistenceModel(ForecastModel):
         X_past: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> np.ndarray:
         """Return clear-sky-scaled persistence forecasts of shape ``(n, horizon)``."""
         # Target at the issue time = last lookback step, first past channel.
