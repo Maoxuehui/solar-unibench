@@ -10,9 +10,9 @@ Design notes
 ------------
 * **Sequence-native input.** Unlike the MLP/LightGBM baselines (which flatten
   ``lb*Fp``), the LSTM consumes the lookback axis as a sequence — this is the
-  whole point of a recurrent baseline. ``X_future`` is accepted only to honor
-  the :class:`ForecastModel` signature; it is not consumed (YAGNI — the
-  sequence-to-horizon mapping is the baseline under test).
+  whole point of a recurrent baseline. ``X_future`` / ``images`` are accepted
+  only to honor the :class:`ForecastModel` signature; they are not consumed
+  (YAGNI — the sequence-to-horizon mapping is the baseline under test).
 * **Scaled features in, no re-scaling inside.** The pipeline's
   :class:`PhysicalFeatureScaler` (default-on) already applies irradiance/1500
   and train-fit NWP z-scoring BEFORE feature engineering, so the LSTM receives
@@ -30,13 +30,12 @@ Design notes
 """
 from __future__ import annotations
 
-import random
-
 import numpy as np
 import torch
 from torch import nn
 
 from ..core import ForecastModel
+from ._torch_base import TorchForecastMixin, fit_loop
 
 
 class _LSTMNet(nn.Module):
@@ -68,7 +67,7 @@ class _LSTMNet(nn.Module):
         return self.head(last)  # (n, horizon)
 
 
-class LSTMModel(ForecastModel):
+class LSTMModel(TorchForecastMixin, ForecastModel):
     """Stacked-LSTM direct multi-step forecaster.
 
     Parameters
@@ -130,10 +129,12 @@ class LSTMModel(ForecastModel):
         Y: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> None:
         """Train the LSTM + linear head with Adam + MAE (L1) loss.
 
-        ``times`` / ``X_future`` are accepted only to honor the
+        ``times`` / ``X_future`` / ``images`` are accepted only to honor the
         :class:`ForecastModel` signature; the LSTM consumes the ``X_past``
         sequence alone.
         """
@@ -145,7 +146,7 @@ class LSTMModel(ForecastModel):
         Y = np.asarray(Y, dtype=np.float32)
         if Y.ndim != 2:
             raise ValueError(f"Y must be 2-D (n, horizon); got shape {Y.shape}")
-        n, _, fp = X.shape
+        _, _, fp = X.shape
         horizon = Y.shape[1]
 
         # Seed immediately before model construction so init + training are
@@ -158,23 +159,20 @@ class LSTMModel(ForecastModel):
             dropout=self.dropout,
             horizon=horizon,
         ).to(self.device)
-        optimizer = torch.optim.Adam(self._net.parameters(), lr=self.lr)
         loss_fn = nn.L1Loss()  # MAE — robust, matches the Phase 6b spec.
 
         Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
         Yt = torch.from_numpy(Y).to(self.device)
 
-        self._net.train()
-        idx = np.arange(n)
-        for _ in range(self.epochs):
-            np.random.shuffle(idx)
-            for start in range(0, n, self.batch_size):
-                batch = idx[start : start + self.batch_size]
-                optimizer.zero_grad()
-                pred = self._net(Xt[batch])
-                loss = loss_fn(pred, Yt[batch])
-                loss.backward()
-                optimizer.step()
+        fit_loop(
+            self._net,
+            Xt,
+            Yt,
+            epochs=self.epochs,
+            batch_size=self.batch_size,
+            lr=self.lr,
+            loss_fn=loss_fn,
+        )
         return None
 
     def predict(
@@ -182,6 +180,8 @@ class LSTMModel(ForecastModel):
         X_past: np.ndarray,
         times: np.ndarray | None = None,
         X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
     ) -> np.ndarray:
         """Return predictions of shape ``(n, horizon)`` as float32 numpy."""
         if self._net is None:
@@ -194,27 +194,3 @@ class LSTMModel(ForecastModel):
         with torch.no_grad():
             pred = self._net(Xt).cpu().numpy().astype(np.float32)
         return pred
-
-    # -- internals -----------------------------------------------------------
-
-    @staticmethod
-    def _resolve_device(device: str | torch.device | None) -> torch.device:
-        if device is not None:
-            return torch.device(device)
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    @staticmethod
-    def _seed(seed: int) -> None:
-        """Seed Python/NumPy/Torch and force cuDNN into deterministic mode."""
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-
-    @staticmethod
-    def _sanitize(t: torch.Tensor) -> torch.Tensor:
-        """Replace NaN/inf lookback features with 0 (Honest NaN imputation)."""
-        return torch.nan_to_num(t, nan=0.0, posinf=0.0, neginf=0.0)
