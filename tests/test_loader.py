@@ -25,7 +25,10 @@ def _build_pkg(root: Path, dataset="toy", n=8, with_split=True, with_sky=False):
     if with_sky:
         store = zarr.DirectoryStore(str(d / "sky_images.zarr"))
         g = zarr.group(store=store, overwrite=True)
-        g.array("images", data=np.zeros((n, 4, 256, 256), np.float32), chunks=(1, 4, 256, 256), overwrite=True)
+        # uint8 NON-trivial data so the decode path is genuinely exercised
+        # (zeros made the decode-range test vacuous). 4ch = RGB + BRR (SKIPPD layout).
+        g.array("images", data=(np.random.rand(n, 4, 256, 256) * 255).astype(np.uint8),
+                chunks=(1, 4, 256, 256), overwrite=True)
         g.array("images_timestamps", data=np.array([t.isoformat() for t in times]), chunks=(1,), overwrite=True)
 
 

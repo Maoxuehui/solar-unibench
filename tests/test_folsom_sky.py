@@ -22,7 +22,7 @@ def test_iter_frames_parses_utc_timestamp(tmp_path):
     assert len(frames) == 2
     ts0, f0 = frames[0]
     assert ts0 == pd.Timestamp("2014-06-01 12:00:00", tz="UTC")
-    assert f0.shape == (4, 256, 256)
+    assert f0.shape == (4, 64, 64)  # fixture is 64x64; policy keeps <= target as-is
 
 
 def test_build_folsom_sky_zarr(tmp_path):
@@ -32,7 +32,12 @@ def test_build_folsom_sky_zarr(tmp_path):
     res = build_folsom_sky_zarr([tar], out, limit=3)
     root = zarr.open(str(out), mode="r")
     arr = root["images"]
-    assert arr.shape == (3, 4, 256, 256)
+    # JPEGSkyStore: object/VLenBytes array of Pillow-JPEG-encoded RGB bytes.
+    # 64x64 fixture <= 256 -> resolution policy keeps native; BRR computed on load.
+    assert arr.shape == (3,) and arr.dtype == object
+    b0 = bytes(arr[0]); assert b0[:2] == b"\xff\xd8"   # JPEG SOI marker
+    dec = np.array(Image.open(io.BytesIO(b0)))
+    assert dec.shape == (64, 64, 3) and dec.dtype == np.uint8
     assert res["n_frames"] == 3
 
 
