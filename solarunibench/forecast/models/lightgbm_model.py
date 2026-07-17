@@ -27,7 +27,7 @@ from typing import Any
 import numpy as np
 from lightgbm import LGBMRegressor
 
-from ..core import ForecastModel
+from ..core import ForecastModel, _flatten_window_features
 
 # Sensible defaults for the benchmark: quiet, deterministic, single-threaded
 # (keeps tests reproducible; pass n_jobs=-1 via ``params`` for real training).
@@ -87,7 +87,7 @@ class LightGBMModel(ForecastModel):
         ``times`` is accepted only to honor the :class:`ForecastModel` signature;
         LightGBM does not consume issue-time information here.
         """
-        X = self._flatten(X_past, X_future)
+        X = _flatten_window_features(X_past, X_future)
         Y = np.asarray(Y, dtype=float)
         if Y.ndim != 2:
             raise ValueError(f"Y must be 2-D (n, horizon); got shape {Y.shape}")
@@ -113,27 +113,8 @@ class LightGBMModel(ForecastModel):
             raise RuntimeError(
                 "LightGBMModel.predict called before fit; call fit(X_past, Y, ...) first."
             )
-        X = self._flatten(X_past, X_future)
+        X = _flatten_window_features(X_past, X_future)
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
             preds = np.column_stack([m.predict(X) for m in self._models])
         return preds
-
-    # -- internals -----------------------------------------------------------
-
-    @staticmethod
-    def _flatten(
-        X_past: np.ndarray, X_future: np.ndarray | None
-    ) -> np.ndarray:
-        """Flatten ``X_past[n, lb, Fp]`` (+ ``X_future[n, horizon, Ff]``) to 2-D.
-
-        Result shape: ``(n, lb*Fp)`` when ``X_future`` is ``None``, otherwise
-        ``(n, lb*Fp + horizon*Ff)`` with the future block concatenated on the
-        right (column order: all past features, then all future features).
-        """
-        n = X_past.shape[0]
-        Xp = np.asarray(X_past, dtype=float).reshape(n, -1)
-        if X_future is None:
-            return Xp
-        Xf = np.asarray(X_future, dtype=float).reshape(n, -1)
-        return np.concatenate([Xp, Xf], axis=1)
