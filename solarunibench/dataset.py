@@ -5,7 +5,6 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from .loader import SolarUniBenchLoader
-from .operators.image_codec import decode_image
 
 DEFAULT_FEATURES = ["ghi_clearsky", "cos_zenith", "clearness_index"]
 # Canonical timestamp string used to key the image index AND to format the TS
@@ -80,6 +79,7 @@ class SolarUniBenchDataset(Dataset):
             idx = self._img_index[ds]
             rows = [idx.get(str(t)) for t in tss[lb]]
             if all(r is not None for r in rows) and len(rows) == self.lookback:
-                dec = np.stack([decode_image(np.asarray(cube[r])) for r in rows])
+                from .imaging.load import load_sky_frame
+                dec = np.stack([load_sky_frame(cube, r) for r in rows])
                 sample["image"] = torch.from_numpy(dec.astype(np.float32))
         return sample
