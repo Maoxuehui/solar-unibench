@@ -38,6 +38,12 @@ class SolarUniBenchLoader:
         if kind == "satellite_context":
             g = self._open(dataset, _SAT)
             return g["context"] if g is not None else None
+        if kind == "satellite_future":
+            g = self._open(dataset, _SAT)
+            return g["future"] if g is not None else None
+        if kind == "satellite_uncertainty":
+            g = self._open(dataset, _SAT)
+            return g["uncertainty_map"] if g is not None else None
         raise ValueError(f"unknown tensor kind: {kind}")
 
     def get_image_timestamps(self, dataset: str):
