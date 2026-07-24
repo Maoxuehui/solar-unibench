@@ -270,6 +270,12 @@ def main(argv=None) -> int:
         action="store_true",
         help=f"Fast smoke run: select the quick subset {list(_QUICK_SUBSET)} (<1 min).",
     )
+    ap.add_argument(
+        "--full",
+        action="store_true",
+        help="Phase 8 full-config: full-capacity GPU models + full data + 3-horizon "
+             "grid (sets SUB_FULL_CONFIG=1 before importing experiments). Publishable set.",
+    )
     ap.add_argument("--data-root", default=default_root, help="Standardized packages root.")
     ap.add_argument("--out", default="figures", help="Output directory for figures + results.")
     ap.add_argument(
@@ -283,6 +289,14 @@ def main(argv=None) -> int:
         help="Cache dir for the bounded RAW snapshot (default: <out>/.raw_cache).",
     )
     args = ap.parse_args(argv)
+
+    # Phase 8 Stream B: activate full-config presets BEFORE any experiment module
+    # is imported (discover_experiments lazily imports E1-E9, which import _config
+    # at first use). Must precede discover_experiments() below.
+    if args.full:
+        os.environ["SUB_FULL_CONFIG"] = "1"
+        print("[run_experiments] FULL-CONFIG mode (SUB_FULL_CONFIG=1): full-capacity "
+              "GPU models, uncapped rows, 3-horizon grid.", flush=True)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
