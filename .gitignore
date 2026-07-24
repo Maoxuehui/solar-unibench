@@ -29,3 +29,10 @@ checkpoints/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local agent / tooling workspaces (not shared with the benchmark)
+.superpowers/
+.claude/
+.raw_cache/
+logs/
+*.LAST_MEMBER
