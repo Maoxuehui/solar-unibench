@@ -27,9 +27,13 @@ import os
 #: Full-config master switch. Truthy -> publishable presets; falsy -> TINY dev.
 FULL: bool = bool(os.environ.get("SUB_FULL_CONFIG"))
 
-#: Per-entity row cap (temporal dev slice). 0 = no cap (use ALL standardized
-#: rows). Dev caps to 2000 so deep models fit in seconds on Folsom (~1.5M rows).
-MAX_ROWS_PER_ENTITY: int = 0 if FULL else 2000
+#: Per-entity row cap (temporal dev slice). Dev caps to 2000 so deep models fit
+#: in seconds; FULL uses 50,000 — a 25x-larger, tractable slice that bounds each
+#: grid cell to minutes (vs uncapped Folsom 1.5M rows = 10h+ for deep models).
+#: 0 means truly uncapped; raise toward 0 if full-data rigor is later required.
+#: NOTE for Folsom: rows are temporal, so the first 50k are early-2014 — the
+#: image-bearing window, so CrossViViT trains on real sky images, not zeros.
+MAX_ROWS_PER_ENTITY: int = 50_000 if FULL else 2000
 
 #: Forecast-horizon grid (hours). Dev = 2-horizon intra-day; full adds day-ahead.
 HORIZONS_HOURS: tuple[int, ...] = (1, 6, 24) if FULL else (1, 6)
