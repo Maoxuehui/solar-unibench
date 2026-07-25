@@ -33,7 +33,9 @@ RAW_SUBDIRS = {"folsom": "Folsom_data", "skippd": "SKIPPD_all"}
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Rebuild sky_images.zarr (compact format) for one dataset")
     ap.add_argument("--dataset", required=True, choices=["folsom", "skippd"])
-    ap.add_argument("--limit", type=int, default=200, help="frame cap (default 200)")
+    ap.add_argument("--limit", type=int, default=200, help="frame cap (default 200; 0 = all)")
+    ap.add_argument("--only-year", type=int, default=None,
+                    help="folsom only: restrict to Folsom_sky_images_<year>.tar.bz2 (e.g. 2014)")
     ap.add_argument("--data-root", default=None, help="override configs/paths.yaml data_root")
     ap.add_argument("--output-root", default=None, help="override configs/paths.yaml output_root")
     args = ap.parse_args(argv)
@@ -46,8 +48,15 @@ def main(argv=None):
 
     if args.dataset == "folsom":
         tar_paths = sorted((data_root / RAW_SUBDIRS["folsom"]).glob("Folsom_sky_images_*.tar.bz2"))
+        if args.only_year is not None:
+            tar_paths = [tp for tp in tar_paths if f"_{args.only_year}." in tp.name]
+            if not tar_paths:
+                raise SystemExit(f"--only-year {args.only_year}: no matching Folsom tarball "
+                                 f"(expected Folsom_sky_images_{args.only_year}.tar.bz2)")
         if not tar_paths:
             raise SystemExit(f"No Folsom sky tarballs under {data_root / RAW_SUBDIRS['folsom']}")
+        print(f"[rebuild_sky_zarr] using {len(tar_paths)} tarball(s): "
+              f"{', '.join(p.name for p in tar_paths)}", flush=True)
         result = build_folsom_sky_zarr(tar_paths, out_path, limit=args.limit)
     else:  # skippd
         parquet_dir = data_root / RAW_SUBDIRS["skippd"] / "default"

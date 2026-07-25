@@ -2,10 +2,14 @@
 from __future__ import annotations
 import io
 import tarfile
+import time
+import faulthandler
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from PIL import Image
+
+faulthandler.enable()  # print a Python-level traceback on native segfault (bad JPEG)
 from ..operators.brr import generate_brr_channel
 from ..operators.zarr_io import JPEGSkyStore, write_array
 from .resize import downsample_if_larger
@@ -45,7 +49,7 @@ def _to_utc_iso(ts) -> str:
     return t.tz_convert("UTC").isoformat()
 
 
-def build_folsom_sky_zarr(tar_paths, out_path, limit=500) -> dict:
+def build_folsom_sky_zarr(tar_paths, out_path, limit=500, progress_every=10_000) -> dict:
     """Stream Folsom sky tarballs into sky_images.zarr (lossy JPEG RGB bytes).
 
     Writes two arrays into the store:
@@ -59,11 +63,27 @@ def build_folsom_sky_zarr(tar_paths, out_path, limit=500) -> dict:
 
     The timestamp index is persisted now so Phase 5 cross-modal alignment does
     not need to re-stream the 49 GB tarballs.
+
+    Robustness / observability for long unattended runs (Phase 8):
+      - ``faulthandler`` is enabled module-wide: a native segfault (e.g. a
+        malformed JPEG in libjpeg-turbo) prints a Python stack instead of a
+        silent death.
+      - Each tar member name is written to a ``*.LAST_MEMBER`` sidecar BEFORE
+        its decode, so a crash identifies the culprit frame.
+      - Per-frame ``try/except`` logs+skips soft decode failures (a hard
+        segfault still kills the process — see sidecar).
+      - ``progress_every`` prints frame count, elapsed, fps, skipped count.
     """
     store = JPEGSkyStore(out_path, overwrite=True)
     n = 0
+    skipped = 0
     timestamps = []
     done = False
+    t0 = time.time()
+    last_path = Path(str(out_path) + ".LAST_MEMBER")
+    target = "ALL" if not limit else str(limit)
+    print(f"[folsom_sky] start: {len(tar_paths)} tarball(s), limit={target}, "
+          f"-> {out_path}", flush=True)
     for tp in tar_paths:
         if done:
             break
@@ -71,15 +91,30 @@ def build_folsom_sky_zarr(tar_paths, out_path, limit=500) -> dict:
             for m in tf:
                 if not m.isfile() or not m.name.lower().endswith(".jpg"):
                     continue
-                data = tf.extractfile(m).read()
-                rgb = _decode(data)            # (H,W,3) RGB, resolution-policy applied
-                store.append(rgb)              # BRR deferred to load_sky_frame
-                timestamps.append(_to_utc_iso(_ts_from_name(m.name)))
-                n += 1
+                last_path.write_text(m.name)          # crash-trace sidecar
+                try:
+                    data = tf.extractfile(m).read()
+                    rgb = _decode(data)               # (H,W,3) RGB, resolution-policy applied
+                    store.append(rgb)                 # BRR deferred to load_sky_frame
+                    timestamps.append(_to_utc_iso(_ts_from_name(m.name)))
+                    n += 1
+                except Exception as e:                # soft failure: log + skip
+                    skipped += 1
+                    print(f"[folsom_sky] SKIP {m.name}: {type(e).__name__}: {e}",
+                          flush=True)
+                    continue
+                if progress_every and (n % progress_every == 0):
+                    el = time.time() - t0
+                    rate = n / el if el > 0 else 0.0
+                    print(f"[folsom_sky] {n} frames | {tp.name} | {el:.0f}s | "
+                          f"{rate:.1f} fps | skipped={skipped}", flush=True)
                 if limit and n >= limit:
                     done = True
                     break
     # Parallel timestamp index (ISO-8601 UTC strings). Additive write keeps the
     # `images` array untouched; one string per chunk for cheap per-frame reads.
     write_array(out_path, "images_timestamps", np.array(timestamps), chunks=(1,))
-    return {"n_frames": n, "out_path": str(out_path)}
+    last_path.unlink(missing_ok=True)
+    print(f"[folsom_sky] DONE: {n} frames, skipped={skipped} -> {out_path}",
+          flush=True)
+    return {"n_frames": n, "out_path": str(out_path), "skipped": skipped}

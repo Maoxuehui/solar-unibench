@@ -67,6 +67,16 @@ from ..forecast.models import (
 )
 from ..viz.io import save_fig, save_metrics
 from ..viz.style import set_style
+from ._config import (  # Phase 8 Stream B: TINY dev by default, FULL when SUB_FULL_CONFIG=1
+    CROSSVIVIT_PARAMS as _CROSSVIVIT_PARAMS,
+    HORIZONS_HOURS,
+    LGBM_PARAMS as _LGBM_PARAMS,
+    LSTM_PARAMS as _LSTM_PARAMS,
+    MAX_ROWS_PER_ENTITY as _MAX_ROWS_PER_ENTITY,
+    MLP_PARAMS as _MLP_PARAMS,
+    PATCHTST_PARAMS as _PATCHTST_PARAMS,
+    FULL as _FULL,
+)
 
 __all__ = ["run", "DATASET_TARGETS", "HORIZONS_HOURS"]
 
@@ -83,18 +93,14 @@ DATASET_TARGETS: dict[str, str] = {
     "sunlake": "ghi_actual",
 }
 
-#: Dev 2-horizon intra-day slice. Phase 8 extends to the full 3-horizon grid
-#: (adds day-ahead 24h) with full-config models; the dev grid stays fast.
-HORIZONS_HOURS: tuple[int, ...] = (1, 6)
+#: Forecast-horizon grid imported from :mod:`._config` (dev=(1,6); FULL adds 24h).
 
 #: Modest lookback + coarse stride that bound the window count on Folsom while
 #: keeping enough daytime samples for a finite daytime MAE on small frames.
 _LOOKBACK: int = 12
 _STRIDE: int = 12
 
-#: Dev cap on rows per entity (temporal slice) so deep models fit in seconds on
-#: the largest standardized packages. Phase 8 removes this cap.
-_MAX_ROWS_PER_ENTITY: int = 2000
+#: Row cap imported from :mod:`._config` (dev=2000; FULL=0 / no cap).
 
 #: Nearest-neighbor match tolerance (image<->tabular timestamp) for sky-image
 #: attach on Folsom (second-cadence images vs hourly tabular) and SKIPPD.
@@ -106,22 +112,10 @@ _IMAGE_MATCH_TOLERANCE: str = "30min"
 _FEATURES: tuple[str, ...] = ("ghi_clearsky", "cos_zenith", "clearness_index")
 _FINITE_FRAC_THRESHOLD: float = 0.5
 
-# -- TINY model configs (dev; full configs at Phase 8) -----------------------
+# -- Model param presets imported from :mod:`._config` (TINY dev / FULL Phase 8).
 
-_LGBM_PARAMS: dict = {"n_estimators": 50, "n_jobs": 1, "random_state": 0}
-_MLP_PARAMS: dict = {"hidden_layer_sizes": (32,), "max_iter": 80, "random_state": 0}
-_LSTM_PARAMS: dict = {
-    "hidden_size": 16, "num_layers": 1, "epochs": 3, "batch_size": 64,
-    "device": "cpu",
-}
-_PATCHTST_PARAMS: dict = {
-    "d_model": 32, "n_heads": 4, "patch_len": 4, "stride": 2, "depth": 1,
-    "epochs": 3, "batch_size": 64, "device": "cpu",
-}
-_CROSSVIVIT_PARAMS: dict = {
-    "d_model": 32, "n_heads": 4, "depth": 1, "patch_len": 4, "img_size": 32,
-    "img_patch": 4, "epochs": 3, "batch_size": 32, "device": "cpu",
-}
+# Active-config provenance stamp for the results JSON.
+_CONFIG_TAG: str = "FULL (Phase 8)" if _FULL else "TINY dev"
 
 #: Display-name order (low -> high complexity) for the heatmap row ordering.
 _MODEL_ORDER: tuple[str, ...] = (
@@ -380,7 +374,7 @@ def _plot_heatmap(df: pd.DataFrame, out_dir: Path) -> list[Path]:
     ax.set_ylabel("model")
     ax.set_title(
         "Unified benchmark — Daytime skill vs Smart Persistence (E8)\n"
-        "TINY dev configs (epochs=3, capped rows); publishable numbers at Phase 8"
+        f"{_CONFIG_TAG} configs"
     )
     fig.colorbar(im, ax=ax, shrink=0.85,
                  label="Daytime skill (0 = SmartPersistence parity, + = better)")
@@ -475,7 +469,7 @@ def run(loader, out_dir, *, model_factory=None, datasets=None) -> dict:
             "stride": _STRIDE,
             "max_rows_per_entity": _MAX_ROWS_PER_ENTITY,
             "reference": "SmartPersistence",
-            "dev_configs": "TINY (epochs=3 deep models, capped rows) — Phase 8 full",
+            "config_tag": _CONFIG_TAG,
         },
         "image_datasets": [d for d, f in image_flags.items() if f],
     }

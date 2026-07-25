@@ -1,0 +1,18 @@
+{
+  "dataset": "skippd",
+  "n_rows": 363375,
+  "n_entities": 1,
+  "split_counts": {
+    "train": 213800,
+    "val": 23755,
+    "test": 125820
+  },
+  "targets": [
+    "pv_power_normalized"
+  ],
+  "per_target_nan_fraction": {
+    "pv_power_normalized": 0.0
+  },
+  "n_sky_frames": 363375,
+  "sky_images_zarr": "data/standardized/skippd/sky_images.zarr"
+}

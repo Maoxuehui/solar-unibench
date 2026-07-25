@@ -92,6 +92,13 @@ from ..forecast.models import (
 from ..operators.quality import apply_quality_audit
 from ..viz.io import save_fig, save_metrics
 from ..viz.style import MODEL_COLORS, PALETTE, set_style
+from ._config import (  # Phase 8 Stream B: TINY dev by default, FULL when SUB_FULL_CONFIG=1
+    FULL as _FULL,
+    LGBM_PARAMS as _BASE_LGBM,
+    MLP_PARAMS as _BASE_MLP,
+    LSTM_PARAMS as _BASE_LSTM,
+    PATCHTST_PARAMS as _BASE_PATCHTST,
+)
 
 __all__ = ["run", "DATASET_TARGETS", "COMPLEXITY_LADDER", "DEFAULT_DATASETS"]
 
@@ -136,27 +143,35 @@ _TRAIN_FRAC: float = 0.70
 _DAYTIME_COS_ZENITH: float = 0.05
 _DEFAULT_CAPACITY: float = 1.0
 
-#: TINY model configs (dev; full configs at Phase 8). n_jobs=1 / random_state=0
-#: keep the grid deterministic.
-_LGBM_PARAMS: dict = {"n_estimators": 40, "n_jobs": 1, "random_state": 0}
-_MLP_PARAMS: dict = {"hidden_layer_sizes": (32,), "max_iter": 80, "random_state": 0}
-_LSTM_PARAMS: dict = {
-    "hidden_size": 16,
-    "num_layers": 1,
-    "epochs": 3,
-    "batch_size": 64,
-    "device": "cpu",
-}
-_PATCHTST_PARAMS: dict = {
-    "d_model": 32,
-    "n_heads": 4,
-    "patch_len": 4,
-    "stride": 2,
-    "depth": 1,
-    "epochs": 3,
-    "batch_size": 64,
-    "device": "cpu",
-}
+# -- Model param presets (Phase 8 Stream B). TINY dev (E9's exact ladder,
+# LightGBM n_estimators=40) by default; FULL capacity (shared experiment-wide
+# presets, GPU, to-convergence) when SUB_FULL_CONFIG=1.
+if _FULL:
+    _LGBM_PARAMS: dict = _BASE_LGBM
+    _MLP_PARAMS: dict = _BASE_MLP
+    _LSTM_PARAMS: dict = _BASE_LSTM
+    _PATCHTST_PARAMS: dict = _BASE_PATCHTST
+else:
+    _LGBM_PARAMS = {"n_estimators": 40, "n_jobs": 1, "random_state": 0}
+    _MLP_PARAMS = {"hidden_layer_sizes": (32,), "max_iter": 80, "random_state": 0}
+    _LSTM_PARAMS = {
+        "hidden_size": 16,
+        "num_layers": 1,
+        "epochs": 3,
+        "batch_size": 64,
+        "device": "cpu",
+    }
+    _PATCHTST_PARAMS = {
+        "d_model": 32,
+        "n_heads": 4,
+        "patch_len": 4,
+        "stride": 2,
+        "depth": 1,
+        "epochs": 3,
+        "batch_size": 64,
+        "device": "cpu",
+    }
+_CONFIG_TAG: str = "FULL (Phase 8)" if _FULL else "TINY dev"
 
 #: SmartPersistence is the physical skill reference AND the ladder's first rung.
 #: The "non-trivial" rungs (everything after SP) are the complexity ladder whose

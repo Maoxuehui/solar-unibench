@@ -1,0 +1,22 @@
+{
+  "dataset": "folsom",
+  "n_rows": 1552320,
+  "n_entities": 1,
+  "split_counts": {
+    "train": 926640,
+    "val": 102960,
+    "test": 522720
+  },
+  "targets": [
+    "ghi_actual",
+    "dni_actual",
+    "dhi_actual"
+  ],
+  "per_target_nan_fraction": {
+    "ghi_actual": 0.0,
+    "dni_actual": 0.0,
+    "dhi_actual": 0.000398
+  },
+  "n_sky_frames": 250598,
+  "sky_images_zarr": "data/standardized/folsom/sky_images.zarr"
+}
