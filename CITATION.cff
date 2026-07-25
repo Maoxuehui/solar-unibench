@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Solar-UniBench: A unified multi-modal standardized solar-forecasting benchmark"
+type: software
+license: MIT
+year: 2026
+version: 0.1.0
+keywords:
+  - solar forecasting
+  - benchmark
+  - multi-modal
+  - standardization
+  - renewable energy
+  - reproducibility
+# Placeholder author block — replace with the full author list before release.
+authors:
+  - given-names: "TBD"
+    family-names: "Author"
+# A descriptor paper is in preparation for ESSD (Earth System Science Data).
+# Once published, point preferred-citation at the final DOI / BibTeX.
+preferred-citation:
+  type: article
+  title: >-
+    Solar-UniBench: A Multi-modal Standardized Dataset and Distributed
+    Processing Pipeline for Harmonized Solar Forecasting
+  journal: "Earth System Science Data (ESSD)"
+  year: 2026
+  notes: >-
+    In preparation for submission to Earth System Science Data (ESSD).
+    A data descriptor paper covering the harmonized datasets, governance
+    pipeline, and benchmark suite is being written; update this citation
+    with the DOI and bibliographic details once the manuscript is accepted.
+  authors:
+    - given-names: "TBD"
+      family-names: "Author"
