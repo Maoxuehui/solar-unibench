@@ -60,18 +60,16 @@ if FULL:  # publishable Phase-8 configs (GPU, full capacity, to-convergence)
     }
     PATCHTST_PARAMS: dict = {
         "d_model": 128, "n_heads": 8, "patch_len": 4, "stride": 2, "depth": 3,
-        "epochs": 50, "batch_size": 256, "lr": 1e-3, "device": "cuda",
+        "epochs": 50, "batch_size": 256, "lr": 1e-4, "device": "cuda",
     }
     # CrossViViT scaled toward the full ~145M multimodal model (Phase-6b ran a
-    # small d_model=64/depth=2 runnable variant). d_model=384/depth=8/n_heads=8
-    # + the image conv branch lands in the tens-of-millions; raise d_model to
-    # 512 for a larger headcount if compute allows. img_size=64 keeps the image
-    # branch tractable on a single 3090 at batch 64. lr=1e-3 = the model
-    # default (fair comparison); fit_loop's grad clipping keeps it stable.
+    # small d_model=64/depth=2 runnable variant). lr=1e-4 (the value used for
+    # the reported Phase-8 results; lower than the model default 1e-3, which we
+    # found overfits/diverges on the smaller per-entity slices here).
     CROSSVIVIT_PARAMS: dict = {
         "d_model": 384, "n_heads": 8, "depth": 8, "patch_len": 4,
         "img_size": 64, "img_patch": 8, "epochs": 50, "batch_size": 64,
-        "lr": 1e-3, "dropout": 0.1, "device": "cuda",
+        "lr": 1e-4, "dropout": 0.1, "device": "cuda",
     }
 else:  # TINY dev configs (mirror the pre-Phase-8 constants; fast tests)
     LGBM_PARAMS = {"n_estimators": 50, "n_jobs": 1, "random_state": 0}
