@@ -76,6 +76,7 @@ def fit_loop(
     batch_size: int,
     lr: float,
     loss_fn: nn.Module,
+    grad_clip: float = 1.0,
 ) -> None:
     """Generic shuffled-minibatch ``Adam`` training loop.
 
@@ -97,6 +98,11 @@ def fit_loop(
     loss_fn:
         Loss applied between ``net(...batched inputs...)`` and ``Yt[batch]``
         (MAE for the current baselines).
+    grad_clip:
+        Max gradient norm for global L2 gradient clipping (disabled when ``<= 0``).
+        Default 1.0 — essential stability for the full-capacity transformers
+        (CrossViViT/PatchTST at large d_model diverge without it); harmless for
+        the small dev models whose grad norm rarely exceeds it.
     """
     tensors = (Xt,) if isinstance(Xt, torch.Tensor) else tuple(Xt)
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
@@ -111,4 +117,6 @@ def fit_loop(
             pred = net(*[t[batch] for t in tensors])
             loss = loss_fn(pred, Yt[batch])
             loss.backward()
+            if grad_clip and grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(net.parameters(), grad_clip)
             optimizer.step()
