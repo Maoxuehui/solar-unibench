@@ -189,6 +189,13 @@ sit below it in skill terms. CrossViViT runs only where sky images resolve
 (Folsom/SKIPPD); it is omitted on tabular-only packages where its image modality
 has no signal.
 
+> **CrossViViT capacity note (honest):** the full-config CrossViViT here is
+> **28.8 M parameters** (`d_model=384, depth=8`) — the largest config of the
+> *simplified port* in `forecast/models/crossvivit_model.py`. The original
+> paper's ~145 M model additionally uses RoPE positional encoding, per-station
+> statistics, and optical-flow / time-series context channels not implemented in
+> this port; reaching 145 M would require adding those components (future work).
+
 > **Folsom imagery note:** Folsom sky-image experiments use **2014 data only**
 > (250,598 frames materialized into `sky_images.zarr`, JPEG-q90 RGB @256² + BRR-on-load).
 
