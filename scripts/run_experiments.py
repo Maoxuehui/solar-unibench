@@ -296,7 +296,7 @@ def main(argv=None) -> int:
     if args.full:
         os.environ["SUB_FULL_CONFIG"] = "1"
         print("[run_experiments] FULL-CONFIG mode (SUB_FULL_CONFIG=1): full-capacity "
-              "GPU models, uncapped rows, 3-horizon grid.", flush=True)
+              "GPU models, 50k-row/entity cap, 3-horizon grid.", flush=True)
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
