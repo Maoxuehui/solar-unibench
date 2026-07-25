@@ -1,0 +1,16 @@
+{
+  "dataset": "gefcom2014",
+  "n_rows": 59112,
+  "n_entities": 3,
+  "split_counts": {
+    "train": 51255,
+    "val": 5694,
+    "test": 2163
+  },
+  "targets": [
+    "pv_power_normalized"
+  ],
+  "per_target_nan_fraction": {
+    "pv_power_normalized": 0.0
+  }
+}

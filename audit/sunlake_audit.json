@@ -1,0 +1,16 @@
+{
+  "dataset": "sunlake",
+  "n_rows": 811416,
+  "n_entities": 6,
+  "split_counts": {
+    "train": 686140,
+    "val": 76235,
+    "test": 49041
+  },
+  "targets": [
+    "ghi_actual"
+  ],
+  "per_target_nan_fraction": {
+    "ghi_actual": 0.0
+  }
+}
