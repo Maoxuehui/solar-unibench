@@ -1,7 +1,15 @@
 """Shared synthetic fixtures. No real data lives in the test suite."""
+import socket
+
 import numpy as np
 import pandas as pd
 import pytest
+
+# Bound every network call made during the test session (e.g. deeplake's
+# import-time PyPI version-check + hub dataset retries) so an offline run
+# cannot hang the suite for minutes. The synthetic fixtures need no network;
+# this only makes incidental network calls fail fast.
+socket.setdefaulttimeout(3)
 
 
 @pytest.fixture
