@@ -10,7 +10,14 @@ from solarunibench.pipeline.adapters.sunlake import SunLakePipeline
 from tests.test_sunlake_adapter import _write_sunlake_fixture
 
 
-def test_sunlake_package_satisfies_contract(tmp_path):
+def test_sunlake_package_satisfies_contract(tmp_path, monkeypatch):
+    # This test validates the TABULAR contract only. The satellite hub pull
+    # (process_and_save_tensors -> build_sunlake_satellite_zarr) is networked
+    # and exercised under RUN_SLOW; stub it here so the contract test is
+    # offline + fast (otherwise the hub dataset retries hang an offline run).
+    import solarunibench.imaging.sunlake_satellite as _sat
+    monkeypatch.setattr(_sat, "build_sunlake_satellite_zarr", lambda *a, **kw: None)
+
     _write_sunlake_fixture(tmp_path)
     SunLakePipeline(raw_data_dir=str(tmp_path), output_dir=str(tmp_path / "out"),
                     dataset_name="sunlake").run_pipeline()
