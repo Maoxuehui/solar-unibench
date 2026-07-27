@@ -1,0 +1,146 @@
+{
+  "out_dir": "D:\\monica\\workspace\\solar-unibench\\figures",
+  "selected": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "E8",
+    "E9"
+  ],
+  "experiments": [
+    {
+      "id": "E1",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_geo_blindtest.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_geo_tsr_validation.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_geo_skill_gain.png"
+      ],
+      "n_figures": 3,
+      "metric_keys": [
+        "blind_test",
+        "tsr_validation",
+        "downstream"
+      ]
+    },
+    {
+      "id": "E2",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_clearsky_skill.png"
+      ],
+      "n_figures": 1,
+      "metric_keys": [
+        "datasets",
+        "config"
+      ]
+    },
+    {
+      "id": "E3",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_brr_gallery.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_brr_skill.png"
+      ],
+      "n_figures": 2,
+      "metric_keys": [
+        "datasets",
+        "gallery",
+        "config"
+      ]
+    },
+    {
+      "id": "E4",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_optflow_sequence.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_optflow_psnr_decay.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_uncertainty_reliability.png"
+      ],
+      "n_figures": 3,
+      "metric_keys": [
+        "decay",
+        "reliability",
+        "status",
+        "dataset",
+        "config"
+      ]
+    },
+    {
+      "id": "E5",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_quality_flags.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_quality_cleaning_effect.png"
+      ],
+      "n_figures": 2,
+      "metric_keys": [
+        "quality_flag",
+        "ablation",
+        "config"
+      ]
+    },
+    {
+      "id": "E6",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_align_lag_hist.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_align_skill.png"
+      ],
+      "n_figures": 2,
+      "metric_keys": [
+        "datasets",
+        "config"
+      ]
+    },
+    {
+      "id": "E7",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_defect_missingness.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_defect_irregularity.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_defect_outliers.png"
+      ],
+      "n_figures": 3,
+      "metric_keys": [
+        "missingness",
+        "irregularity",
+        "quality_flag",
+        "outliers",
+        "config"
+      ]
+    },
+    {
+      "id": "E8",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_benchmark_heatmap.png"
+      ],
+      "n_figures": 1,
+      "metric_keys": [
+        "rows",
+        "config",
+        "image_datasets"
+      ]
+    },
+    {
+      "id": "E9",
+      "status": "ran",
+      "figures": [
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_governance_vs_complexity.png",
+        "D:\\monica\\workspace\\solar-unibench\\figures\\fig_cleaning_delta.png"
+      ],
+      "n_figures": 2,
+      "metric_keys": [
+        "status",
+        "grid",
+        "crossover",
+        "config"
+      ]
+    }
+  ]
+}

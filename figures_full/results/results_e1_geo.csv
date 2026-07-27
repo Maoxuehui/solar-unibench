@@ -1,0 +1,7 @@
+section,key,great_circle_error_km,true_lat,true_lon,recovered_lat,recovered_lon,latitude,longitude,r2_latitude,rmse_latitude,longitude_implied,recovered_longitude,n_days,daytime_mae,n_daytime,delta_daytime_mae,geo_features_used
+blind_test,folsom,420.7126591316203,38.67,-121.15,35.0,-120.0,,,,,,,,,,,
+tsr_validation,GEFCOM_ZONE_1,,,,,,-34.1,150.0,0.822616176755841,338478758.12266064,150.0,150.0,822.0,,,,
+tsr_validation,GEFCOM_ZONE_2,,,,,,-33.400000000000006,150.0,0.8142522454344852,338508531.3273976,150.0,150.0,822.0,,,,
+tsr_validation,GEFCOM_ZONE_3,,,,,,-33.5,150.0,0.8053733056929464,337971267.728405,150.0,150.0,822.0,,,,
+downstream,raw_lags,,,,,,,,,,,,,0.09871260722027315,177.0,,
+downstream,geo_features,,,,,,,,,,,,,0.10468350534648599,177.0,-0.005970898126212834,"ghi_clearsky,cos_zenith"
