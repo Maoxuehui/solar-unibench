@@ -55,12 +55,12 @@ if FULL:  # publishable Phase-8 configs (GPU, full capacity, to-convergence)
         "hidden_layer_sizes": (256, 128), "max_iter": 500, "random_state": 0,
     }
     LSTM_PARAMS: dict = {
-        "hidden_size": 128, "num_layers": 2, "epochs": 50, "batch_size": 256,
+        "hidden_size": 128, "num_layers": 2, "epochs": 100, "batch_size": 256,
         "lr": 1e-3, "device": "cuda",
     }
     PATCHTST_PARAMS: dict = {
         "d_model": 128, "n_heads": 8, "patch_len": 4, "stride": 2, "depth": 3,
-        "epochs": 50, "batch_size": 256, "lr": 1e-4, "device": "cuda",
+        "epochs": 100, "batch_size": 256, "lr": 1e-4, "device": "cuda",
     }
     # PatchTST channel-DEPENDENT variant (cross-channel mixing in the patch
     # projection) — the CD counterpart run alongside the default CI PatchTST to
@@ -68,14 +68,14 @@ if FULL:  # publishable Phase-8 configs (GPU, full capacity, to-convergence)
     # at lookback 12/24 captures high-frequency cloud motion per the ESSD ask).
     PATCHTST_CD_PARAMS: dict = {
         "d_model": 128, "n_heads": 8, "patch_len": 4, "stride": 2, "depth": 3,
-        "epochs": 50, "batch_size": 256, "lr": 1e-4, "device": "cuda",
+        "epochs": 100, "batch_size": 256, "lr": 1e-4, "device": "cuda",
         "variant": "patchtst_cd",
     }
     DLINEAR_PARAMS: dict = {
-        "kernel_size": 25, "epochs": 50, "batch_size": 256, "lr": 1e-3, "device": "cuda",
+        "kernel_size": 25, "epochs": 25, "batch_size": 256, "lr": 1e-3, "device": "cuda",
     }
     iTRANSFORMER_PARAMS: dict = {
-        "d_model": 128, "n_heads": 8, "depth": 3, "epochs": 50, "batch_size": 256,
+        "d_model": 128, "n_heads": 8, "depth": 3, "epochs": 100, "batch_size": 256,
         "lr": 1e-3, "device": "cuda",
     }
     # CrossViViT scaled toward the full ~145M multimodal model (Phase-6b ran a
@@ -84,7 +84,7 @@ if FULL:  # publishable Phase-8 configs (GPU, full capacity, to-convergence)
     # found overfits/diverges on the smaller per-entity slices here).
     CROSSVIVIT_PARAMS: dict = {
         "d_model": 384, "n_heads": 8, "depth": 8, "patch_len": 4,
-        "img_size": 64, "img_patch": 8, "epochs": 50, "batch_size": 64,
+        "img_size": 64, "img_patch": 8, "epochs": 100, "batch_size": 64,
         "lr": 1e-4, "dropout": 0.1, "device": "cuda",
     }
 else:  # TINY dev configs (mirror the pre-Phase-8 constants; fast tests)
