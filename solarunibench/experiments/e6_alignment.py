@@ -85,6 +85,13 @@ _HORIZON_HOURS: int = 1
 #: ACTUAL lag the NN-attach absorbs on each dataset.
 _MATCH_TOLERANCE: str = "30min"
 
+#: Pass-through window. Matches whose image↔tabular lag is at or below this are
+#: considered already fine-aligned and pass through EXACTLY (no nearest-neighbour
+#: re-selection, so sub-second jitter on a dataset like SKIPPD cannot inject
+#: label noise). 100 ms is well below any physical sky-cloud decorrelation
+#: timescale at minute cadence, so a sub-100ms match is physically the same instant.
+_PASS_THROUGH_TOLERANCE: str = "100ms"
+
 #: Even subsample cap on decoded frames for dev speed (full cubes at Phase 8).
 _MAX_FRAMES_DEV: int = 600
 
@@ -187,22 +194,33 @@ def _lag_diagnostic(img_ts: np.ndarray, tab_ts: np.ndarray, tolerance: str) -> d
     lags = np.abs((img_times.values - nearest_tab).astype("timedelta64[s]").astype(float))
 
     tol_s = pd.Timedelta(tolerance).total_seconds()
+    pt_s = pd.Timedelta(_PASS_THROUGH_TOLERANCE).total_seconds()
     exact_mask = lags == 0.0
     nn_mask = lags <= tol_s
+    # Pass-through: matches within the fine-alignment window (<= 100 ms) are
+    # physically the same instant — flagged so already-aligned data (e.g. SKIPPD)
+    # is reported as needing no alignment action (no NN re-selection noise).
+    pt_mask = nn_mask & (lags <= pt_s)
     nn_lags = lags[nn_mask]
+    align_lags = lags[nn_mask & ~pt_mask]  # lags the alignment actually absorbs
     return {
         "n_images": int(len(lags)),
         "exact_count": int(exact_mask.sum()),
         "nn_count": int(nn_mask.sum()),
         "exact_frac": float(exact_mask.mean()) if len(lags) else 0.0,
         "nn_frac": float(nn_mask.mean()) if len(lags) else 0.0,
-        "exact_lags_seconds": lags[exact_mask],
-        "nn_lags_seconds": nn_lags,
+        "pass_through_count": int(pt_mask.sum()),
+        "pass_through_frac": float(pt_mask.mean()) if len(lags) else 0.0,
         "median_lag_seconds": float(np.median(nn_lags)) if nn_lags.size else float("nan"),
         "mean_lag_seconds": float(np.mean(nn_lags)) if nn_lags.size else float("nan"),
         "p95_lag_seconds": float(np.quantile(nn_lags, 0.95)) if nn_lags.size else float("nan"),
         "max_lag_seconds": float(np.max(nn_lags)) if nn_lags.size else float("nan"),
+        "median_align_lag_seconds": (float(np.median(align_lags)) if align_lags.size
+                                     else 0.0),
+        "exact_lags_seconds": lags[exact_mask],
+        "nn_lags_seconds": nn_lags,
         "tolerance_seconds": float(tol_s),
+        "pass_through_tolerance_seconds": float(pt_s),
     }
 
 
@@ -280,7 +298,16 @@ def _build_samples(
         (issue_times.values - nearest_img_time).astype("timedelta64[s]").astype(float)
     )
     issue["_aligned_pos"] = np.where(valid, order[safe_pos], -1)
-    issue["_exact_hit"] = valid & (issue_lags == 0.0)
+    # Pass-through: a match within the fine-alignment window (<= 100 ms) is
+    # physically the same instant, so it is treated as EXACT in BOTH arms (the
+    # unaligned arm captures it too). This prevents sub-second jitter on an
+    # already-aligned dataset (e.g. SKIPPD) from fabricating a spurious
+    # "alignment gain" — fine-aligned data is honestly reported as needing no
+    # alignment action.
+    pt_s = pd.Timedelta(_PASS_THROUGH_TOLERANCE).total_seconds()
+    pt_hit = valid & (issue_lags <= pt_s)
+    issue["_exact_hit"] = pt_hit                       # <=100ms counts as exact
+    issue["_pass_through"] = pt_hit & (issue_lags > 0.0)  # (0, 100ms] jitter
 
     # Horizon match: tabular row nearest to issue_time + H (forecast target).
     horizon_target = f"{target}_horizon"
@@ -447,11 +474,15 @@ def _lag_public(lag: dict) -> dict:
         "nn_count": lag["nn_count"],
         "exact_frac": lag["exact_frac"],
         "nn_frac": lag["nn_frac"],
+        "pass_through_count": lag["pass_through_count"],
+        "pass_through_frac": lag["pass_through_frac"],
         "median_lag_seconds": lag["median_lag_seconds"],
         "mean_lag_seconds": lag["mean_lag_seconds"],
         "p95_lag_seconds": lag["p95_lag_seconds"],
         "max_lag_seconds": lag["max_lag_seconds"],
+        "median_align_lag_seconds": lag["median_align_lag_seconds"],
         "tolerance_seconds": lag["tolerance_seconds"],
+        "pass_through_tolerance_seconds": lag["pass_through_tolerance_seconds"],
     }
 
 
@@ -563,11 +594,15 @@ def _save_results_csv(metrics: dict, out_dir: Path) -> Path:
             "nn_count": lag["nn_count"],
             "exact_frac": lag["exact_frac"],
             "nn_frac": lag["nn_frac"],
+            "pass_through_count": lag["pass_through_count"],
+            "pass_through_frac": lag["pass_through_frac"],
             "median_lag_seconds": lag["median_lag_seconds"],
             "mean_lag_seconds": lag["mean_lag_seconds"],
             "p95_lag_seconds": lag["p95_lag_seconds"],
             "max_lag_seconds": lag["max_lag_seconds"],
+            "median_align_lag_seconds": lag["median_align_lag_seconds"],
             "tolerance_seconds": lag["tolerance_seconds"],
+            "pass_through_tolerance_seconds": lag["pass_through_tolerance_seconds"],
         }
         skill = arm.get("skill")
         if skill is None:
