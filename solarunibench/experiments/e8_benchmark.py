@@ -59,6 +59,8 @@ from ..forecast.core import (
 )
 from ..forecast.models import (
     CrossViViTModel,
+    DLinearModel,
+    iTransformerModel,
     LightGBMModel,
     LSTMModel,
     MLPModel,
@@ -69,11 +71,14 @@ from ..viz.io import save_fig, save_metrics
 from ..viz.style import set_style
 from ._config import (  # Phase 8 Stream B: TINY dev by default, FULL when SUB_FULL_CONFIG=1
     CROSSVIVIT_PARAMS as _CROSSVIVIT_PARAMS,
+    DLINEAR_PARAMS as _DLINEAR_PARAMS,
     HORIZONS_HOURS,
+    iTRANSFORMER_PARAMS as _ITRANSFORMER_PARAMS,
     LGBM_PARAMS as _LGBM_PARAMS,
     LSTM_PARAMS as _LSTM_PARAMS,
     MAX_ROWS_PER_ENTITY as _MAX_ROWS_PER_ENTITY,
     MLP_PARAMS as _MLP_PARAMS,
+    PATCHTST_CD_PARAMS as _PATCHTST_CD_PARAMS,
     PATCHTST_PARAMS as _PATCHTST_PARAMS,
     FULL as _FULL,
 )
@@ -119,7 +124,8 @@ _CONFIG_TAG: str = "FULL (Phase 8)" if _FULL else "TINY dev"
 
 #: Display-name order (low -> high complexity) for the heatmap row ordering.
 _MODEL_ORDER: tuple[str, ...] = (
-    "SmartPersistence", "LightGBM", "MLP", "LSTM", "PatchTST", "CrossViViT",
+    "SmartPersistence", "LightGBM", "MLP", "DLinear", "LSTM",
+    "PatchTST", "PatchTST-CD", "iTransformer", "CrossViViT",
 )
 
 
@@ -199,17 +205,21 @@ def _uses_images(model) -> bool:
 
 
 def _build_models(has_images: bool) -> list:
-    """Fresh TINY baseline instances for one ``(dataset, horizon)`` cell.
+    """Fresh baseline instances for one ``(dataset, horizon)`` cell.
 
-    Returns the 5 non-reference baselines (SmartPersistence is the reference,
-    handled separately). CrossViViT is included only when the dataset has sky
-    images — its image modality has no signal on purely tabular packages.
+    Returns the non-reference baselines (SmartPersistence is the reference,
+    handled separately): LightGBM, MLP, DLinear, LSTM, PatchTST (CI) + PatchTST
+    (CD variant) + iTransformer. CrossViViT is included only when the dataset
+    has sky images — its image modality has no signal on purely tabular packages.
     """
     models = [
         LightGBMModel(params=_LGBM_PARAMS),
         MLPModel(**_MLP_PARAMS),
+        DLinearModel(**_DLINEAR_PARAMS),
         LSTMModel(**_LSTM_PARAMS),
         PatchTSTModel(**_PATCHTST_PARAMS),
+        PatchTSTModel(**{**_PATCHTST_CD_PARAMS, "name": "PatchTST-CD"}),
+        iTransformerModel(**_ITRANSFORMER_PARAMS),
     ]
     if has_images:
         models.append(CrossViViTModel(**_CROSSVIVIT_PARAMS))

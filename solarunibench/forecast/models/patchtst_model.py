@@ -42,9 +42,12 @@ from torch import nn
 from ..core import ForecastModel
 from ._torch_base import TorchForecastMixin, fit_loop
 
-# Valid tokenization variants. ``patchtst`` patches along lookback; ``vanilla``
-# treats each lookback step as a token (no patching — a plain TS-Transformer).
-_VARIANTS: tuple[str, ...] = ("patchtst", "vanilla")
+# Valid tokenization variants. ``patchtst`` patches along lookback (channel-
+# independent); ``patchtst_cd`` is the channel-dependent variant (each patch
+# spans ALL channels, so cross-channel mixing happens in the projection);
+# ``vanilla`` treats each lookback step as a token (no patching — a plain
+# TS-Transformer).
+_VARIANTS: tuple[str, ...] = ("patchtst", "patchtst_cd", "vanilla")
 
 
 class _PatchTSTNet(nn.Module):
@@ -75,16 +78,20 @@ class _PatchTSTNet(nn.Module):
         self.patch_len = patch_len
         self.stride = stride
 
-        if variant == "patchtst":
+        if variant in ("patchtst", "patchtst_cd"):
             if lookback < patch_len:
                 raise ValueError(
-                    f"patchtst variant requires lookback >= patch_len "
+                    f"{variant} variant requires lookback >= patch_len "
                     f"(got lookback={lookback}, patch_len={patch_len}); "
                     f"use a smaller patch_len or variant='vanilla'."
                 )
             # unfold over lookback: number of strided windows of width patch_len.
             self.n_tokens = (lookback - patch_len) // stride + 1
-            self.proj = nn.Linear(patch_len, d_model)
+            # Channel-dependent (CD): each patch spans ALL channels (width
+            # patch_len*Fp) so the projection mixes variates. Channel-independent
+            # (CI, the PatchTST default): one patch per channel (width patch_len).
+            in_dim = patch_len * n_channels if variant == "patchtst_cd" else patch_len
+            self.proj = nn.Linear(in_dim, d_model)
         else:  # "vanilla" — one token per lookback step (token width 1).
             self.n_tokens = lookback
             self.proj = nn.Linear(1, d_model)
@@ -106,8 +113,18 @@ class _PatchTSTNet(nn.Module):
         self.head = nn.Linear(d_model, horizon)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (n, lookback, Fp) — channel-independence: merge (n, Fp) into batch.
+        # x: (n, lookback, Fp)
         n, _, fp = x.shape
+        if self.variant == "patchtst_cd":
+            # Channel-dependent: each patch spans ALL channels (cross-channel
+            # mixing in the projection). x.unfold(1, patch_len, stride) ->
+            # (n, n_tokens, Fp, patch_len) -> (n, n_tokens, patch_len*Fp).
+            tokens = x.unfold(1, self.patch_len, self.stride).permute(0, 1, 3, 2)
+            tokens = tokens.reshape(n, self.n_tokens, self.patch_len * fp)
+            h = self.proj(tokens) + self.pos           # (n, n_tokens, d_model)
+            out = self.encoder(h).mean(dim=1)            # (n, d_model)
+            return self.head(out)
+        # Channel-independent (patchtst / vanilla): merge (n, Fp) into batch.
         xc = x.permute(0, 2, 1).reshape(n * fp, -1)  # (n*Fp, lookback)
         if self.variant == "patchtst":
             # (n*Fp, n_tokens, patch_len) — unfold along the lookback dim.
@@ -153,8 +170,11 @@ class PatchTSTModel(TorchForecastMixin, ForecastModel):
     name:
         Display name returned by the :attr:`name` property.
     variant:
-        ``"patchtst"`` (default; patches the lookback) or ``"vanilla"`` (each
-        lookback step is a token — a drop-in plain TS-Transformer).
+        ``"patchtst"`` (default; channel-independent, patches the lookback per
+        channel), ``"patchtst_cd"`` (channel-dependent — each patch spans ALL
+        channels so cross-channel mixing happens in the projection; better when
+        variate interactions matter, e.g. high-frequency cloud motion), or
+        ``"vanilla"`` (each lookback step is a token — a plain TS-Transformer).
     seed:
         Seed for Python/NumPy/Torch RNG (and cuDNN determinism) applied at the
         start of :meth:`fit`; guarantees reproducible fits.

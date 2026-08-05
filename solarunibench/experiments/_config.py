@@ -62,6 +62,22 @@ if FULL:  # publishable Phase-8 configs (GPU, full capacity, to-convergence)
         "d_model": 128, "n_heads": 8, "patch_len": 4, "stride": 2, "depth": 3,
         "epochs": 50, "batch_size": 256, "lr": 1e-4, "device": "cuda",
     }
+    # PatchTST channel-DEPENDENT variant (cross-channel mixing in the patch
+    # projection) — the CD counterpart run alongside the default CI PatchTST to
+    # separate temporal-pattern from variate-interaction modelling (patch_len 4
+    # at lookback 12/24 captures high-frequency cloud motion per the ESSD ask).
+    PATCHTST_CD_PARAMS: dict = {
+        "d_model": 128, "n_heads": 8, "patch_len": 4, "stride": 2, "depth": 3,
+        "epochs": 50, "batch_size": 256, "lr": 1e-4, "device": "cuda",
+        "variant": "patchtst_cd",
+    }
+    DLINEAR_PARAMS: dict = {
+        "kernel_size": 25, "epochs": 50, "batch_size": 256, "lr": 1e-3, "device": "cuda",
+    }
+    iTRANSFORMER_PARAMS: dict = {
+        "d_model": 128, "n_heads": 8, "depth": 3, "epochs": 50, "batch_size": 256,
+        "lr": 1e-3, "device": "cuda",
+    }
     # CrossViViT scaled toward the full ~145M multimodal model (Phase-6b ran a
     # small d_model=64/depth=2 runnable variant). lr=1e-4 (the value used for
     # the reported Phase-8 results; lower than the model default 1e-3, which we
@@ -82,6 +98,15 @@ else:  # TINY dev configs (mirror the pre-Phase-8 constants; fast tests)
         "d_model": 32, "n_heads": 4, "patch_len": 4, "stride": 2, "depth": 1,
         "epochs": 3, "batch_size": 64, "device": "cpu",
     }
+    PATCHTST_CD_PARAMS = {
+        "d_model": 32, "n_heads": 4, "patch_len": 4, "stride": 2, "depth": 1,
+        "epochs": 3, "batch_size": 64, "device": "cpu", "variant": "patchtst_cd",
+    }
+    DLINEAR_PARAMS = {"kernel_size": 25, "epochs": 3, "batch_size": 64, "device": "cpu"}
+    iTRANSFORMER_PARAMS = {
+        "d_model": 32, "n_heads": 4, "depth": 1, "epochs": 3, "batch_size": 64,
+        "device": "cpu",
+    }
     CROSSVIVIT_PARAMS = {
         "d_model": 32, "n_heads": 4, "depth": 1, "patch_len": 4, "img_size": 32,
         "img_patch": 4, "epochs": 3, "batch_size": 32, "device": "cpu",
@@ -100,6 +125,9 @@ def describe() -> dict:
             "MLP": MLP_PARAMS,
             "LSTM": LSTM_PARAMS,
             "PatchTST": PATCHTST_PARAMS,
+            "PatchTST-CD": PATCHTST_CD_PARAMS,
+            "DLinear": DLINEAR_PARAMS,
+            "iTransformer": iTRANSFORMER_PARAMS,
             "CrossViViT": CROSSVIVIT_PARAMS,
         },
     }
