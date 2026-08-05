@@ -183,6 +183,48 @@ def _fit_sigma_by_u(err_abs, u, n_bins: int):
     return centers, scales
 
 
+def _ece_from_pixels(cal_err, cal_u, eval_err, eval_u, nominal_levels=_NOMINAL_LEVELS,
+                     n_bins: int = _REL_BINS) -> tuple[list[float], float]:
+    """Calibrate σ̂(u) on the cal pixels; return (empirical_coverage_per_level, ECE) on eval.
+
+    ECE = mean |empirical_coverage − nominal| over the nominal levels. A single
+    reliability scale σ̂(u) is fit as the mean |error| per reliability-bin on the
+    calibration pixels, then the standardized residual quantile at each nominal
+    level α defines the interval half-width whose empirical coverage is measured
+    on the held-out eval pixels. Returns (NaN-list, NaN) when calibration is
+    impossible (no finite pixels / degenerate bins).
+    """
+    cal_err = np.asarray(cal_err, dtype=np.float64).ravel()
+    cal_u = np.asarray(cal_u, dtype=np.float64).ravel()
+    eval_err = np.asarray(eval_err, dtype=np.float64).ravel()
+    eval_u = np.asarray(eval_u, dtype=np.float64).ravel()
+    nominal = list(nominal_levels)
+    centers, scales = _fit_sigma_by_u(cal_err, cal_u, n_bins=n_bins)
+    if centers.size == 0 or scales.size == 0 or cal_err.size == 0 or eval_err.size == 0:
+        return [float("nan")] * len(nominal), float("nan")
+    sigma_cal = np.interp(cal_u, centers, scales, left=scales[0], right=scales[-1])
+    sigma_eval = np.interp(eval_u, centers, scales, left=scales[0], right=scales[-1])
+    sigma_cal = np.where(sigma_cal > 1e-12, sigma_cal, np.nan)
+    sigma_eval = np.where(sigma_eval > 1e-12, sigma_eval, np.nan)
+    z_cal = (cal_err / sigma_cal)
+    z_cal = z_cal[np.isfinite(z_cal)]
+    z_eval = (eval_err / sigma_eval)
+    z_eval = z_eval[np.isfinite(z_eval)]
+    emp: list[float] = []
+    for alpha in nominal:
+        if z_cal.size == 0 or z_eval.size == 0:
+            emp.append(float("nan"))
+            continue
+        c_alpha = float(np.quantile(z_cal, alpha))
+        emp.append(float(np.mean(z_eval <= c_alpha)))
+    nominal_arr = np.asarray(nominal, dtype=float)
+    emp_arr = np.asarray(emp, dtype=float)
+    finite = np.isfinite(emp_arr)
+    ece = (float(np.mean(np.abs(emp_arr[finite] - nominal_arr[finite])))
+           if finite.any() else float("nan"))
+    return emp, ece
+
+
 def coverage_curve(pred, truth, cal_u, eval_u, nominal_levels=_NOMINAL_LEVELS,
                    n_bins: int = _REL_BINS) -> dict:
     """Distribution-free prediction-interval coverage vs nominal level.
@@ -347,35 +389,38 @@ def _evaluate(context, future, uncertainty, *, max_pairs, nominal_levels):
     # coverage_curve calibrates on (cal_err, cal_u); we feed the SAME pixel-pool
     # by using cal for fit and eval for measurement via a thin wrapper.
     centers, scales = _fit_sigma_by_u(cal_err, cal_u, n_bins=_REL_BINS)
-    # Build a (pred, truth, cal_u, eval_u) pass through coverage_curve: it scores
-    # |pred-truth| — but we need cal vs eval pixel sets. Use a direct computation
-    # here (the helper above operates on a single pred/truth image pair).
+    # Pooled ECE (the headline calibration number; cal/eval split across all
+    # leads × pairs × channels). Replaces the former inline computation.
+    emp, ece = _ece_from_pixels(
+        cal_err, cal_u, eval_err, eval_u, nominal_levels=nominal_levels,
+    )
     nominal = list(nominal_levels)
-    emp = []
-    if centers.size and scales.size and cal_err.size and eval_err.size:
-        sigma_cal = np.interp(cal_u, centers, scales,
-                              left=scales[0], right=scales[-1])
-        sigma_eval = np.interp(eval_u, centers, scales,
-                               left=scales[0], right=scales[-1])
-        sigma_cal = np.where(sigma_cal > 1e-12, sigma_cal, np.nan)
-        sigma_eval = np.where(sigma_eval > 1e-12, sigma_eval, np.nan)
-        z_cal = cal_err / sigma_cal
-        z_cal = z_cal[np.isfinite(z_cal)]
-        z_eval = eval_err / sigma_eval
-        z_eval = z_eval[np.isfinite(z_eval)]
-        for alpha in nominal:
-            if z_cal.size == 0 or z_eval.size == 0:
-                emp.append(float("nan"))
-                continue
-            c_alpha = float(np.quantile(z_cal, alpha))
-            emp.append(float(np.mean(z_eval <= c_alpha)))
-    else:
-        emp = [float("nan")] * len(nominal)
 
-    nominal_arr = np.asarray(nominal, dtype=float)
-    emp_arr = np.asarray(emp, dtype=float)
-    finite = np.isfinite(emp_arr)
-    ece = float(np.mean(np.abs(emp_arr[finite] - nominal_arr[finite]))) if finite.any() else float("nan")
+    # Per-lead ECE (K=1..K): calibrate σ̂(u) on each lead's cal pixels and measure
+    # ECE on its eval pixels. Extrapolation uncertainty grows with lead time, so
+    # ECE is expected to RISE with K — the decay-trend the ESSD figure reports.
+    ece_per_lead: list[float] = []
+    for k in range(1, K + 1):
+        pred = per_lead[k]["pred"].astype(np.float64)
+        truth = per_lead[k]["truth"].astype(np.float64)
+        unc = per_lead[k]["unc"].astype(np.float64)
+        pairs = per_lead[k]["pairs"]
+        k_cal_err, k_cal_u, k_eval_err, k_eval_u = [], [], [], []
+        for i, t in enumerate(pairs):
+            err = np.abs(pred[i] - truth[i]).ravel()
+            u = np.broadcast_to(unc[i], pred[i].shape).ravel()
+            if t in cal_pairs:
+                k_cal_err.append(err); k_cal_u.append(u)
+            elif t in eval_pairs:
+                k_eval_err.append(err); k_eval_u.append(u)
+        k_cal_err = np.concatenate(k_cal_err) if k_cal_err else np.array([])
+        k_cal_u = np.concatenate(k_cal_u) if k_cal_u else np.array([])
+        k_eval_err = np.concatenate(k_eval_err) if k_eval_err else np.array([])
+        k_eval_u = np.concatenate(k_eval_u) if k_eval_u else np.array([])
+        _, lead_ece = _ece_from_pixels(
+            k_cal_err, k_cal_u, k_eval_err, k_eval_u, nominal_levels=nominal_levels,
+        )
+        ece_per_lead.append(float(lead_ece))
 
     # Calibration curve: per reliability-bin predicted reliability (mean u) vs
     # empirical reliability (1 - mean|err|/global_mean|err|). Informative u →
@@ -410,6 +455,7 @@ def _evaluate(context, future, uncertainty, *, max_pairs, nominal_levels):
         "nominal_levels": nominal,
         "empirical_coverage": emp,
         "ece": ece,
+        "ece_per_lead": ece_per_lead,
         "calibration_predicted": cal_pred_rel,
         "calibration_empirical": cal_emp_rel,
         "sigma_bin_centers": centers.tolist(),
@@ -546,21 +592,53 @@ def _plot_reliability(reliability: dict, out_dir: Path) -> list[Path]:
     return save_fig(fig, "fig_uncertainty_reliability", out_dir)
 
 
+def _plot_ece_vs_lead(reliability: dict, out_dir: Path) -> list[Path]:
+    """``fig_optflow_ece_vs_lead.png`` — ECE vs lead-time K (per-lead calibration).
+
+    Per-lead ECE calibrated within each lead's own cal/eval pixel split. A rising
+    trend = the extrapolation uncertainty grows with lead time (calibration
+    degrades) — the expected decay signature. The pooled ECE is drawn as a flat
+    reference line."""
+    ece_per_lead = np.asarray(reliability.get("ece_per_lead", []), dtype=float)
+    pooled = reliability.get("ece", float("nan"))
+    if ece_per_lead.size == 0:
+        return []
+    k = np.arange(1, ece_per_lead.size + 1)
+    fig, ax = plt.subplots(figsize=(7.4, 4.4))
+    ax.plot(k, ece_per_lead, color=PALETTE[4], marker="o", markersize=7,
+            linewidth=2.0, label="Per-lead ECE")
+    if np.isfinite(pooled):
+        ax.axhline(pooled, color="#888888", linestyle="--", linewidth=1.3,
+                   label=f"Pooled ECE = {pooled:.3f}")
+    ax.set_xlabel("Lead time K (steps)")
+    ax.set_ylabel("Expected Calibration Error (ECE)")
+    ax.set_title("E4 — Uncertainty calibration decays with lead-time K\n"
+                 "(per-lead ECE; 0 = perfectly calibrated)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize=9)
+    fig.tight_layout()
+    return save_fig(fig, "fig_optflow_ece_vs_lead", out_dir)
+
+
 def _save_results_csv(metrics: dict, out_dir: Path) -> Path:
-    """Per-lead decay table (one row per lead K). Reliability numbers live in
-    the returned metrics dict and the reliability figure, not this table."""
+    """Per-lead decay + per-lead ECE table (one row per lead K).
+
+    The per-lead ``reliability_ece`` (calibrated within each lead's cal/eval
+    split) is the column the ESSD ECE-vs-lead trend reads; ``reliability_ece_pooled``
+    is the headline number pooled across leads (kept for reference)."""
     decay = metrics["decay"]
     reliability = metrics["reliability"]
-    # Attach the reliability ECE as a single summary column on every row so the
-    # headline calibration number travels with the decay table on disk.
-    ece = reliability["ece"]
+    ece_pooled = reliability["ece"]
+    ece_per_lead = reliability.get("ece_per_lead", [])
     rows = []
     for j, k in enumerate(range(1, decay["steps_k"] + 1)):
+        lead_ece = ece_per_lead[j] if j < len(ece_per_lead) else float("nan")
         rows.append({
             "lead_k": k,
             "psnr_db": decay["psnr_per_lead"][j],
             "ssim": decay["ssim_per_lead"][j],
-            "reliability_ece": ece,
+            "reliability_ece": lead_ece,           # per-lead (the trend)
+            "reliability_ece_pooled": ece_pooled,   # headline (across all leads)
         })
     df = pd.DataFrame(rows)
     return save_metrics(df, "results_e4_optflow", out_dir)
@@ -625,6 +703,7 @@ def run(loader, out_dir) -> dict:
     figures += _plot_sequence(metrics["per_lead"], out_dir)
     figures += _plot_psnr_decay(metrics["decay"], out_dir)
     figures += _plot_reliability(metrics["reliability"], out_dir)
+    figures += _plot_ece_vs_lead(metrics["reliability"], out_dir)
     _save_results_csv(metrics, out_dir)
     # Drop the heavy per-lead stacks from the returned metrics (pure summary).
     metrics.pop("per_lead", None)
