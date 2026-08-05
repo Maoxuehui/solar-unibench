@@ -185,6 +185,89 @@ def _target_stats(df: pd.DataFrame, target: str) -> dict:
     return {"mean": float(arr.mean()), "std": float(arr.std()), "n": int(arr.size)}
 
 
+#: GHI is flagged as a physical violation when it exceeds this multiple of the
+#: clear-sky irradiance at the same zenith (measured GHI physically cannot
+#: exceed ~clear-sky; 1.2 is a generous sensor-glare margin).
+_GHI_OVERCLEAR_FACTOR: float = 1.2
+
+
+def physics_violation_rate(df: pd.DataFrame, capacity: float = _DEFAULT_CAPACITY,
+                           ghi_over_factor: float = _GHI_OVERCLEAR_FACTOR) -> dict:
+    """Fraction of DAYTIME rows that violate physical limits (raw vs cleaned).
+
+    * **GHI over clear-sky**: ``ghi_actual > ghi_over_factor · ghi_clearsky`` —
+      physically impossible (measured irradiance cannot exceed ~clear-sky at the
+      same zenith); a generous sensor-glare margin is used.
+    * **PV over installed capacity**: ``pv_power_normalized > capacity``
+      (``capacity_kw`` when present, else 1.0 for normalized PV).
+
+    Returns per-violation fractions + the daytime sample count. Honest NaN when
+    the relevant column is absent (Honest NaN principle — never fabricates).
+    """
+    cz = pd.to_numeric(df.get("cos_zenith", pd.Series(dtype=float)), errors="coerce")
+    sub = df.loc[cz > _DAYTIME_COS_ZENITH]
+    n = int(len(sub))
+    out = {"n_daytime": n, "ghi_overclear_frac": float("nan"),
+           "pv_overcap_frac": float("nan"), "any_violation_frac": float("nan")}
+    if n == 0:
+        return out
+    ghi = pd.to_numeric(sub.get("ghi_actual"), errors="coerce")
+    gcs = pd.to_numeric(sub.get("ghi_clearsky"), errors="coerce")
+    ghi_viol = pd.Series(False, index=sub.index)
+    has_ghi = ghi.notna().any() and gcs.notna().any()
+    if has_ghi:
+        with np.errstate(invalid="ignore", divide="ignore"):
+            ratio = ghi / np.maximum(gcs, 1e-6)
+        ghi_viol = (ratio > ghi_over_factor).fillna(False)
+        out["ghi_overclear_frac"] = float(ghi_viol.mean())  # 0.0 when none
+    pv = pd.to_numeric(sub.get("pv_power_normalized"), errors="coerce")
+    pv_viol = pd.Series(False, index=sub.index)
+    has_pv = pv.notna().any()
+    if has_pv:
+        pv_viol = (pv > capacity).fillna(False)
+        out["pv_overcap_frac"] = float(pv_viol.mean())  # 0.0 when none
+    # any_violation is finite (0.0) whenever at least one channel was scored;
+    # NaN only when neither GHI nor PV is present.
+    if has_ghi or has_pv:
+        out["any_violation_frac"] = float((ghi_viol | pv_viol).mean())
+    return out
+
+
+def three_way_closure(df: pd.DataFrame) -> dict:
+    """Three-way irradiance closure ``GHI ≈ DNI·cos(z) + DHI`` (Folsom/SunLake).
+
+    The decomposed irradiance must reconstruct the global: residual =
+    ``GHI − (DNI·cos(z) + DHI)``. Reports absolute-residual MAE/median/RMSE +
+    the regression R² of the reconstruction vs GHI (1.0 = perfect closure), on
+    the daytime subset. Honest skip when ``ghi/dni/dhi/cos_zenith`` are absent.
+    """
+    needed = ("ghi_actual", "dni_actual", "dhi_actual", "cos_zenith")
+    if any(c not in df.columns for c in needed):
+        return {"status": "skipped", "reason": "missing DNI/DHI/GHI/cos_zenith"}
+    sub = df[list(needed)].apply(pd.to_numeric, errors="coerce")
+    cz = sub["cos_zenith"]
+    sub = sub[(cz > _DAYTIME_COS_ZENITH).fillna(False)]  # daytime only
+    sub = sub.replace([np.inf, -np.inf], np.nan).dropna()
+    n = int(len(sub))
+    if n < 8:
+        return {"status": "skipped", "reason": f"too few daytime closure rows ({n})"}
+    dni_cos = (sub["dni_actual"].clip(lower=0) * sub["cos_zenith"].clip(lower=0)).to_numpy()
+    recon = dni_cos + sub["dhi_actual"].clip(lower=0).to_numpy()
+    ghi = sub["ghi_actual"].to_numpy()
+    resid = ghi - recon
+    ss_res = float(np.sum(resid ** 2))
+    ss_tot = float(np.sum((ghi - ghi.mean()) ** 2))
+    r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else float("nan")
+    return {
+        "status": "ran", "n_daytime": n,
+        "residual_mae": float(np.mean(np.abs(resid))),
+        "residual_median": float(np.median(np.abs(resid))),
+        "residual_rmse": float(np.sqrt(ss_res / n)),
+        "r2": r2,
+        "ghi_mean": float(ghi.mean()), "recon_mean": float(recon.mean()),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Figure 1: quality_flag composition per dataset (from cleaned packages)
 # ---------------------------------------------------------------------------
@@ -473,6 +556,22 @@ def _save_results_csv(metrics: dict, out_dir: Path) -> Path:
     return save_metrics(pd.DataFrame(rows), "results_e5_quality", out_dir)
 
 
+def _save_physics_csv(physics: dict, out_dir: Path) -> Path | None:
+    """Violation-rate (raw vs cleaned) + three-way irradiance closure → CSV.
+
+    Long format: one row per (dataset, state) for the violation rate and one row
+    per dataset for the closure. Empty → no file written (Honest skip)."""
+    rows: list[dict] = []
+    for ds, arm in physics.get("violation", {}).items():
+        for state, m in arm.items():
+            rows.append({"section": "violation_rate", "dataset": ds, "state": state, **m})
+    for ds, cl in physics.get("closure", {}).items():
+        rows.append({"section": "three_way_closure", "dataset": ds, **cl})
+    if not rows:
+        return None
+    return save_metrics(pd.DataFrame(rows), "results_physics_closure", out_dir)
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -510,6 +609,7 @@ def run(loader, out_dir, *, raw_provider=None) -> dict:
     ablation_datasets: dict[str, dict] = {}
     raw_samples: dict[str, np.ndarray] = {}
     cleaned_samples: dict[str, np.ndarray] = {}
+    violation: dict[str, dict] = {}  # physics violation rate raw vs cleaned
 
     if raw_provider is not None:
         for dataset, target in DATASET_TARGETS.items():
@@ -530,6 +630,11 @@ def run(loader, out_dir, *, raw_provider=None) -> dict:
 
             arm = _evaluate_dataset(raw_df, cleaned_df, target=target)
             ablation_datasets[dataset] = arm
+            # Physics violation rate raw vs cleaned (governance should cut it).
+            violation[dataset] = {
+                "raw": physics_violation_rate(raw_df, capacity=cap),
+                "cleaned": physics_violation_rate(cleaned_df, capacity=cap),
+            }
 
             # Cache daytime target samples for the ECDF panel (first dataset only
             # is plotted; cheap to collect for all, used for one).
@@ -549,8 +654,25 @@ def run(loader, out_dir, *, raw_provider=None) -> dict:
     else:
         abl_status = "skipped"
 
+    # --- Sub-analysis 3: three-way irradiance closure (Folsom/SunLake) + the
+    #     physics CSV (violation rate raw vs cleaned + closure R²). Violation
+    #     rates are collected above (raw frames needed); closure uses the
+    #     loader's standardized packages, which always carry DNI/DHI. ---
+    closure: dict[str, dict] = {}
+    for dataset in DATASETS:
+        try:
+            dfc = loader.load_tabular(dataset)
+        except (FileNotFoundError, KeyError):
+            continue
+        cl = three_way_closure(dfc)
+        if cl.get("status") == "ran":
+            closure[dataset] = cl
+    physics = {"violation": violation, "closure": closure}
+    _save_physics_csv(physics, out_dir)
+
     metrics = {
         "quality_flag": quality_flag,
+        "physics": physics,
         "ablation": {
             "status": abl_status,
             "datasets": ablation_datasets,
