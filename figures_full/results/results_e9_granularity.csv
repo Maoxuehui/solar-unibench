@@ -1,0 +1,5 @@
+granularity,n_rows,n_daytime_test,mae_sp,mae_dlinear,skill_dlinear_vs_sp,status
+1min,7200,67.0,0.10412708068483463,0.21875493890632772,-1.1008457883155445,ran
+5min,1440,13.0,0.10108205764929151,0.332529399098274,-2.289697566822382,ran
+15min,480,,,,,too_few_daytime_windows
+1h,120,,,,,too_few_rows
