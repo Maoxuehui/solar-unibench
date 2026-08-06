@@ -1,0 +1,6 @@
+step,feature_cols,daytime_mae,n_train,n_test
+raw,(target_only),0.025045502578094323,1166,182
++night,(target_only),0.025038375074321967,1166,182
++range_clamp,(target_only),0.025038375074321967,1166,182
++utc_align,(target_only),0.025038375074321967,1166,182
++clearsky_features,"ghi_clearsky,cos_zenith",0.00805514846671905,1166,182
