@@ -467,6 +467,17 @@ def run(loader, out_dir, *, model_factory=None, datasets=None) -> dict:
                 rows.append(
                     _row(dataset, target, horizon, model.name, m, _skill(m["Daytime_MAE"], ref_mae))
                 )
+                # Free the model + clear the CUDA caching allocator between fits.
+                # Long benchmark runs do dozens of fresh torch fits in one process;
+                # without this, the allocator fragments / accumulates on Windows +
+                # cuDNN and eventually stalls (CPU-idle, no error). Cheap insurance.
+                try:
+                    import torch as _torch
+                    del model
+                    if _torch.cuda.is_available():
+                        _torch.cuda.empty_cache()
+                except Exception:
+                    pass
 
     df_out = pd.DataFrame(rows)
     _save_results_csv(rows, out_dir)
