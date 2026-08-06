@@ -1,20 +1,22 @@
 {
   "out_dir": "figures_full",
   "selected": [
-    "E8"
+    "E9"
   ],
   "experiments": [
     {
-      "id": "E8",
+      "id": "E9",
       "status": "ran",
       "figures": [
-        "figures_full\\fig_benchmark_heatmap.png"
+        "figures_full\\fig_governance_vs_complexity.png",
+        "figures_full\\fig_cleaning_delta.png"
       ],
-      "n_figures": 1,
+      "n_figures": 2,
       "metric_keys": [
-        "rows",
-        "config",
-        "image_datasets"
+        "status",
+        "grid",
+        "crossover",
+        "config"
       ]
     }
   ]
