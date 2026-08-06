@@ -34,14 +34,42 @@ from solarunibench.forecast.models import (
 )
 from solarunibench.pipeline.adapters.folsom import FolsomPipeline
 from solarunibench.pipeline.adapters.gefcom import GEFCom2014Pipeline
+from solarunibench.pipeline.adapters.skippd import SKIPPDPipeline
+from solarunibench.pipeline.adapters.sunlake import SunLakePipeline
 
 DATAROOT = "D:/monica/workspace/solar_benchmark_dataset"
-# GEFCom is hourly; Folsom tabular is 1-minute cadence, so it needs a much
-# larger row bound to cover enough day/night cycles for a valid temporal split.
-RAW_LIMIT = {"gefcom2014": 2000, "folsom": 20000}
-TARGETS = {"gefcom2014": "pv_power_normalized", "folsom": "ghi_actual"}
-ADAPTERS = {"gefcom2014": GEFCom2014Pipeline, "folsom": FolsomPipeline}
-RAWSUB = {"gefcom2014": "GEFCom2014_data", "folsom": "Folsom_data"}
+# Per-dataset row bound for the bounded RAW snapshot. GEFCom is hourly (3
+# entities); Folsom + SKIPPD tabular are 1-minute; SunLake is 30-min (6 entities).
+# 1-minute datasets need a large bound to cover enough day/night cycles.
+RAW_LIMIT = {"gefcom2014": 2000, "folsom": 20000, "skippd": 20000, "sunlake": 4000}
+TARGETS = {
+    "gefcom2014": "pv_power_normalized",
+    "folsom": "ghi_actual",
+    "skippd": "pv_power_normalized",
+    "sunlake": "ghi_actual",
+}
+ADAPTERS = {
+    "gefcom2014": GEFCom2014Pipeline,
+    "folsom": FolsomPipeline,
+    "skippd": SKIPPDPipeline,
+    "sunlake": SunLakePipeline,
+}
+RAWSUB = {
+    "gefcom2014": "GEFCom2014_data",
+    "folsom": "Folsom_data",
+    "skippd": "SKIPPD_all",
+    "sunlake": "SunLake_data",
+}
+#: SunLake's tabular raw is local, but process_and_save_tensors pulls satellite
+#: from the deeplake hub (network). For the tabular-only E9 grid we skip that.
+_SAT_SKIPPED = False
+def _skip_sunlake_satellite():
+    global _SAT_SKIPPED
+    if _SAT_SKIPPED:
+        return
+    import solarunibench.imaging.sunlake_satellite as _sat
+    _sat.build_sunlake_satellite_zarr = lambda *a, **k: None
+    _SAT_SKIPPED = True
 
 
 def build_ladder() -> list:
@@ -60,6 +88,8 @@ def build_ladder() -> list:
 
 def build_raw(dataset: str) -> pd.DataFrame:
     """Bounded RAW snapshot for one dataset via its adapter (raw=True)."""
+    if dataset == "sunlake":
+        _skip_sunlake_satellite()  # tabular-only: skip the hub satellite pull
     tmp = tempfile.mkdtemp(prefix=f"{dataset}_raw_", dir="D:/tmp")
     adapter = ADAPTERS[dataset]
     pipe = adapter(
@@ -73,7 +103,7 @@ def build_raw(dataset: str) -> pd.DataFrame:
 def main() -> int:
     rows = []
     summaries = []
-    for ds in ("gefcom2014", "folsom"):
+    for ds in ("gefcom2014", "folsom", "skippd", "sunlake"):
         target = TARGETS[ds]
         print(f"\n=== {ds} (target={target}) ===", flush=True)
         raw_df = build_raw(ds)
