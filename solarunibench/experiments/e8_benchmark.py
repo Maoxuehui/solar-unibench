@@ -151,17 +151,20 @@ def _usable_features(df: pd.DataFrame) -> list[str]:
 
 
 def _dataset_has_images(loader, dataset: str) -> bool:
-    """True iff ``loader`` exposes a non-empty sky-image cube for ``dataset``."""
-    get_ts = getattr(loader, "get_image_timestamps", None)
+    """True iff the loader exposes a non-empty sky-image cube for ``dataset``.
+
+    Uses the cube's lazy shape (O(1) metadata) rather than
+    ``get_image_timestamps``, which would materialize the (1,)-chunked
+    timestamps array (hundreds of thousands of tiny chunk-file reads on Folsom /
+    SKIPPD — minutes per call)."""
     get_cube = getattr(loader, "get_tensor_cube", None)
-    if get_ts is None or get_cube is None:
+    if get_cube is None:
         return False
     try:
-        ts = get_ts(dataset)
         cube = get_cube(dataset, "sky_images")
     except Exception:  # defensive: a minimal/loader stub raises on unknown kind
         return False
-    return ts is not None and cube is not None and len(ts) > 0
+    return cube is not None and getattr(cube, "shape", (0,))[0] > 0
 
 
 def _cap_rows_per_entity(df: pd.DataFrame, cap: int) -> pd.DataFrame:
