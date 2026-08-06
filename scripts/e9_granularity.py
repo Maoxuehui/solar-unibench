@@ -121,8 +121,9 @@ def main() -> int:
     loader = SolarUniBenchLoader("D:/monica/workspace/solar-unibench/data/standardized")
     df = loader.load_tabular("folsom")
     df = df.dropna(subset=[TARGET]).reset_index(drop=True)
-    # Cap to a tractable 1-min slice for speed (~5 days).
-    df = df.head(min(len(df), 7200)).reset_index(drop=True)
+    # Cap to a tractable 1-min slice for speed, but large enough that the coarse
+    # granularities (15min/1h) still leave enough windows: ~30 days = 43.2k rows.
+    df = df.head(min(len(df), 43200)).reset_index(drop=True)
     print(f"Folsom base: {len(df)} rows @ native cadence", flush=True)
 
     rows = []
