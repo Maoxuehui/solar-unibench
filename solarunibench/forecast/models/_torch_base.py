@@ -25,6 +25,7 @@ Design notes
 """
 from __future__ import annotations
 
+import copy
 import random
 
 import numpy as np
@@ -76,8 +77,10 @@ def fit_loop(
     batch_size: int,
     lr: float,
     loss_fn: nn.Module,
+    patience: int | None = None,
+    val_split: float = 0.0,
 ) -> None:
-    """Generic shuffled-minibatch ``Adam`` training loop.
+    """Generic shuffled-minibatch ``Adam`` training loop (+ optional early stop).
 
     Parameters
     ----------
@@ -97,18 +100,55 @@ def fit_loop(
     loss_fn:
         Loss applied between ``net(...batched inputs...)`` and ``Yt[batch]``
         (MAE for the current baselines).
+    patience:
+        Optional early-stop: after this many epochs without validation-loss
+        improvement, stop and restore the best-val weights. ``None`` (default) =
+        train the full ``epochs``. Implemented but OFF by default because the
+        convergence check showed it stops too early on this benchmark's small,
+        temporally-shifted validation slices (the held-out val is noisy and lags
+        the future test distribution). Per-model epoch counts in
+        :mod:`experiments._config` are set from the convergence evidence instead.
+    val_split:
+        Fraction of the fit data held out for the early-stopping validation loss
+        (last ``val_split·n`` samples). 0.0 (default) disables early stop.
     """
     tensors = (Xt,) if isinstance(Xt, torch.Tensor) else tuple(Xt)
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-    net.train()
     n = tensors[0].shape[0]
-    idx = np.arange(n)
+    do_es = patience is not None and val_split > 0.0 and n * val_split >= 8.0
+    if do_es:
+        n_val = max(1, int(n * val_split))
+        idx_val = np.arange(n - n_val, n)        # last slice = validation
+        idx_tr = np.arange(0, n - n_val)          # the rest trains
+        best_val = float("inf")
+        best_state: dict | None = None
+        bad = 0
+    else:
+        idx_tr = np.arange(n)
+        idx_val = None
+    net.train()
     for _ in range(epochs):
-        np.random.shuffle(idx)
-        for start in range(0, n, batch_size):
-            batch = idx[start : start + batch_size]
+        np.random.shuffle(idx_tr)
+        for start in range(0, len(idx_tr), batch_size):
+            batch = idx_tr[start : start + batch_size]
             optimizer.zero_grad()
             pred = net(*[t[batch] for t in tensors])
             loss = loss_fn(pred, Yt[batch])
             loss.backward()
             optimizer.step()
+        if do_es:
+            net.eval()
+            with torch.no_grad():
+                vp = net(*[t[idx_val] for t in tensors])
+                vloss = float(loss_fn(vp, Yt[idx_val]))
+            net.train()
+            if vloss < best_val - 1e-6:
+                best_val = vloss
+                best_state = copy.deepcopy(net.state_dict())
+                bad = 0
+            else:
+                bad += 1
+                if bad >= patience:
+                    break
+    if do_es and best_state is not None:
+        net.load_state_dict(best_state)

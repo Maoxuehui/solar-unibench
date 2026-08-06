@@ -376,6 +376,16 @@ def _evaluate_dataset(
                 "n_total": cl_arm["n_total"],
             },
         }
+        # Free the model pair + clear the CUDA caching allocator between fits.
+        # E9 does 2 torch fits per ladder rung in one process; without this the
+        # allocator fragments on Windows + cuDNN and stalls (same fix as E8).
+        try:
+            import torch as _torch
+            del raw_m, cl_m
+            if _torch.cuda.is_available():
+                _torch.cuda.empty_cache()
+        except Exception:
+            pass
 
     # Shared reference = SmartPersistence on cleaned (skill = 0 by construction).
     # The spec's ladder starts with SmartPersistence; a custom ladder without it

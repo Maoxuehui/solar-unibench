@@ -1,0 +1,166 @@
+"""iTransformer baseline — attention across VARIABLE channels (inverted).
+
+Liu et al., ICLR 2024 — "iTransformer: Inverted Transformers are Effective for
+Time Series Forecasting". The key inversion vs. a vanilla time-series
+Transformer: each **variable (channel)** is embedded into a single token (its
+whole lookback series projected to ``d_model``), self-attention then runs
+ACROSS CHANNELS (the token axis), modelling inter-variate relationships, and a
+linear head maps each channel token back to the horizon.
+
+This is the deliberate complement to PatchTST: PatchTST attends over TIME
+patches (channel-independent); iTransformer attends over CHANNELS. Putting both
+in the benchmark lets E8 separate "temporal-pattern modelling" from
+"variate-interaction modelling".
+
+Design notes
+------------
+* **Channel = token.** ``X_past[n, lb, Fp]`` → ``Fp`` tokens of width ``d_model``
+  via a ``Linear(lb, d_model)`` per channel (shared). Output head ``Linear(d_model,
+  horizon)`` per channel; channel forecasts are averaged into the single
+  ``(n, horizon)`` target (uniform with PatchTST/DLinear pooling).
+* **Scaled features in, no re-scaling inside.**
+* **Determinism + Honest NaN** match the other torch baselines.
+"""
+from __future__ import annotations
+
+import numpy as np
+import torch
+from torch import nn
+
+from ..core import ForecastModel
+from ._torch_base import TorchForecastMixin, fit_loop
+
+
+class _iTransformerNet(nn.Module):
+    """Inverted transformer: per-channel tokens + cross-channel self-attention."""
+
+    def __init__(
+        self,
+        lookback: int,
+        n_channels: int,
+        horizon: int,
+        d_model: int,
+        n_heads: int,
+        depth: int,
+        dropout: float,
+    ):
+        super().__init__()
+        # Embed each channel's lookback series into one token (the inversion).
+        self.channel_embed = nn.Linear(lookback, d_model)
+        enc_layer = nn.TransformerEncoderLayer(
+            d_model=d_model, nhead=n_heads, dim_feedforward=4 * d_model,
+            dropout=dropout, batch_first=True, activation="relu",
+        )
+        self.encoder = nn.TransformerEncoder(enc_layer, num_layers=depth)
+        self.head = nn.Linear(d_model, horizon)  # per-channel horizon forecast
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: (n, lookback, Fp) -> (n, Fp, lookback) -> embed -> (n, Fp, d_model)
+        tokens = self.channel_embed(x.transpose(1, 2))   # (n, Fp, d_model)
+        out = self.encoder(tokens)                        # (n, Fp, d_model) — cross-channel
+        y = self.head(out)                                # (n, Fp, horizon)
+        return y.mean(dim=1)                              # (n, horizon)
+
+
+class iTransformerModel(TorchForecastMixin, ForecastModel):
+    """iTransformer (inverted: attention across variable channels).
+
+    Parameters
+    ----------
+    d_model:
+        Transformer hidden width (must be divisible by ``n_heads``).
+    n_heads:
+        Number of self-attention heads across the channel-token axis.
+    depth:
+        Number of :class:`torch.nn.TransformerEncoderLayer` blocks.
+    dropout:
+        Dropout inside the encoder layers.
+    lr:
+        Adam learning rate.
+    epochs:
+        Number of training epochs over the fit window set.
+    batch_size:
+        Minibatch size (full-batch when larger than ``n``).
+    device:
+        ``"cuda"`` / ``"cpu"`` / a :class:`torch.device`; ``None`` auto-selects.
+    seed:
+        Seed for Python/NumPy/Torch RNG (and cuDNN determinism).
+    """
+
+    def __init__(
+        self,
+        d_model: int = 64,
+        n_heads: int = 4,
+        depth: int = 2,
+        dropout: float = 0.1,
+        lr: float = 1e-3,
+        epochs: int = 8,
+        batch_size: int = 32,
+        device: str | torch.device | None = None,
+        name: str = "iTransformer",
+        seed: int = 0,
+    ):
+        if d_model % n_heads != 0:
+            raise ValueError(f"d_model ({d_model}) must be divisible by n_heads ({n_heads}).")
+        self.d_model = d_model
+        self.n_heads = n_heads
+        self.depth = depth
+        self.dropout = dropout
+        self.lr = lr
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.device = self._resolve_device(device)
+        self._name = name
+        self.seed = seed
+        self._net: _iTransformerNet | None = None
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def fit(
+        self,
+        X_past: np.ndarray,
+        Y: np.ndarray,
+        times: np.ndarray | None = None,
+        X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
+    ) -> None:
+        """Train the inverted transformer with Adam + MAE (L1) loss."""
+        X = np.asarray(X_past, dtype=np.float32)
+        if X.ndim != 3:
+            raise ValueError(f"X_past must be 3-D (n, lookback, Fp); got {X.shape}")
+        Y = np.asarray(Y, dtype=np.float32)
+        if Y.ndim != 2:
+            raise ValueError(f"Y must be 2-D (n, horizon); got {Y.shape}")
+        n, lookback, fp = X.shape
+        horizon = Y.shape[1]
+        self._seed(self.seed)
+        self._net = _iTransformerNet(
+            lookback=lookback, n_channels=fp, horizon=horizon,
+            d_model=self.d_model, n_heads=self.n_heads, depth=self.depth,
+            dropout=self.dropout,
+        ).to(self.device)
+        loss_fn = nn.L1Loss()  # MAE
+        Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
+        Yt = torch.from_numpy(Y).to(self.device)
+        fit_loop(self._net, Xt, Yt, epochs=self.epochs, batch_size=self.batch_size,
+                 lr=self.lr, loss_fn=loss_fn)
+        return None
+
+    def predict(
+        self,
+        X_past: np.ndarray,
+        times: np.ndarray | None = None,
+        X_future: np.ndarray | None = None,
+        *,
+        images: np.ndarray | None = None,
+    ) -> np.ndarray:
+        if self._net is None:
+            raise RuntimeError("iTransformerModel.predict called before fit.")
+        X = np.asarray(X_past, dtype=np.float32)
+        Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
+        self._net.eval()
+        with torch.no_grad():
+            return self._net(Xt).cpu().numpy().astype(np.float32)

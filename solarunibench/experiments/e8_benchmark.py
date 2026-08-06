@@ -59,6 +59,8 @@ from ..forecast.core import (
 )
 from ..forecast.models import (
     CrossViViTModel,
+    DLinearModel,
+    iTransformerModel,
     LightGBMModel,
     LSTMModel,
     MLPModel,
@@ -69,11 +71,14 @@ from ..viz.io import save_fig, save_metrics
 from ..viz.style import set_style
 from ._config import (  # Phase 8 Stream B: TINY dev by default, FULL when SUB_FULL_CONFIG=1
     CROSSVIVIT_PARAMS as _CROSSVIVIT_PARAMS,
+    DLINEAR_PARAMS as _DLINEAR_PARAMS,
     HORIZONS_HOURS,
+    iTRANSFORMER_PARAMS as _ITRANSFORMER_PARAMS,
     LGBM_PARAMS as _LGBM_PARAMS,
     LSTM_PARAMS as _LSTM_PARAMS,
     MAX_ROWS_PER_ENTITY as _MAX_ROWS_PER_ENTITY,
     MLP_PARAMS as _MLP_PARAMS,
+    PATCHTST_CD_PARAMS as _PATCHTST_CD_PARAMS,
     PATCHTST_PARAMS as _PATCHTST_PARAMS,
     FULL as _FULL,
 )
@@ -119,7 +124,8 @@ _CONFIG_TAG: str = "FULL (Phase 8)" if _FULL else "TINY dev"
 
 #: Display-name order (low -> high complexity) for the heatmap row ordering.
 _MODEL_ORDER: tuple[str, ...] = (
-    "SmartPersistence", "LightGBM", "MLP", "LSTM", "PatchTST", "CrossViViT",
+    "SmartPersistence", "LightGBM", "MLP", "DLinear", "LSTM",
+    "PatchTST", "PatchTST-CD", "iTransformer", "CrossViViT",
 )
 
 
@@ -145,17 +151,20 @@ def _usable_features(df: pd.DataFrame) -> list[str]:
 
 
 def _dataset_has_images(loader, dataset: str) -> bool:
-    """True iff ``loader`` exposes a non-empty sky-image cube for ``dataset``."""
-    get_ts = getattr(loader, "get_image_timestamps", None)
+    """True iff the loader exposes a non-empty sky-image cube for ``dataset``.
+
+    Uses the cube's lazy shape (O(1) metadata) rather than
+    ``get_image_timestamps``, which would materialize the (1,)-chunked
+    timestamps array (hundreds of thousands of tiny chunk-file reads on Folsom /
+    SKIPPD — minutes per call)."""
     get_cube = getattr(loader, "get_tensor_cube", None)
-    if get_ts is None or get_cube is None:
+    if get_cube is None:
         return False
     try:
-        ts = get_ts(dataset)
         cube = get_cube(dataset, "sky_images")
     except Exception:  # defensive: a minimal/loader stub raises on unknown kind
         return False
-    return ts is not None and cube is not None and len(ts) > 0
+    return cube is not None and getattr(cube, "shape", (0,))[0] > 0
 
 
 def _cap_rows_per_entity(df: pd.DataFrame, cap: int) -> pd.DataFrame:
@@ -199,17 +208,21 @@ def _uses_images(model) -> bool:
 
 
 def _build_models(has_images: bool) -> list:
-    """Fresh TINY baseline instances for one ``(dataset, horizon)`` cell.
+    """Fresh baseline instances for one ``(dataset, horizon)`` cell.
 
-    Returns the 5 non-reference baselines (SmartPersistence is the reference,
-    handled separately). CrossViViT is included only when the dataset has sky
-    images — its image modality has no signal on purely tabular packages.
+    Returns the non-reference baselines (SmartPersistence is the reference,
+    handled separately): LightGBM, MLP, DLinear, LSTM, PatchTST (CI) + PatchTST
+    (CD variant) + iTransformer. CrossViViT is included only when the dataset
+    has sky images — its image modality has no signal on purely tabular packages.
     """
     models = [
         LightGBMModel(params=_LGBM_PARAMS),
         MLPModel(**_MLP_PARAMS),
+        DLinearModel(**_DLINEAR_PARAMS),
         LSTMModel(**_LSTM_PARAMS),
         PatchTSTModel(**_PATCHTST_PARAMS),
+        PatchTSTModel(**{**_PATCHTST_CD_PARAMS, "name": "PatchTST-CD"}),
+        iTransformerModel(**_ITRANSFORMER_PARAMS),
     ]
     if has_images:
         models.append(CrossViViTModel(**_CROSSVIVIT_PARAMS))
@@ -454,6 +467,17 @@ def run(loader, out_dir, *, model_factory=None, datasets=None) -> dict:
                 rows.append(
                     _row(dataset, target, horizon, model.name, m, _skill(m["Daytime_MAE"], ref_mae))
                 )
+                # Free the model + clear the CUDA caching allocator between fits.
+                # Long benchmark runs do dozens of fresh torch fits in one process;
+                # without this, the allocator fragments / accumulates on Windows +
+                # cuDNN and eventually stalls (CPU-idle, no error). Cheap insurance.
+                try:
+                    import torch as _torch
+                    del model
+                    if _torch.cuda.is_available():
+                        _torch.cuda.empty_cache()
+                except Exception:
+                    pass
 
     df_out = pd.DataFrame(rows)
     _save_results_csv(rows, out_dir)

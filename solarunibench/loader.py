@@ -7,11 +7,20 @@ import zarr
 
 _SKY = "sky_images.zarr"
 _SAT = "satellite_future.zarr"
+# Sentinel for the group cache (a cached None is a valid "store absent" value).
+_MISSING = object()
 
 
 class SolarUniBenchLoader:
     def __init__(self, data_root: str):
         self.data_root = Path(data_root)
+        # Memoize opened zarr groups + materialized timestamps. The sky-image
+        # timestamps array is chunked (1,) -> one tiny file per frame, so a single
+        # np.asarray reads 250k/363k chunk files (minutes on Windows); caching the
+        # materialized array makes the common repeated calls (existence checks,
+        # per-window image-attach) pay that cost ONCE per dataset per loader.
+        self._group_cache: dict[tuple[str, str], object] = {}
+        self._ts_cache: dict[str, np.ndarray | None] = {}
 
     def _path(self, dataset: str) -> Path:
         return self.data_root / dataset
@@ -26,10 +35,14 @@ class SolarUniBenchLoader:
         return df
 
     def _open(self, dataset: str, file: str):
+        key = (dataset, file)
+        cached = self._group_cache.get(key, _MISSING)
+        if cached is not _MISSING:
+            return cached
         p = self._path(dataset) / file
-        if not p.exists():
-            return None
-        return zarr.open(str(p), mode="r")
+        g = zarr.open(str(p), mode="r") if p.exists() else None
+        self._group_cache[key] = g
+        return g
 
     def get_tensor_cube(self, dataset: str, kind: str):
         if kind == "sky_images":
@@ -47,7 +60,13 @@ class SolarUniBenchLoader:
         raise ValueError(f"unknown tensor kind: {kind}")
 
     def get_image_timestamps(self, dataset: str):
+        if dataset in self._ts_cache:
+            return self._ts_cache[dataset]
         g = self._open(dataset, _SKY)
-        if g is None or "images_timestamps" not in g:
-            return None
-        return np.asarray(g["images_timestamps"])
+        ts = (
+            None
+            if (g is None or "images_timestamps" not in g)
+            else np.asarray(g["images_timestamps"])
+        )
+        self._ts_cache[dataset] = ts
+        return ts
