@@ -36,7 +36,7 @@ DATAROOT = "D:/monica/workspace/solar_benchmark_dataset"
 TARGET = "ghi_actual"
 LOOKBACK, HORIZON, STRIDE = 12, 1, 12
 DAYTIME = 0.05
-RAW_LIMIT = 20000  # ~14 days at 1-min cadence -> enough day/night cycles
+RAW_LIMIT = 100000  # load more rows (covers ~70 days), then uniform-subsample below
 
 
 def build_raw() -> pd.DataFrame:
@@ -117,6 +117,16 @@ def daytime_idx(df):
 def main() -> int:
     print("Building Folsom raw + fully-cleaned reference...", flush=True)
     raw = build_raw()
+    # Uniform-stride subsample across the full loaded range (was implicit
+    # head(N) via RAW_LIMIT). 20000 rows spanning multiple seasons, not just Jan.
+    TARGET = 20000
+    if len(raw) > TARGET:
+        stride = len(raw) / TARGET
+        idx = np.arange(0, len(raw), stride).round().astype(np.intp)[:TARGET]
+        raw = raw.iloc[idx].reset_index(drop=True)
+        print(f"  uniform subsampled: {len(raw)} rows "
+              f"({pd.to_datetime(raw['timestamp_utc']).min()} -> "
+              f"{pd.to_datetime(raw['timestamp_utc']).max()})", flush=True)
     cleaned = apply_quality_audit(raw.copy())
     # Fixed temporal split (per-entity 70/30) on the row-aligned raw/cleaned.
     n = len(raw)

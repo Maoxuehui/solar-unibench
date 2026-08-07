@@ -41,7 +41,10 @@ DATAROOT = "D:/monica/workspace/solar_benchmark_dataset"
 # Per-dataset row bound for the bounded RAW snapshot. GEFCom is hourly (3
 # entities); Folsom + SKIPPD tabular are 1-minute; SunLake is 30-min (6 entities).
 # 1-minute datasets need a large bound to cover enough day/night cycles.
-RAW_LIMIT = {"gefcom2014": 2000, "folsom": 40000, "skippd": 40000, "sunlake": 4000}
+RAW_LIMIT = {"gefcom2014": 2000, "folsom": 100000, "skippd": 100000, "sunlake": 4000}
+# Post-build uniform subsample targets (stride across the full loaded range,
+# covering all seasons — was head(N) which only captured early Jan 2014).
+SUBSAMPLE_TARGET = {"gefcom2014": 2000, "folsom": 40000, "skippd": 40000, "sunlake": 4000}
 TARGETS = {
     "gefcom2014": "pv_power_normalized",
     "folsom": "ghi_actual",
@@ -132,7 +135,14 @@ def build_raw(dataset: str) -> pd.DataFrame:
         output_dir=tmp, dataset_name=f"{dataset}_raw",
     )
     pipe.run_pipeline(raw=True, limit=RAW_LIMIT[dataset])
-    return pd.read_parquet(f"{tmp}/{dataset}_raw/time_series.parquet")
+    df = pd.read_parquet(f"{tmp}/{dataset}_raw/time_series.parquet")
+    # Uniform-stride subsample to target (covers all seasons, not just early Jan).
+    target = SUBSAMPLE_TARGET[dataset]
+    if len(df) > target:
+        stride = len(df) / target
+        idx = np.arange(0, len(df), stride).round().astype(np.intp)[:target]
+        df = df.iloc[idx].reset_index(drop=True)
+    return df
 
 
 def main() -> int:

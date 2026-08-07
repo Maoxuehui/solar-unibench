@@ -168,22 +168,28 @@ def _dataset_has_images(loader, dataset: str) -> bool:
 
 
 def _cap_rows_per_entity(df: pd.DataFrame, cap: int) -> pd.DataFrame:
-    """Keep the first ``cap`` rows per (entity, split) (temporal dev slice).
+    """Uniformly subsample ``cap`` rows per (entity, split) across the FULL time range.
 
-    Bounds window counts on Folsom (~0.9M rows) so the deep models fit in
-    seconds. Capping is done PER SPLIT (not on the whole frame) so each split
-    retains coverage — standardized splits are temporal (train early, test
-    late), so capping the whole frame would keep only train rows and empty the
-    test windows. Applied identically to TRAIN and TEST so the daytime mask is
-    shared across all models (fair comparison). No-op when ``cap <= 0``.
+    Previously used ``.head(cap)`` which on multi-year high-cadence datasets
+    kept only the first ~35 days. Now uses uniform-stride subsampling so the
+    ``cap`` rows span the entire temporal range, capturing seasonal variation.
+    Applied PER SPLIT. No-op when ``cap <= 0``.
     """
     if cap <= 0:
         return df
     group_cols = ["entity_id"] + (["split"] if "split" in df.columns else [])
+    sorted_df = df.sort_values([*group_cols, "timestamp_utc"], kind="mergesort")
+
+    def _uniform_sample(g):
+        if len(g) <= cap:
+            return g
+        stride = len(g) / cap
+        idx = np.arange(0, len(g), stride).round().astype(np.intp)[:cap]
+        return g.iloc[idx]
+
     return (
-        df.sort_values([*group_cols, "timestamp_utc"], kind="mergesort")
-        .groupby(group_cols, sort=False, group_keys=False)
-        .head(cap)
+        sorted_df.groupby(group_cols, sort=False, group_keys=False)
+        .apply(_uniform_sample)
         .reset_index(drop=True)
     )
 
