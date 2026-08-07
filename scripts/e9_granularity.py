@@ -64,7 +64,13 @@ def daytime_mask(df):
 
 
 def eval_granularity(df: pd.DataFrame, freq: str) -> dict:
-    """Score SmartPersistence + DLinear at one granularity."""
+    """Score SmartPersistence + DLinear at one granularity, MAE in PHYSICAL W/m^2.
+
+    SP is computed on the UNSCALED test frame (physical ghi). DLinear trains on
+    scaled features (for stability) but its predictions + the target are inverted
+    (xIRRADIANCE_MAX) so its MAE is also in W/m^2 — comparable across granularities
+    (the previous per-granularity scaling made MAEs non-comparable).
+    """
     n = len(df)
     if n < 200:
         return {"granularity": freq, "n_rows": n, "status": "too_few_rows"}
@@ -81,28 +87,32 @@ def eval_granularity(df: pd.DataFrame, freq: str) -> dict:
         return {"granularity": freq, "n_rows": n, "status": "too_few_daytime_windows"}
     Xte_d, Yte_d = Xte[day], Yte[day]
 
-    # SmartPersistence reference (the skill denominator).
-    sp = SmartPersistenceModel()
-    # SP uses the pipeline contract; emulate via the clear-sky persistence formula
-    # on the test target now / clearsky now / clearsky horizon.
-    # Build the (target_now, clearsky_now, clearsky_horizon) per window manually.
-    tgt = te[TARGET].to_numpy(); gcs = te["ghi_clearsky"].to_numpy()
-    last_start = len(te) - LOOKBACK - HORIZON
+    # SmartPersistence on the UNSCALED test (physical W/m^2). Clear-sky-scaled
+    # persistence: kappa = target_now/clearsky_now, propagated by clearsky_horizon.
+    tgt = test[TARGET].to_numpy()
+    gcs = test["ghi_clearsky"].to_numpy()
+    last_start = len(test) - LOOKBACK - HORIZON
     idx = list(range(0, last_start + 1, STRIDE))
     eps = 1e-6
     kappa = np.array([tgt[s + LOOKBACK - 1] for s in idx]) / np.maximum(
         np.array([gcs[s + LOOKBACK - 1] for s in idx]), eps)
     sp_pred = np.maximum(
-        kappa * np.array([gcs[s + LOOKBACK] for s in idx]), 0.0)
+        kappa * np.array([gcs[min(s + LOOKBACK + HORIZON - 1, len(test) - 1)] for s in idx]), 0.0)
     sp_pred_d = sp_pred[day]
-    mae_sp = mae(sp_pred_d, Yte_d)
+    # Physical horizon target (W/m^2) at the same windows.
+    y_phys_d = np.array([tgt[min(s + LOOKBACK + HORIZON - 1, len(test) - 1)] for s in idx])[day]
+    mae_sp = mae(sp_pred_d, y_phys_d)
 
-    # DLinear.
+    # DLinear on scaled data; invert predictions + target to physical W/m^2.
+    irr_max = getattr(PhysicalFeatureScaler(), "irradiance_max", 1500)
     m = DLinearModel(kernel_size=25, lr=1e-3, epochs=25, batch_size=256, device="cuda")
     m.fit(Xtr, Ytr)
-    pred = m.predict(Xte_d)
-    mae_m = mae(pred, Yte_d)
+    pred_phys = m.predict(Xte_d) * irr_max
+    mae_m = mae(pred_phys, y_phys_d)
     skill = 1.0 - mae_m / mae_sp if mae_sp > 0 else float("nan")
+    # Dual metric: normalized MAE = physical MAE / max(GHI) (capacity-style).
+    max_ghi = float(np.nanmax(tgt)) if np.isfinite(tgt).any() else 1.0
+    max_ghi = max(max_ghi, 1.0)
     del m
     try:
         import torch as _t
@@ -112,7 +122,9 @@ def eval_granularity(df: pd.DataFrame, freq: str) -> dict:
         pass
     return {
         "granularity": freq, "n_rows": int(n), "n_daytime_test": int(day.sum()),
-        "mae_sp": mae_sp, "mae_dlinear": mae_m, "skill_dlinear_vs_sp": skill,
+        "mae_sp_wm2": mae_sp, "mae_dlinear_wm2": mae_m,
+        "nmae_sp": mae_sp / max_ghi, "nmae_dlinear": mae_m / max_ghi,
+        "skill_dlinear_vs_sp": skill, "max_ghi_wm2": max_ghi,
         "status": "ran",
     }
 
@@ -132,8 +144,9 @@ def main() -> int:
         r = eval_granularity(d, freq)
         rows.append(r)
         if r.get("status") == "ran":
-            print(f"  {freq:>4}: n={r['n_rows']} MAE_SP={r['mae_sp']:.4f} "
-                  f"MAE_DLinear={r['mae_dlinear']:.4f} skill={r['skill_dlinear_vs_sp']:+.3f}",
+            print(f"  {freq:>4}: n={r['n_rows']} SP={r['mae_sp_wm2']:.1f} W/m^2 "
+                  f"(nMAE {r['nmae_sp']:.3f}) | DLinear={r['mae_dlinear_wm2']:.1f} W/m^2 "
+                  f"(nMAE {r['nmae_dlinear']:.3f}) | skill={r['skill_dlinear_vs_sp']:+.3f}",
                   flush=True)
         else:
             print(f"  {freq:>4}: {r.get('status')}", flush=True)
