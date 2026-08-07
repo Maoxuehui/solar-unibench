@@ -94,6 +94,24 @@ PAPER_FIGURES: list[tuple[str, str, str]] = [
         "fig_align_lag_hist.png",
         "E6 - Cross-modal alignment: image<->scalar timestamp diff before vs after.",
     ),
+    (
+        "fig8_e9_cross_dataset_crossover",
+        "fig_e9_cross_dataset_crossover.png",
+        "Phase 3 - E9 cross-dataset crossover (physics-aligned 1h-ahead): "
+        "margin per dataset; bar >= 0 = governance > complexity holds.",
+    ),
+    (
+        "fig9_e9_waterfall",
+        "fig_e9_waterfall.png",
+        "Phase 3 - Governance waterfall (Folsom, DLinear): clearsky anchor features "
+        "dominate the governance gain (-68% MAE).",
+    ),
+    (
+        "fig10_e9_granularity_sp_collapse",
+        "fig_e9_granularity_sp_collapse.png",
+        "Phase 3 - Smart-Persistence skill collapses (MAE rises) at coarser temporal "
+        "granularity (Folsom 1min->1h); DLinear capacity caveat shown.",
+    ),
 ]
 
 
