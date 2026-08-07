@@ -112,6 +112,12 @@ PAPER_FIGURES: list[tuple[str, str, str]] = [
         "Phase 3 - Smart-Persistence skill collapses (MAE rises) at coarser temporal "
         "granularity (Folsom 1min->1h); DLinear capacity caveat shown.",
     ),
+    (
+        "fig11_physics_closure_parity",
+        "fig_physics_closure_parity.png",
+        "ESSD data validation - physical-closure parity (Folsom): measured GHI vs "
+        "DNI*cos(z)+DHI; R^2=0.9998 (irradiance modality is physically consistent).",
+    ),
 ]
 
 
