@@ -229,7 +229,7 @@ def _detect_mirror_pairs(candidates, lat_tol: float = 5.0, lon_tol: float = 2.0)
 
 def recover_geo_clearsky_global(times: pd.DatetimeIndex, power: np.ndarray,
                                  sample_size: int = 2400, lat_grid=None, lon_grid=None,
-                                 offsets=None, top_n: int = 10) -> dict:
+                                 offsets=None, top_n: int = 10, return_grid: bool = False) -> dict:
     """Method 5 (global): DEFAULT clear-sky recovery with top-N + mirror detection.
 
     Faithful port of the reference ``infer_geo_from_pvlib`` (sunrise-median -> timezone
@@ -369,5 +369,9 @@ def recover_geo_clearsky_global(times: pd.DatetimeIndex, power: np.ndarray,
             "top_n": [{"lat": c["lat"], "lon": c["lon"], "mse": c["mse"]} for c in top],
             "mirror_pairs": mirror_pairs,
             "has_mirror": bool(mirror_pairs),
+            # Full candidate grid (for 2-D residual contours); only on request
+            # to avoid bloating the default return payload.
+            "grid": ([{"lat": c["lat"], "lon": c["lon"], "mse": c["mse"]} for c in candidates]
+                     if return_grid else []),
         },
     }
