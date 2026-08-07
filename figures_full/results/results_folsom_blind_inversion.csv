@@ -1,0 +1,2 @@
+dataset,target,true_lat,true_lon,recovered_lat,recovered_lon,best_mse,great_circle_error_km,sunrise_median_utc,tz_offset_guess,n_mirror_pairs,mirror_pairs_json
+folsom,ghi_actual,38.651,-121.169,-36.0,66.0,26.02497532084702,19316.303287618375,0.0,6.0,0,

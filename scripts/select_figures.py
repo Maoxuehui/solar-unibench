@@ -74,6 +74,13 @@ PAPER_FIGURES: list[tuple[str, str, str]] = [
         "E1 - Clear-sky geo-recovery blind test (Folsom, known coords) + GEFCom zones.",
     ),
     (
+        "fig3b_geo_validation",
+        "fig_geo_validation.png",
+        "ESSD data validation - geo phase-shift ablation + Folsom blind inversion: "
+        "(a) clear-sky phase misalignment, (b) downstream skill response, (c) 2D "
+        "clear-sky residual contour (honest hemisphere-ambiguity limitation).",
+    ),
+    (
         "fig4_benchmark_heatmap",
         "fig_benchmark_heatmap.png",
         "E8 - Unified benchmark: Forecast Skill vs Smart Persistence "
