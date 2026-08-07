@@ -217,6 +217,28 @@ reproduces the thesis demonstrated on the synthetic axis in Phase 7: **governanc
 (cleaning + alignment) buys more skill than scaling model complexity** — a simple
 model on well-governed data matches or beats a complex model on raw data.
 
+### Phase 3 — cross-dataset replication, governance waterfall, granularity
+
+**Cross-dataset crossover (physics-aligned 1h-ahead, `results_e9_cross_dataset.csv`):**
+the cadence-mismatch artifact in the first pass (1-min datasets stuck in a
+degenerate all-negative-skill regime because horizon=1 row = 1-minute-ahead) was
+fixed by aligning a 12 h lookback / 1 h-ahead forecast in physical time
+(GEFCom L=12/H=1, SunLake L=24/H=2, Folsom/SKIPPD L=720/H=60). With that, the
+crossover holds on **all 4 datasets**: GEFCom +0.098, Folsom +1.229, SKIPPD +0.156,
+SunLake +0.820 (`fig_e9_cross_dataset_crossover.png`).
+
+**Governance waterfall (Folsom, `results_e9_waterfall.csv`):** label-governance
+(night-zero / range-clamp / UTC) is a near-no-op on already-clean raw, while
+adding clear-sky anchor features cuts MAE 0.0250 → 0.0081 (−68%) — the physical
+anchors dominate the governance gain (`fig_e9_waterfall.png`).
+
+**Temporal granularity (Folsom 1min→1h, dual-metric `results_e9_granularity.csv`):**
+Smart-Persistence physical MAE rises 5.9 → 33.6 W/m² (nMAE 0.008 → 0.058) as
+cadence coarsens — the SP-skill-collapse hypothesis confirmed in unscaled units
+(`fig_e9_granularity_sp_collapse.png`). Honest caveat: DLinear (the chosen model)
+is too weak to exploit the collapse (skill −15..−34) — disclosed as a model-
+capacity limitation rather than re-run to force a flip.
+
 ### Supporting experiments
 
 | ID | Question | Figure(s) |
