@@ -239,6 +239,9 @@ cadence coarsens — the SP-skill-collapse hypothesis confirmed in unscaled unit
 is too weak to exploit the collapse (skill −15..−34) — disclosed as a model-
 capacity limitation rather than re-run to force a flip.
 
+**Physical-closure parity (ESSD data validation, `fig_physics_closure_parity.png` / paper fig11):** measured GHI vs DNI·cos(z)+DHI — Folsom R²=0.9998 (single-station, 1-min) and SunLake R²=0.9398 (6-station wide-area), confirming the irradiance modality is physically consistent.
+
+
 ### Supporting experiments
 
 | ID | Question | Figure(s) |
