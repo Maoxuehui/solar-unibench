@@ -134,6 +134,12 @@ PAPER_FIGURES: list[tuple[str, str, str]] = [
         "thin-cloud gain highlighted (the net value of CNN-read BRR spatial "
         "structure, holding capacity fixed).",
     ),
+    (
+        "fig13_brr_feature_alignment",
+        "fig_brr_feature_alignment.png",
+        "Qualitative feature-alignment proof: conv1 mean activation Arm 3 (RGB) "
+        "vs Arm 4 (CPA BRR) + difference map, on a Folsom thin-cloud frame.",
+    ),
 ]
 
 
