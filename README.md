@@ -241,6 +241,8 @@ capacity limitation rather than re-run to force a flip.
 
 **Physical-closure parity (ESSD data validation, `fig_physics_closure_parity.png` / paper fig11):** measured GHI vs DNI·cos(z)+DHI — Folsom R²=0.9998 (single-station, 1-min) and SunLake R²=0.9398 (6-station wide-area), confirming the irradiance modality is physically consistent.
 
+**Geo-recovery honest limitation (ESSD data validation, `fig_geo_validation.png` / paper fig3b; `results_geo_ablation_phase_shift.csv`, `results_folsom_blind_inversion.csv`):** three disclosed negative/mixed results, reported faithfully rather than hidden. (1) Folsom blind clear-sky inversion (3° global grid, measured GHI as the envelope) recovers (-36, 66) vs the known truth (38.651, -121.169) — a **19,316 km** great-circle error (near-antipodal), the inherent hemisphere ambiguity of fitting a clear-sky shape to cloudy irradiance; the seasonal-amplitude signal is corrupted by cloud noise, so TSR (pure geometry) remains the only hemisphere-unambiguous method. (2) A timestamp phase-shift ablation (dt ∈ {-60…+60} min) shows the recovered longitude drifts at the correct solar-geometry rate (~15°/60 min) in both GEFCom and Folsom, but the absolute location is severely biased on cloudy PV/GHI. The clearness-index corruption metric confirms the clear-sky features are genuinely phase-misaligned (super-physical kt>1.2 fraction: 0.117 at dt=0 rising to 0.201 at dt=-60). (3) Despite feature corruption, a bounded 1h-ahead LightGBM's daytime skill is essentially flat across dt (max drop ≈ 0.001) — the expected "avalanche parabola" did not appear, because autoregressive lags dominate at 1 h horizon and the model is robust to the corrupted clear-sky/cos_zenith anchors.
+
 
 ### Supporting experiments
 
