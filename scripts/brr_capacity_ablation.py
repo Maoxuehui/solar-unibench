@@ -87,8 +87,9 @@ MATCH_TOLERANCE = "30min"
 MAX_FRAMES_DEV = 2500          # even subsample cap -> ~2000 surviving daytime windows
 RESIZE = 224
 BATCH = 32                     # memory-safe hard constraint
-EPOCHS = 8
-LR = 1e-3
+EPOCHS = 25                    # defensive: 50 overfit small sky-image sets; 25 is the sweet spot
+LR = 1e-4                      # fine-tuning LR (pretrained backbone, not random-init)
+PATIENCE = 3                   # aggressive early stop (defensive against >20-min env reap)
 DAYTIME_THRESHOLD = 0.05
 SP_EPS = 1e-6
 REGIME_LO = 1.0 / 3.0          # thin-cloud = middle third by mean BRR (matches E3)
@@ -221,12 +222,26 @@ def _build_samples(df, cube, idx, img_ts, target, memmap_path):
 # ---------------------------------------------------------------------------
 
 def _build_backbone(n_in: int, device: torch.device):
-    """Random-init ResNet-18 backbone (penultimate 512-d). conv1 widened for 4ch."""
-    from torchvision.models import resnet18
-    resnet = resnet18(weights=None)
+    """ImageNet-PRETRAINED ResNet-18 backbone (penultimate 512-d).
+
+    For 4-ch input, conv1 is widened via **Channel Padding Alignment**:
+    channels 0-2 inherit the exact ImageNet pretrained weights (so the
+    pretrained edge/texture/cloud-detectors transfer immediately); channel 3
+    (BRR) is initialized from the mean of the R(0) and B(2) channel filters
+    + tiny Gaussian noise, so the BRR modality starts from a physically-
+    reasonable initialization rather than random noise.
+    """
+    from torchvision.models import resnet18, ResNet18_Weights
+    resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
     if n_in != 3:
-        resnet.conv1 = nn.Conv2d(n_in, 64, kernel_size=7, stride=2,
-                                 padding=3, bias=False)
+        old = resnet.conv1                                   # Conv2d(3, 64, 7, 2, 3)
+        new = nn.Conv2d(n_in, 64, kernel_size=7, stride=2,
+                        padding=3, bias=False)
+        with torch.no_grad():
+            new.weight[:, :3] = old.weight.data              # inherit ImageNet RGB
+            brr = (old.weight.data[:, 0] + old.weight.data[:, 2]) / 2.0  # mean(R, B)
+            new.weight[:, 3] = brr + torch.randn_like(brr) * 0.01  # + 1% noise
+        resnet.conv1 = new
     backbone = nn.Sequential(*list(resnet.children())[:-1])  # -> (B,512,1,1)
     head = nn.Linear(512, 1)
     return backbone.to(device), head.to(device)
@@ -246,11 +261,23 @@ def _train_and_extract(frames_path, is_train, labels, n_in, device, tag):
     backbone, head = _build_backbone(n_in, device)
     params = list(backbone.parameters()) + list(head.parameters())
     opt = torch.optim.Adam(params, lr=LR)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=EPOCHS)
     lossfn = nn.SmoothL1Loss()  # robust to irradiance outliers
 
+    # ImageNet normalization (the pretrained backbone expects ImageNet-scaled RGB;
+    # BRR channel 3 is passed through — its scale [-1,1] is compatible with the
+    # Channel-Padding-Alignment init).
+    _immean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
+    _imstd = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
+
+    def _normalize(x):
+        """ImageNet-normalize RGB (ch 0-2); pass BRR (ch 3) through."""
+        rgb = (x[:, :3] - _immean) / _imstd
+        return torch.cat([rgb, x[:, 3:]], dim=1) if x.shape[1] == 4 else rgb
+
     tr_idx = np.where(is_train)[0]
-    # Normalize the regression target by the train mean/std (helps a random-init
-    # net converge in a few epochs; the embedding, not the head, is what we keep).
+    # Normalize the regression target by the train mean/std (helps the head
+    # converge; the embedding, not the head, is what we keep).
     y_tr = labels[tr_idx].astype(np.float32)
     y_mean = float(y_tr.mean())
     y_std = float(y_tr.std())
@@ -265,13 +292,12 @@ def _train_and_extract(frames_path, is_train, labels, n_in, device, tag):
             yield order[s:s + BATCH]
 
     backbone.train(); head.train()
+    best_loss = float("inf"); patience_left = PATIENCE
     for ep in range(EPOCHS):
         ep_loss = 0.0; nb = 0
         for b in batch_indices(tr_idx, shuffle=True):
-            # The memmap stores all 4 channels; select the first ``n_in``
-            # (RGB for Arm 3, RGB+BRR for Arm 4) -- the only thing that differs
-            # between the two deep arms, holding capacity fixed.
             x = torch.from_numpy(frames[b].astype(np.float32))[:, :n_in].to(device)
+            x = _normalize(x)  # ImageNet norm for pretrained backbone
             y = torch.from_numpy(
                 ((labels[b].astype(np.float32) - y_mean) / y_std)
             ).to(device).view(-1, 1)
@@ -280,8 +306,19 @@ def _train_and_extract(frames_path, is_train, labels, n_in, device, tag):
             loss = lossfn(pred, y)
             opt.zero_grad(); loss.backward(); opt.step()
             ep_loss += float(loss.item()); nb += 1
-        print(f"    [{tag}] epoch {ep+1}/{EPOCHS}  loss={ep_loss/max(1,nb):.4f}",
+        scheduler.step()
+        avg = ep_loss / max(1, nb)
+        print(f"    [{tag}] epoch {ep+1}/{EPOCHS}  loss={avg:.4f}  lr={scheduler.get_last_lr()[0]:.2e}",
               flush=True)
+        # Early stopping on training-loss plateau.
+        if avg < best_loss - 1e-5:
+            best_loss = avg; patience_left = PATIENCE
+        else:
+            patience_left -= 1
+            if patience_left <= 0:
+                print(f"    [{tag}] early stop at epoch {ep+1} (patience={PATIENCE})",
+                      flush=True)
+                break
 
     # Extract 512-d embeddings for ALL windows with the frozen backbone.
     backbone.eval()
@@ -290,6 +327,7 @@ def _train_and_extract(frames_path, is_train, labels, n_in, device, tag):
         for s in range(0, n, BATCH):
             b = np.arange(s, min(s + BATCH, n))
             x = torch.from_numpy(frames[b].astype(np.float32))[:, :n_in].to(device)
+            x = _normalize(x)  # same ImageNet norm as training
             feat = backbone(x).flatten(1)
             emb[b] = feat.cpu().numpy()
     del backbone, head
@@ -613,9 +651,11 @@ def main() -> int:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device={device}  torch={torch.__version__}", flush=True)
 
+    import sys
+    datasets = sys.argv[1:] if len(sys.argv) > 1 else list(DATASETS)
     loader = SolarUniBenchLoader(DATA_ROOT)
     all_rows = []
-    for ds in DATASETS:
+    for ds in datasets:
         target = DATASET_TARGETS[ds]
         rows = _run_dataset(loader, ds, target, device)
         if rows:
@@ -626,19 +666,26 @@ def main() -> int:
         return 1
 
     results_df = pd.DataFrame(all_rows)
-    # Add human-readable arm label + keep a stable column order.
     results_df["arm_label"] = results_df["arm"].map(ARM_NAMES)
     cols = ["dataset", "subset", "arm", "arm_label", "mae", "mae_sp",
             "skill", "n_samples"]
     results_df = results_df[cols].sort_values(["dataset", "subset", "arm"])
-    csv_path = save_metrics(results_df, "results_brr_capacity_ablation", OUT_DIR)
+    # Append-merge: keep rows from datasets NOT in this run, add this run's.
+    csv_path = OUT_DIR / "results" / "results_brr_capacity_ablation.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    if csv_path.exists():
+        old = pd.read_csv(csv_path)
+        old = old[~old["dataset"].isin(datasets)]
+        results_df = pd.concat([old, results_df], ignore_index=True)
+        results_df = results_df[cols].sort_values(["dataset", "subset", "arm"])
+    results_df.to_csv(csv_path, index=False)
     print(f"\nWrote results: {csv_path}", flush=True)
     print(results_df.to_string(index=False), flush=True)
 
     # Headline number: Arm4 - Arm3 on thin-cloud.
     print("\n--- Headline (Arm 4 Deep BRR vs Arm 3 Deep RGB, thin-cloud) ---",
           flush=True)
-    for ds in DATASETS:
+    for ds in datasets:
         sub = results_df[results_df["dataset"] == ds]
         s3 = sub[(sub["subset"] == "thin_cloud") & (sub["arm"] == 3)]
         s4 = sub[(sub["subset"] == "thin_cloud") & (sub["arm"] == 4)]
