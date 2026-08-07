@@ -125,6 +125,15 @@ PAPER_FIGURES: list[tuple[str, str, str]] = [
         "ESSD data validation - physical-closure parity (Folsom): measured GHI vs "
         "DNI*cos(z)+DHI; R^2=0.9998 (irradiance modality is physically consistent).",
     ),
+    (
+        "fig12_brr_ablation_comparison",
+        "fig_brr_ablation_comparison.png",
+        "BRR representation x model-capacity ablation: (a) physics preview "
+        "[RGB | BRR] of a thin-cloud Folsom frame; (b) 4-arm skill comparison "
+        "(Baseline / Scalar BRR / Deep RGB / Deep BRR) with the Arm4-Arm3 "
+        "thin-cloud gain highlighted (the net value of CNN-read BRR spatial "
+        "structure, holding capacity fixed).",
+    ),
 ]
 
 
