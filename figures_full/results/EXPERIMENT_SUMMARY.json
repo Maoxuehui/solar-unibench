@@ -1,0 +1,232 @@
+{
+  "E1_geo": {
+    "folsom_blind_km": 420.7
+  },
+  "E2_clearsky_skill_gain": {
+    "gefcom2014": -0.0678,
+    "skippd": 0.034,
+    "folsom": -0.0147,
+    "sunlake": 0.0498
+  },
+  "E3_brr_scalar": {
+    "folsom": {
+      "delta_brr_vs_rgb": 0.0064
+    },
+    "skippd": {
+      "delta_brr_vs_rgb": 0.0494
+    }
+  },
+  "E4_optflow": {
+    "psnr_k1": 30.58,
+    "psnr_k12": 19.65,
+    "ece_k1": 0.0585,
+    "ece_k12": 0.0585
+  },
+  "E5_quality_flag_pct": {
+    "gefcom2014": {
+      "3": 50.92,
+      "0": 49.08
+    },
+    "folsom": {
+      "0": 50.26,
+      "3": 49.74
+    },
+    "skippd": {
+      "0": 96.14,
+      "3": 3.86
+    },
+    "sunlake": {
+      "0": 51.05,
+      "3": 48.95
+    }
+  },
+  "E6_alignment": {
+    "folsom": {
+      "unaligned_skill": -1.2073,
+      "aligned_skill": -0.6129,
+      "gain": 0.5944
+    },
+    "skippd": {
+      "unaligned_skill": 0.466,
+      "aligned_skill": 0.2186,
+      "gain": -0.2474
+    }
+  },
+  "E8_benchmark_skill": {
+    "CrossViViT": {
+      "folsom": -0.45,
+      "gefcom2014": null,
+      "skippd": -0.391,
+      "sunlake": null
+    },
+    "DLinear": {
+      "folsom": -3.144,
+      "gefcom2014": 0.049,
+      "skippd": -4.979,
+      "sunlake": -0.839
+    },
+    "LSTM": {
+      "folsom": -0.302,
+      "gefcom2014": 0.207,
+      "skippd": -0.234,
+      "sunlake": 0.139
+    },
+    "LightGBM": {
+      "folsom": -0.156,
+      "gefcom2014": 0.16,
+      "skippd": -0.124,
+      "sunlake": 0.226
+    },
+    "MLP": {
+      "folsom": -0.289,
+      "gefcom2014": 0.17,
+      "skippd": -0.343,
+      "sunlake": 0.15
+    },
+    "PatchTST": {
+      "folsom": -1.369,
+      "gefcom2014": -0.362,
+      "skippd": -2.937,
+      "sunlake": -0.095
+    },
+    "PatchTST-CD": {
+      "folsom": -0.775,
+      "gefcom2014": 0.119,
+      "skippd": -0.333,
+      "sunlake": 0.106
+    },
+    "SmartPersistence": {
+      "folsom": 0.0,
+      "gefcom2014": 0.0,
+      "skippd": 0.0,
+      "sunlake": 0.0
+    },
+    "iTransformer": {
+      "folsom": -0.39,
+      "gefcom2014": 0.18,
+      "skippd": -1.141,
+      "sunlake": 0.046
+    }
+  },
+  "E9_governance_cleaned_skill": {
+    "SmartPersistence": 0.0,
+    "LightGBM": -0.0686,
+    "MLP": 0.2211,
+    "LSTM": 0.1116,
+    "PatchTST": 0.1724
+  },
+  "E9_cross_dataset_crossover": {
+    "gefcom2014": {
+      "crossover_margin": 0.098,
+      "holds": true
+    },
+    "folsom": {
+      "crossover_margin": 1.229,
+      "holds": true
+    },
+    "skippd": {
+      "crossover_margin": 0.156,
+      "holds": true
+    },
+    "sunlake": {
+      "crossover_margin": 0.82,
+      "holds": true
+    }
+  },
+  "E9_waterfall": {
+    "raw": 0.025,
+    "+night": 0.025,
+    "+range_clamp": 0.025,
+    "+utc_align": 0.025,
+    "+clearsky_features": 0.0081
+  },
+  "E9_granularity": {
+    "1min": {
+      "mae_sp": 5.94,
+      "mae_dlinear": 207.14
+    },
+    "5min": {
+      "mae_sp": 14.04,
+      "mae_dlinear": 321.45
+    },
+    "15min": {
+      "mae_sp": 32.74,
+      "mae_dlinear": 524.04
+    },
+    "1h": {
+      "mae_sp": 33.62,
+      "mae_dlinear": 613.0
+    }
+  },
+  "BRR_capacity_ablation": {
+    "folsom": {
+      "arm3_rgb": -1.1439,
+      "arm4_brr": -1.0469,
+      "delta": 0.097
+    },
+    "skippd": {
+      "arm3_rgb": 0.1559,
+      "arm4_brr": 0.143,
+      "delta": -0.0129
+    }
+  },
+  "Folsom_blind_inversion": {
+    "columns": [
+      "dataset",
+      "target",
+      "true_lat",
+      "true_lon",
+      "recovered_lat",
+      "recovered_lon",
+      "best_mse",
+      "great_circle_error_km",
+      "sunrise_median_utc",
+      "tz_offset_guess",
+      "n_mirror_pairs",
+      "mirror_pairs_json"
+    ],
+    "n_rows": 1,
+    "sample": {
+      "dataset": "folsom",
+      "target": "ghi_actual",
+      "true_lat": 38.651,
+      "true_lon": -121.169,
+      "recovered_lat": -36.0,
+      "recovered_lon": 66.0,
+      "best_mse": 26.02497532084702,
+      "great_circle_error_km": 19316.30328761837,
+      "sunrise_median_utc": 0.0,
+      "tz_offset_guess": 6.0,
+      "n_mirror_pairs": 0,
+      "mirror_pairs_json": NaN
+    }
+  },
+  "Geo_phase_ablation": {
+    "columns": [
+      "dt_min",
+      "folsom_recovered_lat",
+      "folsom_recovered_lon",
+      "best_mse_folsom",
+      "sunrise_median_utc_folsom",
+      "tz_offset_guess_folsom",
+      "n_mirror_pairs_folsom",
+      "gefcom_recovered_lat",
+      "gefcom_recovered_lon",
+      "best_mse_gefcom",
+      "sunrise_median_utc_gefcom",
+      "tz_offset_guess_gefcom",
+      "n_mirror_pairs_gefcom",
+      "kt_nonfinite_frac",
+      "kt_unphysical_frac",
+      "kt_mean",
+      "kt_median",
+      "skill",
+      "lgbm_daytime_mae",
+      "sp_daytime_mae",
+      "n_daytime",
+      "n_train_windows",
+      "n_test_windows"
+    ],
+    "n_rows": 5
+  }
+}

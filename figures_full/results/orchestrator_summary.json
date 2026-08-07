@@ -1,21 +1,19 @@
 {
   "out_dir": "figures_full",
   "selected": [
-    "E9"
+    "E6"
   ],
   "experiments": [
     {
-      "id": "E9",
+      "id": "E6",
       "status": "ran",
       "figures": [
-        "figures_full\\fig_governance_vs_complexity.png",
-        "figures_full\\fig_cleaning_delta.png"
+        "figures_full\\fig_align_lag_hist.png",
+        "figures_full\\fig_align_skill.png"
       ],
       "n_figures": 2,
       "metric_keys": [
-        "status",
-        "grid",
-        "crossover",
+        "datasets",
         "config"
       ]
     }
