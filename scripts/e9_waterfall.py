@@ -36,7 +36,7 @@ DATAROOT = "D:/monica/workspace/solar_benchmark_dataset"
 TARGET = "ghi_actual"
 LOOKBACK, HORIZON, STRIDE = 12, 1, 12
 DAYTIME = 0.05
-RAW_LIMIT = 100000  # load more rows (covers ~70 days), then uniform-subsample below
+RAW_LIMIT = None  # load FULL raw (all 3 years), then uniform-subsample below
 
 
 def build_raw() -> pd.DataFrame:
