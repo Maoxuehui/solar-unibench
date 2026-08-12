@@ -44,7 +44,12 @@ def main(argv=None):
     cfg = yaml.safe_load((repo / "configs" / "paths.yaml").read_text())
     data_root = Path(args.data_root or cfg["data_root"])
     output_root = Path(args.output_root or cfg["output_root"])
-    out_path = output_root / args.dataset / "sky_images.zarr"
+    # Per-year output paths for Folsom (--only-year): each year gets its own
+    # zarr store (sky_images_2014.zarr etc.) so they never overwrite each other.
+    if args.dataset == "folsom" and args.only_year is not None:
+        out_path = output_root / args.dataset / f"sky_images_{args.only_year}.zarr"
+    else:
+        out_path = output_root / args.dataset / "sky_images.zarr"
 
     if args.dataset == "folsom":
         tar_paths = sorted((data_root / RAW_SUBDIRS["folsom"]).glob("Folsom_sky_images_*.tar.bz2"))

@@ -149,8 +149,11 @@ def build_folsom_sky_zarr(tar_paths, out_path, limit=500, progress_every=10_000,
                 if limit and n >= limit:
                     done = True
                     break
-    # Write timestamps array into zarr (final, additive).
-    write_array(out_path, "images_timestamps", np.array(timestamps), chunks=(1,))
+    # Write timestamps array into zarr (final). Use a SINGLE large chunk
+    # (NOT chunks=(1,) which creates 250k tiny files — catastrophically slow
+    # on NTFS and the root cause of timestamps going missing on long runs).
+    write_array(out_path, "images_timestamps", np.array(timestamps),
+                chunks=(max(1, len(timestamps)),))
     last_path.unlink(missing_ok=True)
     ts_sidecar.unlink(missing_ok=True)       # clean up checkpoint sidecar
     print(f"[folsom_sky] DONE: {n} frames, skipped={skipped} -> {out_path}",
