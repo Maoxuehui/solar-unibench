@@ -64,16 +64,25 @@ class JPEGSkyStore:
 
     For photographic sky imagery (Folsom) where lossless compresses poorly.
     Each frame stored as JPEG bytes in a zarr VLenBytes object array ``images``.
-    BRR is computed on READ (load_sky_frame), not stored."""
+    BRR is computed on READ (load_sky_frame), not stored.
+
+    Resume support: pass ``overwrite=False`` and an existing store with an
+    ``images`` array will be opened for append. ``self._n`` is synced to the
+    existing array length so callers know how many frames to skip.
+    """
 
     def __init__(self, path, quality: int = 90, overwrite: bool = True):
         self.path = Path(path); self.quality = quality
         self.store = zarr.DirectoryStore(str(self.path))
         self.root = zarr.group(store=self.store, overwrite=overwrite)
-        self._arr = self.root.create_dataset(
-            "images", shape=(0,), dtype=object,
-            object_codec=VLenBytes(), chunks=(1,), overwrite=True)
-        self._n = 0
+        if not overwrite and "images" in self.root:
+            self._arr = self.root["images"]              # resume: open existing
+            self._n = int(self._arr.shape[0])
+        else:
+            self._arr = self.root.create_dataset(
+                "images", shape=(0,), dtype=object,
+                object_codec=VLenBytes(), chunks=(1,), overwrite=True)
+            self._n = 0
 
     @staticmethod
     def _to_hwc_uint8(rgb):
