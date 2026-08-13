@@ -208,3 +208,64 @@ def test_patchtst_variant_lookback_too_short_raises():
     with pytest.raises(ValueError):
         PatchTSTModel(patch_len=4, stride=2, **{k: v for k, v in _TINY.items()
                                                 if k not in ("patch_len", "stride")}).fit(X_past, Y)
+
+
+# -- channel-dependent (CD) variant ------------------------------------------
+
+
+def test_patchtst_cd_variant_constructs_and_predicts():
+    """variant='patchtst_cd' (channel-dependent: each patch spans ALL channels so
+    cross-channel mixing happens in the projection) constructs, fits, and
+    predicts the right shape — distinct from the CI default."""
+    X_past, Y = _temporal_windows(n=200, lookback=8, horizon=4)
+    model = PatchTSTModel(variant="patchtst_cd", **_TINY)
+    assert model.variant == "patchtst_cd"
+    model.fit(X_past, Y)
+    pred = model.predict(X_past)
+    assert pred.shape == (200, Y.shape[1])
+    assert pred.dtype == np.float32
+    assert np.all(np.isfinite(pred))
+
+
+def test_cd_variant_distinct_from_ci():
+    """The CD variant (cross-channel mixing in the projection) must produce
+    DIFFERENT predictions than the CI default on the same data+seed — otherwise
+    the two code paths are not actually distinct."""
+    X_past, Y = _temporal_windows(n=120, lookback=8, horizon=4)
+    ci = PatchTSTModel(variant="patchtst", **_TINY, seed=0)
+    ci.fit(X_past, Y)
+    p_ci = ci.predict(X_past)
+    cd = PatchTSTModel(variant="patchtst_cd", **_TINY, seed=0)
+    cd.fit(X_past, Y)
+    p_cd = cd.predict(X_past)
+    assert p_ci.shape == p_cd.shape == (120, Y.shape[1])
+    assert not np.allclose(p_ci, p_cd), "CD variant must differ from CI variant"
+
+
+def test_cd_variant_learns_temporal_pattern():
+    """The CD variant also learns the synthetic temporal pattern (beats an
+    input-free constant baseline) — confirms the CD path is a competent
+    forecaster, not just shape-correct."""
+    X_past, Y = _temporal_windows(n=400, lookback=8, horizon=4)
+    n_test = 80
+    X_tr, X_te = X_past[:-n_test], X_past[-n_test:]
+    Y_tr, Y_te = Y[:-n_test], Y[-n_test:]
+    model = PatchTSTModel(
+        variant="patchtst_cd", d_model=32, n_heads=4, depth=2, patch_len=2,
+        stride=2, epochs=25, batch_size=32, lr=1e-3, device="cpu", seed=0,
+    )
+    model.fit(X_tr, Y_tr)
+    pred = model.predict(X_te)
+    baseline = _constant_baseline(Y_tr, Y_te)
+    assert _mae(pred, Y_te) < _mae(baseline, Y_te)
+
+
+def test_cd_variant_lookback_too_short_raises():
+    """The CD variant patches along the lookback too, so lookback < patch_len is
+    a clear ValueError (mirrors the CI patchtst guard)."""
+    X_past, Y = _temporal_windows(n=40, lookback=3, horizon=2)
+    with pytest.raises(ValueError):
+        PatchTSTModel(
+            variant="patchtst_cd", patch_len=4, stride=2,
+            **{k: v for k, v in _TINY.items() if k not in ("patch_len", "stride")},
+        ).fit(X_past, Y)
