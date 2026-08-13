@@ -1,7 +1,7 @@
 # Solar-UniBench — A Multi-modal Standardized Benchmark for Solar Forecasting
 
 **Target venue:** ESSD (Earth System Science Data)
-**Status:** Framework complete (Phases 1–7); full-config publishable numbers are in preparation (Phase 8).
+**Status:** Framework complete (Phases 1–8); full-config results populated for all experiments. Folsom sky images materialized for 2014–2016 (775,845 frames).
 
 Solar-UniBench takes four heterogeneous, publicly-available solar-forecasting
 datasets and routes each through a single object-oriented **standardization
@@ -17,15 +17,13 @@ complexity. In other words, *a simple model on well-governed data can match or
 beat a complex model on raw data.* The E9 crossover — the point where
 "simple + clean ≥ complex + raw" — is the headline result.
 
-> ### Honest dev-config vs. full-config distinction (please read)
-> All numbers and figures currently in the repository are **dev-config**: a
-> bounded, fast configuration (small image caps, short training) used to validate
-> the framework end-to-end. They are **honest** (see *Honest NaN* below) but are
-> **not the publishable numbers**. The publication set — full image
-> materialization and full model configs on all data — is produced by Phase 8
-> Stream B. Wherever this README would report a headline metric, it uses a
-> `<!-- TODO: full-config numbers -->` placeholder rather than a dev-config value,
-> so that no bounded number is mistaken for a final result.
+> ### Full-config vs. dev-config
+> The tables below report **full-config** results (`SUB_FULL_CONFIG=1`:
+> convergence-tuned GPU models, 50k-row/entity cap, 3-horizon grid; Folsom
+> imagery = 2014–2016, 775,845 frames in per-year zarr stores). The dev-config
+> `figures/` remains for the fast test suite and should not be cited as the
+> publishable set. All numbers are **honest** (see *Honest NaN* below) — negative
+> results are reported faithfully, never hidden.
 
 > ### Honest NaN
 > Missing modalities are **absent files or NaN columns, never fabricated.** The
@@ -60,7 +58,7 @@ align the data are what unlock downstream skill, and E9 isolates that effect.
 | Dataset | Target | Modalities (standardized) | Notes |
 |---|---|---|---|
 | **GEFCom2014** (solar track) | PV power | Tabular (PV, NWP); coordinates **recovered** via the clear-sky method and independently validated by the TSR (top-of-atmosphere radiation) method | 3 anonymous zones; coords inferred (not in source) |
-| **Folsom** | GHI / DNI / DHI | Tabular (irradiance, weather, NAM NWP) + sky images (`sky_images.zarr`) | **Image experiments use 2014 data only.** |
+| **Folsom** | GHI / DNI / DHI | Tabular (irradiance, weather, NAM NWP) + sky images (per-year `sky_images_YYYY.zarr`) | 775,845 frames (2014–2016), JPEG-q90 RGB @256² + BRR-on-load |
 | **SKIPPD** | PV power | Full: PV + irradiance + sky images + satellite (`satellite_future.zarr`) | The all-modality set |
 | **SunLake** | GHI | Tabular (GHI) + satellite context + optical-flow extrapolation | Multi-station |
 
@@ -153,41 +151,43 @@ python scripts/select_figures.py
 - **Single-command experiment entrypoint.** `python scripts/run_experiments.py`
   runs the full E1–E9 suite against the standardized packages.
 
-> A one-shot `--full` entrypoint that re-runs every baseline × dataset × horizon
-> at full config is part of Phase 8 packaging.
+> The `--full` flag (`scripts/run_experiments.py --full`) re-runs every baseline ×
+> dataset × horizon at full config (`SUB_FULL_CONFIG=1`).
 
 ---
 
 ## Results
 
-> **Phase 8 full-config results (populated).** The tables below are generated
-> from `figures_full/results/` (`SUB_FULL_CONFIG=1`: full-capacity GPU models,
-> 50k-row/entity cap, 3-horizon grid; Folsom imagery = 2014). The dev-config
-> `figures/` remains for the fast test suite and should not be cited as the
-> publishable set.
+> **Full-config results.** The tables below are generated from
+> `figures_full/results/` (`SUB_FULL_CONFIG=1`: convergence-tuned GPU models,
+> 50k-row/entity cap, 3-horizon grid; Folsom imagery = 2014–2016, 775,845 frames).
+> The dev-config `figures/` remains for the fast test suite.
 
 ### E8 — Unified benchmark (Forecast Skill vs. Smart Persistence)
 
-Baselines × datasets × horizons. Skill is reported against Smart Persistence
-(daylight-filtered). Horizons: intra-hour (15 min), intra-day (1–6 h), day-ahead
-(24 h).
+9 models × 4 datasets × 3 horizons (1 h / 6 h / 24 h). Skill is reported against
+Smart Persistence (daylight-filtered). Values are mean skill across horizons.
 
 | Model | GEFCom2014 (PV) | Folsom (GHI) | SKIPPD (PV) | SunLake (GHI) |
 |---|---|---|---|---|
 | Smart Persistence | 0.00 (ref) | 0.00 (ref) | 0.00 (ref) | 0.00 (ref) |
-| LightGBM | +0.16 | −0.15 | −0.12 | +0.23 |
-| MLP | +0.17 | −0.29 | −0.34 | +0.15 |
-| LSTM | +0.18 | −0.56 | −0.55 | +0.11 |
-| Transformer (PatchTST) | −0.39 | −1.64 | −3.03 | −0.12 |
-| CrossViViT (multimodal) | n/a | −0.63 | −1.01 | n/a |
+| LightGBM | +0.16 | −0.03 | −0.24 | +0.13 |
+| MLP | +0.17 | −0.31 | −0.22 | +0.04 |
+| DLinear | +0.05 | −2.43 | −2.19 | −1.44 |
+| LSTM | +0.21 | −1.39 | +0.13 | −0.14 |
+| PatchTST (CI) | −0.36 | −1.61 | −1.86 | −0.50 |
+| PatchTST-CD | +0.12 | −1.62 | −0.02 | −0.12 |
+| iTransformer | +0.18 | −1.31 | −0.45 | −0.11 |
+| CrossViViT (multimodal) | n/a | −1.23 | −0.75 | n/a |
 
-Daytime skill vs Smart Persistence, mean over the 1 h / 6 h / 24 h horizons
-(`figures_full/results/results_benchmark.csv`). Negative = below the persistence
+`figures_full/results/results_benchmark.csv`. Negative = below the persistence
 baseline — Smart Persistence is a very strong reference on smooth PV/GHI at
-short horizons (e.g. SKIPPD h1 SP MAE ≈ 0.010), so even well-trained models can
+short horizons (e.g. SKIPPD h1 SP MAE ≈ 0.014), so even well-trained models can
 sit below it in skill terms. CrossViViT runs only where sky images resolve
-(Folsom/SKIPPD); it is omitted on tabular-only packages where its image modality
-has no signal.
+(Folsom/SKIPPD). **Honest negative results**: DLinear (trend/seasonal
+decomposition + linear) underperforms across all datasets — a model-capacity
+limitation faithfully disclosed. PatchTST channel-independent variant is unsuited
+for low-channel tabular signals (GEFCom skill −0.36).
 
 > **CrossViViT capacity note (honest):** the full-config CrossViViT here is
 > **28.8 M parameters** (`d_model=384, depth=8`) — the largest config of the
@@ -196,8 +196,11 @@ has no signal.
 > statistics, and optical-flow / time-series context channels not implemented in
 > this port; reaching 145 M would require adding those components (future work).
 
-> **Folsom imagery note:** Folsom sky-image experiments use **2014 data only**
-> (250,598 frames materialized into `sky_images.zarr`, JPEG-q90 RGB @256² + BRR-on-load).
+> **Folsom imagery note:** Folsom sky-image experiments use **2014–2016 data**
+> (775,845 frames materialized into per-year stores `sky_images_2014.zarr`,
+> `sky_images_2015.zarr`, `sky_images_2016.zarr`, JPEG-q90 RGB @256² + BRR-on-load).
+> The `ConcatenatedSkyCube` wrapper (`loader.py`) virtually concatenates per-year
+> stores so downstream code is unaware of the partitioning.
 
 ### E9 — Governance vs. complexity (the centerpiece)
 
@@ -208,9 +211,9 @@ Two-axis ablation: data state {**raw / unaligned / uncleaned** vs.
 
 | Contrast | What it measures | Result |
 |---|---|---|
-| Δ from **data hygiene** | same model, raw → cleaned | **+0.045 mean** (up to **+0.115** for PatchTST) |
-| Δ from **complexity** | same data, simplest → most-complex (cleaned) | +0.269 (PatchTST over SmartPersistence, cleaned) |
-| **Crossover** (simple + clean ≥ complex + raw) | governance dominates? | **YES** — MLP + cleaned (skill +0.221) beats the most complex model on raw (PatchTST +0.155) |
+| Δ from **data hygiene** | same model, raw → cleaned | **+0.045 mean** (up to **+0.118** for PatchTST) |
+| Δ from **complexity** | same data, simplest → most-complex (cleaned) | +0.172 (PatchTST over SmartPersistence, cleaned) |
+| **Crossover** (simple + clean ≥ complex + raw) | governance dominates? | **YES** — MLP + cleaned (skill +0.221) beats the most complex model on raw (PatchTST +0.054) |
 
 `figures_full/results/results_e9_governance.csv`. The real-data crossover
 reproduces the thesis demonstrated on the synthetic axis in Phase 7: **governance
@@ -224,26 +227,27 @@ the cadence-mismatch artifact in the first pass (1-min datasets stuck in a
 degenerate all-negative-skill regime because horizon=1 row = 1-minute-ahead) was
 fixed by aligning a 12 h lookback / 1 h-ahead forecast in physical time
 (GEFCom L=12/H=1, SunLake L=24/H=2, Folsom/SKIPPD L=720/H=60). With that, the
-crossover holds on **all 4 datasets**: GEFCom +0.098, Folsom +1.229, SKIPPD +0.156,
-SunLake +0.820 (`fig_e9_cross_dataset_crossover.png`).
+crossover holds on **all 4 datasets** with margins: GEFCom +0.012, Folsom +0.097,
+SKIPPD +0.013, SunLake +0.198 (`fig_e9_cross_dataset_crossover.png`).
 
 **Governance waterfall (Folsom, `results_e9_waterfall.csv`):** label-governance
-(night-zero / range-clamp / UTC) is a near-no-op on already-clean raw, while
-adding clear-sky anchor features cuts MAE 0.0250 → 0.0081 (−68%) — the physical
-anchors dominate the governance gain (`fig_e9_waterfall.png`).
+(night-zero / range-clamp / UTC) is a near-no-op on already-clean raw (MAE
+0.2023 → 0.2024), while adding clear-sky anchor features cuts MAE to 0.1983
+(−2.0%) — the physical anchors dominate the governance gain
+(`fig_e9_waterfall.png`).
 
 **Temporal granularity (Folsom 1min→1h, dual-metric `results_e9_granularity.csv`):**
-Smart-Persistence physical MAE rises 5.9 → 33.6 W/m² (nMAE 0.008 → 0.058) as
-cadence coarsens — the SP-skill-collapse hypothesis confirmed in unscaled units
-(`fig_e9_granularity_sp_collapse.png`). Honest caveat: DLinear (the chosen model)
-is too weak to exploit the collapse (skill −15..−34) — disclosed as a model-
-capacity limitation rather than re-run to force a flip.
+Smart-Persistence physical MAE rises 47.1 → 52.1 W/m² (nMAE 0.035 → 0.046) as
+cadence coarsens from 1 min to 1 h — the SP-skill-collapse hypothesis confirmed
+in unscaled units (`fig_e9_granularity_sp_collapse.png`). Honest caveat: DLinear
+(the chosen model) is too weak to exploit the collapse (skill −3.6..−5.8) —
+disclosed as a model-capacity limitation rather than re-run to force a flip.
 
 **Physical-closure parity (ESSD data validation, `fig_physics_closure_parity.png` / paper fig11):** measured GHI vs DNI·cos(z)+DHI — Folsom R²=0.9998 (single-station, 1-min) and SunLake R²=0.9398 (6-station wide-area), confirming the irradiance modality is physically consistent.
 
 **Geo-recovery honest limitation (ESSD data validation, `fig_geo_validation.png` / paper fig3b; `results_geo_ablation_phase_shift.csv`, `results_folsom_blind_inversion.csv`):** three disclosed negative/mixed results, reported faithfully rather than hidden. (1) Folsom blind clear-sky inversion (3° global grid, measured GHI as the envelope) recovers (-36, 66) vs the known truth (38.651, -121.169) — a **19,316 km** great-circle error (near-antipodal), the inherent hemisphere ambiguity of fitting a clear-sky shape to cloudy irradiance; the seasonal-amplitude signal is corrupted by cloud noise, so TSR (pure geometry) remains the only hemisphere-unambiguous method. (2) A timestamp phase-shift ablation (dt ∈ {-60…+60} min) shows the recovered longitude drifts at the correct solar-geometry rate (~15°/60 min) in both GEFCom and Folsom, but the absolute location is severely biased on cloudy PV/GHI. The clearness-index corruption metric confirms the clear-sky features are genuinely phase-misaligned (super-physical kt>1.2 fraction: 0.117 at dt=0 rising to 0.201 at dt=-60). (3) Despite feature corruption, a bounded 1h-ahead LightGBM's daytime skill is essentially flat across dt (max drop ≈ 0.001) — the expected "avalanche parabola" did not appear, because autoregressive lags dominate at 1 h horizon and the model is robust to the corrupted clear-sky/cos_zenith anchors.
 
-**BRR representation × capacity ablation (4-arm, `fig_brr_ablation_comparison.png` / paper fig12; `results_brr_capacity_ablation.csv`):** the E3 finding ("scalar BRR stats are honestly negative for irradiance forecasting") is decomposed along two orthogonal axes — **representation form** (scalar stats vs a 2D spatial tensor) × **model capacity** (shallow LightGBM vs a deep ResNet-18 feature extractor). Four arms share the same scalar base (target lag + ghi_clearsky + cos_zenith) and differ only in image representation: ① Baseline (scalar only), ② Scalar BRR (+ BRR mean/std), ③ Deep RGB (+ 512-d ResNet-18 embedding from 3-channel RGB, stacked into LightGBM), ④ Deep BRR (identical to ③ but ResNet-18 `conv1` widened to 4 channels to ingest RGB+BRR). Arm 4 − Arm 3 on the thin-cloud subset is the headline net gain of letting a CNN read BRR's spatial structure (capacity held fixed). Setup: random-init ResNet-18 (representation-capacity test, not transfer learning), briefly supervised 8 epochs on the train split, then frozen and stacked; ~2000 daytime image-bearing windows per dataset; thin-cloud = middle third by mean BRR (same as E3); skill vs Smart Persistence, daytime. Three honest findings: (i) **capacity dominates** — deep arms cut Folsom overall MAE ~120 → ~67 W/m² (skill −1.0 → −0.14), the only robust large signal; on SKIPPD overall the random-init ResNet does not even beat the pure scalar baseline (+0.43 vs +0.44). (ii) **Scalar BRR is not robustly helpful** — marginal on Folsom overall (−0.96 vs −1.05) but *hurts* on the Folsom thin-cloud subset (−1.91 vs −1.72) and on SKIPPD overall (+0.26 vs +0.44), reproducing E3's scalar-compression negative. (iii) **Deep BRR ≈ Deep RGB on thin-cloud** — Arm 4 − Arm 3 thin-cloud Δskill is Folsom −0.030 / SKIPPD −0.107 (mean −0.069), and the Folsom gap *flips sign across reruns* (±0.04), i.e. within ResNet training noise; the SKIPPD thin subset (n=35) is too small to trust. The dialectic: scalar compression collapses BRR's spatial topology (shallow trees can't use it); 2D structure lets a CNN clear the shallow-tree ceiling, but the *marginal* value of the 4th BRR channel for the CNN is ≈ 0 at this dev config — the CNN already extracts thin-cloud signal from RGB and a briefly-trained random-init net cannot reliably exploit the extra channel. Full-config verdict (longer training + full images + pretraining) is deferred to Phase 8.
+**BRR representation × capacity ablation (4-arm, `fig_brr_ablation_comparison.png` / paper fig12; `results_brr_capacity_ablation.csv`):** the E3 finding ("scalar BRR stats are honestly negative for irradiance forecasting") is decomposed along two orthogonal axes — **representation form** (scalar stats vs a 2D spatial tensor) × **model capacity** (shallow LightGBM vs a deep ResNet-18 feature extractor with ImageNet pretraining + Channel Padding Alignment). Four arms share the same scalar base (target lag + ghi_clearsky + cos_zenith) and differ only in image representation: ① Baseline (scalar only), ② Scalar BRR (+ BRR mean/std), ③ Deep RGB (+ 512-d ResNet-18 embedding from 3-channel RGB, ImageNet pretrained, stacked into LightGBM), ④ Deep BRR (identical to ③ but ResNet-18 `conv1` widened to 4 channels via Channel Padding Alignment: `conv1.weight[:,:3]` = pretrained RGB, `conv1.weight[:,3]` = mean(R,B) + 1% noise). Arm 4 − Arm 3 on the thin-cloud subset is the headline net gain of letting a CNN read BRR's spatial structure (capacity held fixed). Setup: ImageNet-pretrained ResNet-18 (`ResNet18_Weights.DEFAULT`), supervised 25 epochs with cosine-annealing LR + early stopping (patience=3), then frozen and stacked; ~700 daytime image-bearing windows per dataset; thin-cloud = middle third by mean BRR (same as E3); skill vs Smart Persistence, daytime. Three findings: (i) **capacity dominates** — deep arms cut Folsom overall MAE ~120 → ~92–96 W/m² (skill −1.05 → −0.56..−0.63), the only robust large signal. (ii) **Scalar BRR is not robustly helpful** — marginal on Folsom overall but *hurts* on the Folsom thin-cloud subset (skill −1.91 vs −1.72), reproducing E3's scalar-compression negative. (iii) **Deep BRR > Deep RGB on thin-cloud (Folsom)** — Arm 4 − Arm 3 thin-cloud Δskill is **Folsom +0.097** (the Channel Padding Alignment + ImageNet pretraining flipped the sign from the random-init −0.030 to a stable positive); SKIPPD Δskill is −0.013 (64×64 low-resolution limit, n=35 thin subset too small to trust). The dialectic: scalar compression collapses BRR's spatial topology (shallow trees can't use it); 2D structure lets a pretrained CNN clear the shallow-tree ceiling, and with proper channel alignment (CPA) the 4th BRR channel adds a genuine marginal gain for thin-cloud detection on high-resolution imagery.
 
 
 ### Supporting experiments

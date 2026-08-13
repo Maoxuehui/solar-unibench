@@ -54,46 +54,44 @@
   },
   "E8_benchmark_skill": {
     "CrossViViT": {
-      "folsom": -0.45,
-      "gefcom2014": null,
-      "skippd": -0.391,
-      "sunlake": null
+      "folsom": -1.2329,
+      "skippd": -0.7541
     },
     "DLinear": {
-      "folsom": -3.144,
-      "gefcom2014": 0.049,
-      "skippd": -4.979,
-      "sunlake": -0.839
+      "folsom": -2.4305,
+      "gefcom2014": 0.0491,
+      "skippd": -2.1868,
+      "sunlake": -1.4407
     },
     "LSTM": {
-      "folsom": -0.302,
-      "gefcom2014": 0.207,
-      "skippd": -0.234,
-      "sunlake": 0.139
+      "folsom": -1.3921,
+      "gefcom2014": 0.2068,
+      "skippd": 0.1339,
+      "sunlake": -0.1391
     },
     "LightGBM": {
-      "folsom": -0.156,
-      "gefcom2014": 0.16,
-      "skippd": -0.124,
-      "sunlake": 0.226
+      "folsom": -0.0319,
+      "gefcom2014": 0.1595,
+      "skippd": -0.2431,
+      "sunlake": 0.1301
     },
     "MLP": {
-      "folsom": -0.289,
-      "gefcom2014": 0.17,
-      "skippd": -0.343,
-      "sunlake": 0.15
+      "folsom": -0.3069,
+      "gefcom2014": 0.1705,
+      "skippd": -0.2157,
+      "sunlake": 0.042
     },
     "PatchTST": {
-      "folsom": -1.369,
-      "gefcom2014": -0.362,
-      "skippd": -2.937,
-      "sunlake": -0.095
+      "folsom": -1.6125,
+      "gefcom2014": -0.3622,
+      "skippd": -1.8577,
+      "sunlake": -0.4975
     },
     "PatchTST-CD": {
-      "folsom": -0.775,
-      "gefcom2014": 0.119,
-      "skippd": -0.333,
-      "sunlake": 0.106
+      "folsom": -1.6201,
+      "gefcom2014": 0.1187,
+      "skippd": -0.0184,
+      "sunlake": -0.1236
     },
     "SmartPersistence": {
       "folsom": 0.0,
@@ -102,10 +100,10 @@
       "sunlake": 0.0
     },
     "iTransformer": {
-      "folsom": -0.39,
+      "folsom": -1.3093,
       "gefcom2014": 0.18,
-      "skippd": -1.141,
-      "sunlake": 0.046
+      "skippd": -0.4483,
+      "sunlake": -0.1101
     }
   },
   "E9_governance_cleaned_skill": {
@@ -117,45 +115,49 @@
   },
   "E9_cross_dataset_crossover": {
     "gefcom2014": {
-      "crossover_margin": 0.098,
+      "crossover_margin": 0.0121,
       "holds": true
     },
     "folsom": {
-      "crossover_margin": 1.229,
+      "crossover_margin": 0.0966,
       "holds": true
     },
     "skippd": {
-      "crossover_margin": 0.156,
+      "crossover_margin": 0.0125,
       "holds": true
     },
     "sunlake": {
-      "crossover_margin": 0.82,
+      "crossover_margin": 0.198,
       "holds": true
     }
   },
   "E9_waterfall": {
-    "raw": 0.025,
-    "+night": 0.025,
-    "+range_clamp": 0.025,
-    "+utc_align": 0.025,
-    "+clearsky_features": 0.0081
+    "raw": 0.202338,
+    "+night": 0.202367,
+    "+range_clamp": 0.202367,
+    "+utc_align": 0.202367,
+    "+clearsky_features": 0.19834
   },
   "E9_granularity": {
     "1min": {
-      "mae_sp": 5.94,
-      "mae_dlinear": 207.14
+      "mae_sp": 47.08,
+      "mae_dlinear": 319.84,
+      "skill_dlinear": -5.79
     },
     "5min": {
-      "mae_sp": 14.04,
-      "mae_dlinear": 321.45
+      "mae_sp": 47.08,
+      "mae_dlinear": 319.84,
+      "skill_dlinear": -5.79
     },
     "15min": {
-      "mae_sp": 32.74,
-      "mae_dlinear": 524.04
+      "mae_sp": 47.08,
+      "mae_dlinear": 319.84,
+      "skill_dlinear": -5.79
     },
     "1h": {
-      "mae_sp": 33.62,
-      "mae_dlinear": 613.0
+      "mae_sp": 52.1,
+      "mae_dlinear": 238.57,
+      "skill_dlinear": -3.58
     }
   },
   "BRR_capacity_ablation": {
