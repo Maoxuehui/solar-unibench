@@ -58,3 +58,58 @@ def test_get_tensor_cube_present(tmp_path):
     assert cube is not None and cube.shape == (8, 4, 256, 256)
     ts = ld.get_image_timestamps("toy")
     assert ts is not None and len(ts) == 8
+
+
+def _build_per_year_sky(root: Path, dataset="folsom"):
+    """Create two per-year sky stores (sky_images_2014.zarr, _2015.zarr)."""
+    d = root / dataset
+    d.mkdir(parents=True)
+    for year, n in [(2014, 5), (2015, 3)]:
+        times = pd.date_range(f"{year}-06-01 06:00", periods=n, freq="1h", tz="UTC")
+        store = zarr.DirectoryStore(str(d / f"sky_images_{year}.zarr"))
+        g = zarr.group(store=store, overwrite=True)
+        # JPEG-bytes layout (object dtype, like real Folsom stores)
+        import io
+        from PIL import Image
+        raw = [io.BytesIO() for _ in range(n)]
+        for i, buf in enumerate(raw):
+            Image.fromarray(
+                (np.random.rand(64, 64, 3) * 255).astype(np.uint8)
+            ).save(buf, format="JPEG")
+        g.array("images", data=np.array([b.getvalue() for b in raw], dtype=object),
+                chunks=(n,), object_codec=zarr.VLenBytes(), overwrite=True)
+        g.array("images_timestamps", data=np.array([t.isoformat() for t in times]),
+                chunks=(n,), overwrite=True)
+
+
+def test_per_year_sky_concatenation(tmp_path):
+    """Per-year sky stores (sky_images_YYYY.zarr) are discovered and virtually
+    concatenated by the loader: cube shape = sum, timestamps = ordered concat,
+    and indexing across the year boundary routes to the correct sub-store."""
+    _build_per_year_sky(tmp_path)
+    ld = SolarUniBenchLoader(str(tmp_path))
+
+    cube = ld.get_tensor_cube("folsom", "sky_images")
+    assert cube is not None
+    assert cube.shape == (8,)  # 5 + 3
+    assert cube.dtype == object  # JPEG bytes
+
+    ts = ld.get_image_timestamps("folsom")
+    assert ts is not None and len(ts) == 8
+    # Ordered: all 2014 timestamps then all 2015
+    assert str(ts[0]).startswith("2014-06-01")
+    assert str(ts[5]).startswith("2015-06-01")
+
+    # Indexing: frame 0 from 2014, frame 5 from 2015 (boundary)
+    b0 = bytes(cube[0])
+    assert b0[:2] == b"\xff\xd8"  # JPEG SOI
+    b5 = bytes(cube[5])
+    assert b5[:2] == b"\xff\xd8"
+
+
+def test_per_year_fallback_to_single_store(tmp_path):
+    """When no per-year stores exist, the loader falls back to sky_images.zarr."""
+    _build_pkg(tmp_path, with_sky=True)
+    ld = SolarUniBenchLoader(str(tmp_path))
+    cube = ld.get_tensor_cube("toy", "sky_images")
+    assert cube is not None and cube.shape[0] == 8

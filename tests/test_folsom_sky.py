@@ -55,9 +55,10 @@ def test_folsom_timestamps_parallel_index(tmp_path):
     # length matches the cube's leading dim
     assert ts.shape == (res["n_frames"],)
     assert ts.shape[0] == imgs.shape[0]
-    # strings, one per chunk
+    # strings — single large chunk (NOT (1,) which creates one tiny NTFS file
+    # per frame and was the root cause of timestamps going missing on long runs)
     assert ts.dtype.kind == "U"
-    assert ts.chunks == (1,)
+    assert ts.chunks == (ts.shape[0],)
     # first timestamp parses to the expected UTC value (filename 20140601_120000)
     first = pd.Timestamp(str(ts[0]))
     assert first == pd.Timestamp("2014-06-01 12:00:00", tz="UTC")
