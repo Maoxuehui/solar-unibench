@@ -44,7 +44,7 @@ import torch
 from torch import nn
 
 from ..core import ForecastModel
-from ._torch_base import TorchForecastMixin, fit_loop
+from ._torch_base import TorchForecastMixin, fit_loop, train_kwargs
 
 
 def _odd_kernel(kernel_size: int, lookback: int) -> int:
@@ -127,6 +127,10 @@ class DLinearModel(TorchForecastMixin, ForecastModel):
         lr: float = 1e-3,
         epochs: int = 8,
         batch_size: int = 32,
+        weight_decay: float = 0.0,
+        patience: int | None = None,
+        val_fraction: float = 0.0,
+        accum_steps: int = 1,
         device: str | torch.device | None = None,
         name: str = "DLinear",
         seed: int = 0,
@@ -135,6 +139,11 @@ class DLinearModel(TorchForecastMixin, ForecastModel):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
+        # FULL-config training additions (defaults preserve old tiny behavior).
+        self.weight_decay = weight_decay
+        self.patience = patience
+        self.val_fraction = val_fraction
+        self.accum_steps = accum_steps
         self.device = self._resolve_device(device)
         self._name = name
         self.seed = seed
@@ -191,10 +200,8 @@ class DLinearModel(TorchForecastMixin, ForecastModel):
             self._net,
             Xt,
             Yt,
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            lr=self.lr,
             loss_fn=loss_fn,
+            **train_kwargs(self),
         )
         return None
 
