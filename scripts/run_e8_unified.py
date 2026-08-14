@@ -9,26 +9,22 @@ This is the Task 6 deliverable: the real-data integration run that exercises
 the whole E8 harness end-to-end (config + F=4 clearness feature + daytime-masked
 Skill% evaluator) on the four standardized datasets.
 
-Tractability
-------------
-Two knobs keep the first table tractable on a laptop (per the plan's "TINY
-configs for tractability; full-config is a later run" note):
-
-* ``--tiny`` (default) shrinks the deep-model epoch budget to 1 and the MLP
-  iteration cap to 10 via :func:`build_models(tiny=True, ...)`.
-* ``--bound N`` (default 8000) tails each (dataset, split, entity) frame to its
-  last *N* rows before windowing. The four standardized datasets range from 59K
-  to 1.55M rows; building all stride-1 windows on the full frames would OOM on
-  the 1-min datasets (folsom/skippd). The tail is REAL data — just a bounded
-  evaluation window — so the skill numbers are real (if noisier than the
-  full-config run; absolute skill will improve with the later large-epoch run).
-  Pass ``--bound 0`` to disable bounding (full-scale run).
-
-The deep (torch) models are forced onto CPU (``device="cpu"``) for determinism:
-``tiny=True`` exists precisely for tractable/deterministic first tables, and
-auto-selecting CUDA on a host whose GPU kernel is broken would make tiny mode
-fail. ``--full`` (full-config, later run) keeps the same CPU pin so the two
-runs are comparable.
+Two modes
+---------
+* ``--tiny`` (default): tractable first table. Deep models at 1 epoch, MLP at
+  10 iterations, ``device="cpu"`` for determinism, and each (split, entity)
+  frame tailed to its last ``--bound N`` rows (default 8000) so stride-1
+  windowing of the 1-min datasets stays in memory.
+* ``--full`` (the E8 FULL-config upgrade): trains the deep models for 50 epochs
+  with patience=7 val-based early stopping, AdamW + CosineAnnealingLR,
+  effective batch 64 (CrossViViT accumulates 4 micro-batches of 16 for 24GB at
+  256x256), and ``device="cuda"`` on the FULL multi-year data range. To keep
+  stride-1 windowing of 1.55M rows x lookback-240 tractable, FULL mode windows
+  with a per-sampling-rate stride (1-min → 30, 30-min/1-h → 1) — full SEASONAL
+  coverage at a tractable ~50k windows, not every stride-1 window. With a FULL
+  stride the ``--bound`` tail defaults to 0 (all rows). Each cell is wrapped in
+  a CUDA→CPU fallback so a transient CUDA error degrades instead of killing the
+  grid.
 
 Resilience
 ----------
@@ -41,8 +37,8 @@ Usage
 ::
 
     python scripts/run_e8_unified.py                  # tiny + bound=8000 (default)
-    python scripts/run_e8_unified.py --bound 0        # full-scale data run
-    python scripts/run_e8_unified.py --full           # full-config epochs
+    python scripts/run_e8_unified.py --bound 0        # tiny, full-scale data
+    python scripts/run_e8_unified.py --full           # FULL config on CUDA
 """
 from __future__ import annotations
 
@@ -54,12 +50,9 @@ from pathlib import Path
 
 import pandas as pd
 
-# Force the torch deep models onto CPU BEFORE torch is imported by the model
-# modules below (defense in depth on top of build_models(device="cpu")); on a
-# host with a broken CUDA driver this keeps tiny mode deterministic.
-import os
-
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+# NOTE: the tiny run pins device="cpu" explicitly via build_models(device=...),
+# so we do NOT blanket-disable CUDA here (that would break the FULL GPU run).
+# ``run_with_cuda_fallback`` (per-cell) is the safety net for transient errors.
 
 # Make the in-repo ``solarunibench`` package importable when the script is run
 # directly (``python scripts/run_e8_unified.py`` puts ``scripts/`` — not the repo
@@ -72,7 +65,11 @@ if str(_REPO_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_REPO_ROOT))
 
 from solarunibench.benchmark.config import DATASET_CONFIG  # noqa: E402
-from solarunibench.benchmark.run_e8 import build_models, run_benchmark  # noqa: E402
+from solarunibench.benchmark.run_e8 import (  # noqa: E402
+    build_models,
+    probe_cuda,
+    run_benchmark,
+)
 from solarunibench.benchmark.summary import (  # noqa: E402
     build_results_table,
     save_results,
@@ -123,13 +120,21 @@ def main() -> int:
     p.add_argument(
         "--full",
         action="store_true",
-        help="full-config epochs (default: tiny=1 epoch deep / 10 iter MLP)",
+        help="FULL config: 50 epochs + patience=7 early stop + AdamW+Cosine + "
+        "effective batch 64 (CrossViViT accum 4) + CUDA + full-data stride "
+        "(default: tiny=1 epoch deep / 10 iter MLP on CPU)",
     )
     p.add_argument(
         "--bound",
         type=int,
-        default=8000,
-        help="tail rows per (split, entity); 0 disables bounding (default 8000)",
+        default=None,
+        help="tail rows per (split, entity); 0 disables bounding. "
+        "Default: 8000 (tiny) / 0 (full)",
+    )
+    p.add_argument(
+        "--device",
+        default=None,
+        help="torch device override (default: cpu for tiny, cuda for full)",
     )
     p.add_argument(
         "--datasets",
@@ -140,17 +145,43 @@ def main() -> int:
     args = p.parse_args()
 
     tiny = not args.full
-    loader = BoundedLoader(SolarUniBenchLoader(args.data_root), args.bound)
-    models = build_models(tiny=tiny, device="cpu")
+    # FULL stride makes full-data windowing tractable → no tail bound needed;
+    # tiny still tails to 8000 rows for a fast deterministic table.
+    bound = args.bound if args.bound is not None else (0 if args.full else 8000)
+    device = args.device or ("cuda" if args.full else "cpu")
 
-    print(f"E8 unified benchmark: datasets={args.datasets} tiny={tiny} "
-          f"bound={args.bound} device=cpu", flush=True)
+    cuda_ok = probe_cuda(device) if device.startswith("cuda") else False
+    if args.full:
+        if device.startswith("cuda") and not cuda_ok:
+            print(
+                f"WARNING: --full requested device={device} but the CUDA probe "
+                f"failed; falling back to cpu for this run.",
+                flush=True,
+            )
+            device = "cpu"
+        print(
+            f"  FULL config: epochs=50 patience=7 batch=64 (CrossViViT accum=4) "
+            f"AdamW(lr=1e-3,wd=1e-4)+Cosine stride=full-per-dataset "
+            f"CUDA={'OK' if cuda_ok else 'n/a'}",
+            flush=True,
+        )
+
+    loader = BoundedLoader(SolarUniBenchLoader(args.data_root), bound)
+    models = build_models(tiny=tiny, full=args.full, device=device)
+
+    print(
+        f"E8 unified benchmark: datasets={args.datasets} "
+        f"mode={'FULL' if args.full else 'tiny'} bound={bound} device={device}",
+        flush=True,
+    )
 
     rows: list[dict] = []
     for ds in args.datasets:
         t0 = time.time()
         try:
-            ds_rows = run_benchmark(loader, datasets=[ds], models=models, tiny=tiny)
+            ds_rows = run_benchmark(
+                loader, datasets=[ds], models=models, tiny=tiny, full=args.full
+            )
             rows.extend(ds_rows)
             print(
                 f"  [OK]   {ds:11s} {len(ds_rows):3d} rows in {time.time()-t0:6.1f}s",

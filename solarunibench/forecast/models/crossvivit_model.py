@@ -47,7 +47,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from ..core import ForecastModel
-from ._torch_base import TorchForecastMixin, fit_loop
+from ._torch_base import TorchForecastMixin, fit_loop, train_kwargs
 
 # Valid tokenization variants. ``crossvivit`` is the default bidirectional
 # cross-attention model; ``tabular`` disables the image branch entirely at
@@ -246,6 +246,10 @@ class CrossViViTModel(TorchForecastMixin, ForecastModel):
         lr: float = 1e-3,
         epochs: int = 8,
         batch_size: int = 16,
+        weight_decay: float = 0.0,
+        patience: int | None = None,
+        val_fraction: float = 0.0,
+        accum_steps: int = 1,
         device: str | torch.device | None = None,
         name: str = "CrossViViT",
         variant: str = "crossvivit",
@@ -271,6 +275,13 @@ class CrossViViTModel(TorchForecastMixin, ForecastModel):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
+        # FULL-config training additions (defaults preserve old tiny behavior).
+        # In FULL mode batch_size=64 + accum_steps=4 → micro-batch 16 fits 24GB
+        # at 256x256 sky images while keeping an effective batch of 64.
+        self.weight_decay = weight_decay
+        self.patience = patience
+        self.val_fraction = val_fraction
+        self.accum_steps = accum_steps
         self.device = self._resolve_device(device)
         self._name = name
         self.variant = variant
@@ -345,10 +356,8 @@ class CrossViViTModel(TorchForecastMixin, ForecastModel):
             self._net,
             tensors,
             Yt,
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            lr=self.lr,
             loss_fn=loss_fn,
+            **train_kwargs(self),
         )
         return None
 

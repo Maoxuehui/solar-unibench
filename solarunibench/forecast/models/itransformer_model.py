@@ -43,7 +43,7 @@ import torch
 from torch import nn
 
 from ..core import ForecastModel
-from ._torch_base import TorchForecastMixin, fit_loop
+from ._torch_base import TorchForecastMixin, fit_loop, train_kwargs
 
 
 class _iTransformerNet(nn.Module):
@@ -126,6 +126,10 @@ class iTransformerModel(TorchForecastMixin, ForecastModel):
         lr: float = 1e-3,
         epochs: int = 8,
         batch_size: int = 32,
+        weight_decay: float = 0.0,
+        patience: int | None = None,
+        val_fraction: float = 0.0,
+        accum_steps: int = 1,
         device: str | torch.device | None = None,
         name: str = "iTransformer",
         seed: int = 0,
@@ -141,6 +145,11 @@ class iTransformerModel(TorchForecastMixin, ForecastModel):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
+        # FULL-config training additions (defaults preserve old tiny behavior).
+        self.weight_decay = weight_decay
+        self.patience = patience
+        self.val_fraction = val_fraction
+        self.accum_steps = accum_steps
         self.device = self._resolve_device(device)
         self._name = name
         self.seed = seed
@@ -199,10 +208,8 @@ class iTransformerModel(TorchForecastMixin, ForecastModel):
             self._net,
             Xt,
             Yt,
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            lr=self.lr,
             loss_fn=loss_fn,
+            **train_kwargs(self),
         )
         return None
 

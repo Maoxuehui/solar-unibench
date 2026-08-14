@@ -45,9 +45,12 @@ the one the pipeline computes internally on its scaled test frame.
 from __future__ import annotations
 
 import copy
-from typing import Callable, Protocol
+import warnings
+from typing import Any, Callable, Protocol
 
+import numpy as np
 import pandas as pd
+import torch
 
 from .config import DATASET_CONFIG, DatasetConfig
 from .evaluator import evaluate_predictions
@@ -81,6 +84,116 @@ _DEEP_EPOCHS_TINY = 1
 _DEEP_EPOCHS_FULL = 8
 _MLP_MAX_ITER_TINY = 10
 
+# ---------------------------------------------------------------------------
+# FULL-config presets (E8 upgrade: TINY → FULL). These encode the user's
+# checklist: epochs=50 + patience=7 val-based early stopping, batch 64
+# (CrossViViT 64 + accum 4 → micro-batch 16 for 24GB at 256x256), AdamW +
+# CosineAnnealingLR, and a full-data stride for tractable window counts.
+# ---------------------------------------------------------------------------
+
+_FULL_EPOCHS = 50          # give PatchTST/CrossViViT room to converge
+_FULL_PATIENCE = 7         # val-based early stopping
+_FULL_BATCH = 64           # effective batch size
+_FULL_ACCUM_CROSSVIVIT = 4  # CrossViViT: micro-batch 64//4 = 16 (24GB-friendly)
+_FULL_LR = 1e-3
+_FULL_WD = 1e-4            # AdamW weight decay
+_FULL_VAL_FRACTION = 0.15  # chronological val holdout (last 15% of train windows)
+
+# Full-data windowing stride by native sampling rate. Goal: full SEASONAL
+# coverage (all 3 years) at a tractable window count, NOT every stride-1 window
+# (stride-1 over 1.55M rows x lookback-240 ~ OOMs). 1-min data → stride 30
+# (~50k windows over 3 years); 30-min / 1-h data is small enough for stride 1.
+_FULL_STRIDE_BY_SAMPLING_MINS: dict[int, int] = {1: 30, 30: 1, 60: 1}
+
+
+def _full_stride(sampling_mins: int) -> int:
+    """FULL-mode windowing stride for a dataset's native sampling rate."""
+    if sampling_mins not in _FULL_STRIDE_BY_SAMPLING_MINS:
+        raise KeyError(
+            f"no FULL stride configured for sampling_mins={sampling_mins} "
+            f"(known: {sorted(_FULL_STRIDE_BY_SAMPLING_MINS)})"
+        )
+    return _FULL_STRIDE_BY_SAMPLING_MINS[sampling_mins]
+
+
+# ---------------------------------------------------------------------------
+# CUDA auto-fallback helpers
+# ---------------------------------------------------------------------------
+
+
+def probe_cuda(device: str = "cuda") -> bool:
+    """Quick CUDA viability probe: run a tiny matmul; return whether it worked.
+
+    Used to REPORT GPU status before a FULL run; a per-cell retry
+    (:func:`run_with_cuda_fallback`) is the real safety net for transient errors.
+    """
+    if not torch.cuda.is_available() and device.startswith("cuda"):
+        return False
+    try:
+        dev = torch.device(device)
+        a = torch.randn(4, 4, device=dev)
+        (a @ a).sum().item()
+        if device.startswith("cuda"):
+            torch.cuda.synchronize(dev)
+        return True
+    except RuntimeError:
+        return False
+
+
+def _is_cuda_runtime_error(exc: BaseException) -> bool:
+    """Heuristic: did a torch op raise because of CUDA (vs a logic error)?"""
+    if not isinstance(exc, RuntimeError):
+        return False
+    msg = str(exc).lower()
+    return any(
+        tok in msg
+        for tok in ("cuda", "out of memory", "cublas", "cudnn", "device-side")
+    )
+
+
+def _set_model_device_cpu(model: Any) -> None:
+    """Best-effort move a torch ForecastModel's target device to CPU.
+
+    Torch models read ``self.device`` at fit time (they rebuild the net there),
+    so flipping ``model.device`` to CPU makes the next fit a CPU fit. CPU-only /
+    non-torch models (LightGBM, MLP) are unaffected (they have no ``device``).
+    """
+    if hasattr(model, "device"):
+        try:
+            model.device = torch.device("cpu")
+        except (AttributeError, TypeError):
+            pass
+
+
+def run_with_cuda_fallback(
+    fn: Callable[[Any], Any],
+    model: Any,
+    *,
+    on_retry: Callable[[Any], None] | None = None,
+) -> Any:
+    """Run ``fn(model)``; on a CUDA :class:`RuntimeError`, retry once on CPU.
+
+    A transient CUDA error mid-fit (the classic OOM on a big image batch) must
+    not kill a multi-hour FULL grid run: this wrapper catches CUDA runtime
+    errors, warns, flips the model to CPU, drops any half-fit GPU net, and
+    retries the whole fit/predict pass on CPU. Non-CUDA errors re-raise.
+    """
+    try:
+        return fn(model)
+    except RuntimeError as exc:
+        if not _is_cuda_runtime_error(exc):
+            raise
+        warnings.warn(
+            f"CUDA RuntimeError during {getattr(model, 'name', model)!s} fit/predict "
+            f"({exc!r}); retrying this cell on CPU.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        _set_model_device_cpu(model)
+        if on_retry is not None:
+            on_retry(model)
+        return fn(model)
+
 
 class _Loader(Protocol):
     """Structural type for the loader dependency (injectable for tests)."""
@@ -94,7 +207,7 @@ class _Loader(Protocol):
 
 
 def build_models(
-    tiny: bool = True, device: str | None = None
+    tiny: bool = True, device: str | None = None, full: bool = False
 ) -> list:
     """Return the 8 non-reference model templates (SmartPersistence is the ref).
 
@@ -104,16 +217,26 @@ def build_models(
     CrossViViT. Each is returned UNFITTED; the runner deep-copies a fresh
     instance per cell.
 
-    ``tiny=True`` (default) shrinks the deep-model epoch budget to 1 and the
-    MLP iteration cap to 10 so the framework + first table are tractable.
-    ``tiny=False`` restores the framework defaults for the later full-config run.
-
-    ``device`` is forwarded to every torch deep model's constructor (``"cpu"``
-    gives deterministic tiny runs — the deep-model docstrings recommend it for
-    tiny tests; auto-selecting CUDA on a broken GPU makes tiny mode fail).
-    ``None`` (default) preserves each model's native auto-select behavior so
-    existing Task 4 callers are unaffected.
+    Parameters
+    ----------
+    tiny
+        ``True`` (default) shrinks the deep-model epoch budget to 1 and the MLP
+        iteration cap to 10 so the framework + first table are tractable.
+        ``False`` restores the framework defaults (8-epoch deep models).
+    full
+        FULL-config presets (the E8 upgrade): overrides ``tiny`` and sets
+        epochs=50, patience=7 val-based early stopping, AdamW(lr=1e-3,
+        weight_decay=1e-4) + CosineAnnealingLR, chronological 15% val split,
+        effective batch 64 (CrossViViT gets accum_steps=4 → micro-batch 16 for
+        24GB at 256x256). ``device`` defaults to ``"cuda"`` (with per-cell
+        CPU fallback in the runner) so the FULL grid trains on GPU.
+    device
+        Forwarded to every torch deep model's constructor. ``"cpu"`` gives
+        deterministic tiny runs; ``"cuda"`` trains on GPU (FULL default). For
+        FULL, ``None`` auto-selects ``"cuda"``.
     """
+    if full:
+        return _build_full_models(device)
     epochs = _DEEP_EPOCHS_TINY if tiny else _DEEP_EPOCHS_FULL
     mlp_kw = {"max_iter": _MLP_MAX_ITER_TINY} if tiny else {}
     deep_kw = {"device": device} if device is not None else {}
@@ -129,6 +252,39 @@ def build_models(
     ]
 
 
+def _build_full_models(device: str | None = None) -> list:
+    """Build the 8-model battery with FULL-config presets (see :func:`build_models`)."""
+    dev = device or "cuda"
+    # Shared deep-model FULL kwargs. batch_size / accum_steps differ per model
+    # (CrossViViT accumulates), so they are passed individually below.
+    common = dict(
+        epochs=_FULL_EPOCHS,
+        lr=_FULL_LR,
+        weight_decay=_FULL_WD,
+        patience=_FULL_PATIENCE,
+        val_fraction=_FULL_VAL_FRACTION,
+        device=dev,
+    )
+    return [
+        LightGBMModel(),
+        MLPModel(),  # framework-default MLP iters (no tiny cap in FULL)
+        DLinearModel(batch_size=_FULL_BATCH, **common),
+        LSTMModel(batch_size=_FULL_BATCH, **common),
+        iTransformerModel(batch_size=_FULL_BATCH, **common),
+        PatchTSTModel(
+            variant="patchtst", name="PatchTST-CI", batch_size=_FULL_BATCH, **common
+        ),
+        PatchTSTModel(
+            variant="patchtst_cd", name="PatchTST-CD", batch_size=_FULL_BATCH, **common
+        ),
+        # CrossViViT image path (256x256, lookback 240): micro-batch 16 fits
+        # 24GB; 4 accumulated micro-batches give an effective batch of 64.
+        CrossViViTModel(
+            batch_size=_FULL_BATCH, accum_steps=_FULL_ACCUM_CROSSVIVIT, **common
+        ),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
@@ -140,6 +296,8 @@ def run_benchmark(
     horizons: list[int] | None = None,
     models: list | None = None,
     tiny: bool = True,
+    full: bool = False,
+    stride: int | None = None,
 ) -> list[dict]:
     """Run the E8 benchmark over every ``(dataset, horizon, model)`` cell.
 
@@ -157,10 +315,23 @@ def run_benchmark(
         ``cfg.horizons_steps`` (physics-time-aligned short/medium/long).
     models
         Non-reference model templates (each cell fits a fresh deep-copy).
-        ``None`` → :func:`build_models` with the same ``tiny`` flag.
+        ``None`` → :func:`build_models` with the same ``tiny``/``full`` flags.
     tiny
         Forwarded to :func:`build_models` when ``models is None``. Ignored
         when ``models`` is supplied explicitly.
+    full
+        FULL-config mode: builds models via :func:`build_models` with
+        ``full=True`` (epochs=50, patience=7, AdamW+Cosine, effective batch 64,
+        CrossViViT accum) and — unless ``stride`` is given explicitly — sets the
+        windowing stride per dataset sampling rate (:func:`_full_stride`) so the
+        full multi-year range windows tractably (~50k windows on 1-min data
+        instead of the stride-1 OOM). Each cell is wrapped in
+        :func:`run_with_cuda_fallback` so a transient CUDA error degrades to CPU
+        instead of killing the grid.
+    stride
+        Explicit windowing stride applied to EVERY dataset (overrides the
+        FULL-mode per-dataset default). ``None`` → ``1`` (tiny/default) or
+        :func:`_full_stride` (full).
 
     Returns
     -------
@@ -173,7 +344,9 @@ def run_benchmark(
     if datasets is None:
         datasets = list(DATASET_CONFIG)
     if models is None:
-        models = build_models(tiny=tiny)
+        # FULL → train on CUDA (per-cell CPU fallback handles transient errors).
+        dev = "cuda" if full else None
+        models = build_models(tiny=tiny, full=full, device=dev)
 
     results: list[dict] = []
     for dataset in datasets:
@@ -182,15 +355,25 @@ def run_benchmark(
         df_test = add_clearness_aligned(loader.load_tabular(dataset, "test"), cfg.target)
         # One frame with a `split` column so the pipeline can filter both splits
         # from a single df_provider(config) call (its internal contract).
-        full = pd.concat(
+        full_df = pd.concat(
             [df_train.assign(split="train"), df_test.assign(split="test")],
             ignore_index=True,
         )
-        provider = _provider_for(full)
+        provider = _provider_for(full_df)
+
+        # FULL-mode per-dataset stride (full seasonal coverage, tractable
+        # window count); explicit ``stride`` always wins.
+        ds_stride = stride
+        if ds_stride is None:
+            ds_stride = _full_stride(cfg.sampling_mins) if full else 1
 
         hz_list = horizons if horizons is not None else list(cfg.horizons_steps)
         for hz in hz_list:
-            results.extend(_run_cell(dataset, cfg, hz, df_test, full, provider, models))
+            results.extend(
+                _run_cell(
+                    dataset, cfg, hz, df_test, full_df, provider, models, ds_stride, full
+                )
+            )
     return results
 
 
@@ -205,22 +388,33 @@ def _run_cell(
     full: pd.DataFrame,
     provider: Callable,
     models: list,
+    stride: int = 1,
+    cuda_fallback: bool = False,
 ) -> list[dict]:
-    """Run SmartPersistence (reference) + every eligible model for one cell."""
+    """Run SmartPersistence (reference) + every eligible model for one cell.
+
+    ``stride`` is the windowing stride applied to BOTH the pipeline (train+test
+    windows) and the per-sample ``cos_zenith_issue`` mask so they stay aligned
+    (a stride-1 mask over strided test predictions would misalign the evaluator).
+    ``cuda_fallback`` wraps each model's fit/predict in
+    :func:`run_with_cuda_fallback` so a transient CUDA error degrades to CPU.
+    """
     fe = EndogenousFeatureEngineer(cfg.target, feature_cols=list(_FEATURE_COLS))
     pconfig = PipelineConfig(
         dataset=dataset,
         target=cfg.target,
         lookback=cfg.lookback_steps,
         horizon=horizon,
+        stride=stride,
         feature_cols=list(_FEATURE_COLS),
     )
 
     # Per-sample issue-time cos_zenith aligned with this cell's test windows.
     # cos_zenith is passthrough under PhysicalFeatureScaler (see module docstring)
-    # so this matches the pipeline's internal scaled engineering exactly.
+    # so this matches the pipeline's internal scaled engineering exactly. MUST
+    # use the SAME stride as the pipeline so the mask length == n test windows.
     cos_zenith_issue = fe.create_features(
-        df_test, cfg.lookback_steps, horizon, 1
+        df_test, cfg.lookback_steps, horizon, stride
     )[4]
     if cos_zenith_issue is None:
         raise ValueError(
@@ -246,7 +440,10 @@ def _run_cell(
             continue
         # Fresh, unfitted instance per cell (no fit-state leakage).
         model = copy.deepcopy(template)
-        res = _run_pipeline(pconfig, fe, model, provider)
+        if cuda_fallback:
+            res = _run_pipeline_with_fallback(pconfig, fe, model, provider)
+        else:
+            res = _run_pipeline(pconfig, fe, model, provider)
         metrics = evaluate_predictions(
             y_true, res["pred"], cos_zenith_issue, persistence_pred
         )
@@ -264,6 +461,28 @@ def _run_pipeline(
     return SolarForecastPipeline(
         config, feature_engineer, model, scaler=PhysicalFeatureScaler()
     ).run(df_provider=provider)
+
+
+def _run_pipeline_with_fallback(
+    config: PipelineConfig,
+    feature_engineer: EndogenousFeatureEngineer,
+    model,
+    provider: Callable,
+) -> dict:
+    """Run a cell's pipeline with CUDA → CPU fallback (see :func:`run_with_cuda_fallback`).
+
+    On a CUDA RuntimeError the model is flipped to CPU and its half-fit GPU net
+    is dropped before the retry, freeing GPU memory and ensuring a clean refit.
+    """
+    def _drop_net(m: Any) -> None:
+        if hasattr(m, "_net"):
+            m._net = None  # free the half-fit GPU net before the CPU refit
+
+    return run_with_cuda_fallback(
+        lambda m: _run_pipeline(config, feature_engineer, m, provider),
+        model,
+        on_retry=_drop_net,
+    )
 
 
 def _provider_for(full: pd.DataFrame) -> Callable[[PipelineConfig], pd.DataFrame]:
