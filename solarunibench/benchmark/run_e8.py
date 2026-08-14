@@ -93,7 +93,9 @@ class _Loader(Protocol):
 # ---------------------------------------------------------------------------
 
 
-def build_models(tiny: bool = True) -> list:
+def build_models(
+    tiny: bool = True, device: str | None = None
+) -> list:
     """Return the 8 non-reference model templates (SmartPersistence is the ref).
 
     The battery is the E8 model suite minus SmartPersistence (which the runner
@@ -105,18 +107,25 @@ def build_models(tiny: bool = True) -> list:
     ``tiny=True`` (default) shrinks the deep-model epoch budget to 1 and the
     MLP iteration cap to 10 so the framework + first table are tractable.
     ``tiny=False`` restores the framework defaults for the later full-config run.
+
+    ``device`` is forwarded to every torch deep model's constructor (``"cpu"``
+    gives deterministic tiny runs — the deep-model docstrings recommend it for
+    tiny tests; auto-selecting CUDA on a broken GPU makes tiny mode fail).
+    ``None`` (default) preserves each model's native auto-select behavior so
+    existing Task 4 callers are unaffected.
     """
     epochs = _DEEP_EPOCHS_TINY if tiny else _DEEP_EPOCHS_FULL
     mlp_kw = {"max_iter": _MLP_MAX_ITER_TINY} if tiny else {}
+    deep_kw = {"device": device} if device is not None else {}
     return [
         LightGBMModel(),
         MLPModel(**mlp_kw),
-        DLinearModel(epochs=epochs),
-        LSTMModel(epochs=epochs),
-        iTransformerModel(epochs=epochs),
-        PatchTSTModel(variant="patchtst", name="PatchTST-CI", epochs=epochs),
-        PatchTSTModel(variant="patchtst_cd", name="PatchTST-CD", epochs=epochs),
-        CrossViViTModel(epochs=epochs),
+        DLinearModel(epochs=epochs, **deep_kw),
+        LSTMModel(epochs=epochs, **deep_kw),
+        iTransformerModel(epochs=epochs, **deep_kw),
+        PatchTSTModel(variant="patchtst", name="PatchTST-CI", epochs=epochs, **deep_kw),
+        PatchTSTModel(variant="patchtst_cd", name="PatchTST-CD", epochs=epochs, **deep_kw),
+        CrossViViTModel(epochs=epochs, **deep_kw),
     ]
 
 
