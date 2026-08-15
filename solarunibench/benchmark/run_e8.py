@@ -448,6 +448,14 @@ def _run_cell(
             y_true, res["pred"], cos_zenith_issue, persistence_pred
         )
         rows.append(_row(dataset, horizon, model.name, metrics))
+        # Release this torch model's GPU footprint before the next model so
+        # the CUDA caching allocator does not accumulate ~24 GB across the
+        # successive deep models in a cell and trip spurious kernel-launch
+        # failures ("invalid configuration argument") under memory pressure.
+        # Numerics are unaffected: the result row is already captured.
+        del model, res
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
     return rows
 
 

@@ -84,6 +84,34 @@ class TorchForecastMixin:
         """Replace NaN/inf lookback features with 0 (Honest NaN imputation)."""
         return torch.nan_to_num(t, nan=0.0, posinf=0.0, neginf=0.0)
 
+    @staticmethod
+    def _batched_eval_forward(
+        net: nn.Module,
+        inputs: torch.Tensor | tuple[torch.Tensor, ...],
+        eval_batch: int,
+    ) -> torch.Tensor:
+        """Eval-mode forward over dim-0 chunks; concatenate outputs on dim 0.
+
+        Runs the inference forward in minibatches so a large test set does not
+        trip the CUDA attention kernel's grid-dimension limit
+        (``invalid configuration argument``) or OOM on the conv/image paths.
+        Numerically identical to one big forward — each sample is an independent
+        per-row computation, so chunking only changes execution grouping, not
+        the values. ``inputs`` is a single tensor or a tuple of tensors that all
+        share dim 0 (the sample axis); each is sliced by the same row range and
+        passed positionally to ``net.forward``.
+        """
+        tensors = (inputs,) if isinstance(inputs, torch.Tensor) else tuple(inputs)
+        n = tensors[0].shape[0]
+        bs = max(1, int(eval_batch))
+        net.eval()
+        outs = []
+        with torch.no_grad():
+            for start in range(0, n, bs):
+                sl = slice(start, start + bs)
+                outs.append(net(*[t[sl] for t in tensors]))
+        return torch.cat(outs, dim=0)
+
 
 def train_kwargs(obj: Any) -> dict:
     """Collect :func:`fit_loop` training kwargs from a model instance.

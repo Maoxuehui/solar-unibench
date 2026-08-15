@@ -221,7 +221,10 @@ class DLinearModel(TorchForecastMixin, ForecastModel):
             )
         X = np.asarray(X_past, dtype=np.float32)
         Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
-        self._net.eval()
-        with torch.no_grad():
-            pred = self._net(Xt).cpu().numpy().astype(np.float32)
+        pred = (
+            self._batched_eval_forward(self._net, Xt, self.batch_size)
+            .cpu()
+            .numpy()
+            .astype(np.float32)
+        )
         return pred
