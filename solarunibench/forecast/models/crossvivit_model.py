@@ -1,8 +1,14 @@
-"""CrossViViT multimodal baseline — tabular ↔ image cross-attention.
+"""CrossViViT-inspired lightweight multimodal baseline — tabular ↔ image
+cross-attention.
 
-Adapted from Boussif et al., NeurIPS 2023 ("CrossViViT: Cross-Attention
-Vision-to-Volume Transformer for Multi-Modal Time Series Forecasting"). The
-model FUSES two modalities under the :class:`ForecastModel` interface:
+Inspired by Boussif et al. 2023, "Improving day-ahead Solar Irradiance Time
+Series Forecasting by Leveraging Spatio-Temporal Context" (arXiv:2306.01112;
+official code: https://github.com/gitbooo/CrossViVit). This is NOT the
+official 145M RoCrossViViT — it is a small self-contained variant built for
+the unified benchmark's shared training budget (see the comparison notes in
+``docs/references/crossvivit_tscontext_dataset_ref.py`` for the official
+data-side pattern that informed the windowing design). The model FUSES two
+modalities under the :class:`ForecastModel` interface:
 
 * **Tabular branch** — patch-tokenizes ``X_past[n, lb, Fp]`` along the lookback
   axis (PatchTST-style; each patch of ``patch_len`` timesteps × all channels is
