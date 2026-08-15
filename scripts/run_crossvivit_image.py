@@ -74,6 +74,9 @@ def main() -> int:
         patience=_FULL_PATIENCE,
         val_fraction=_FULL_VAL_FRACTION,
         device=args.device,
+        # The image engineer already subsamples frames (stride 30 → 8 frames
+        # over the 4-h lookback); keep them all (see _build_full_crossvivit).
+        img_frame_stride=1,
     )
 
     print(
