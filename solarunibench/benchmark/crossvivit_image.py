@@ -510,6 +510,11 @@ def _build_full_crossvivit() -> CrossViViTModel:
         patience=_FULL_PATIENCE,
         val_fraction=_FULL_VAL_FRACTION,
         device="cuda",
+        # The image engineer ALREADY subsamples the lookback to one frame per
+        # image_stride steps (stride 30 → 8 frames over the 4-h lookback); the
+        # model must keep ALL of them (its in-model img_frame_stride would
+        # otherwise thin 8 frames down to 1 and destroy the temporal axis).
+        img_frame_stride=1,
     )
 
 
