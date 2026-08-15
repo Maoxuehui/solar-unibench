@@ -143,6 +143,7 @@ def main() -> int:
         help="subset of datasets (default: all 4)",
     )
     args = p.parse_args()
+    Path(args.out_dir).mkdir(parents=True, exist_ok=True)
 
     tiny = not args.full
     # FULL stride makes full-data windowing tractable → no tail bound needed;
@@ -176,15 +177,41 @@ def main() -> int:
     )
 
     rows: list[dict] = []
+    # Per-dataset checkpoint: write each dataset's rows to disk the moment it
+    # completes so an interrupted run (kill/OOM/crash) can resume from here
+    # instead of losing the whole grid. On relaunch, datasets already present
+    # in the checkpoint are reused as-is.
+    ckpt = Path(args.out_dir) / "e8_full_checkpoint.csv"
+    done: set[str] = set()
+    if ckpt.exists():
+        try:
+            prev = pd.read_csv(ckpt)
+            done = set(prev["dataset"].unique())
+            print(f"Checkpoint found: {sorted(done)} — resuming around them.", flush=True)
+        except Exception as e:  # noqa: BLE001 - corrupt checkpoint -> rerun all
+            print(f"WARNING: could not read checkpoint ({e}); ignoring it.", flush=True)
     for ds in args.datasets:
+        if ds in done:
+            ds_rows = prev[prev["dataset"] == ds].to_dict("records")
+            rows.extend(ds_rows)
+            print(
+                f"  [SKIP] {ds:11s} {len(ds_rows):3d} rows reused from checkpoint",
+                flush=True,
+            )
+            continue
         t0 = time.time()
         try:
             ds_rows = run_benchmark(
                 loader, datasets=[ds], models=models, tiny=tiny, full=args.full
             )
             rows.extend(ds_rows)
+            # Checkpoint immediately (append; header only on first write).
+            pd.DataFrame(ds_rows).to_csv(
+                ckpt, mode="a", header=not ckpt.exists(), index=False
+            )
             print(
-                f"  [OK]   {ds:11s} {len(ds_rows):3d} rows in {time.time()-t0:6.1f}s",
+                f"  [OK]   {ds:11s} {len(ds_rows):3d} rows in {time.time()-t0:6.1f}s "
+                f"(checkpointed)",
                 flush=True,
             )
         except Exception as e:  # noqa: BLE001 - report + continue (resilience)

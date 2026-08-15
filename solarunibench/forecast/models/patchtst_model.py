@@ -315,7 +315,13 @@ class PatchTSTModel(TorchForecastMixin, ForecastModel):
             )
         X = np.asarray(X_past, dtype=np.float32)
         Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
-        self._net.eval()
-        with torch.no_grad():
-            pred = self._net(Xt).cpu().numpy().astype(np.float32)
+        # Batched forward: a single pass over the whole (large) test set trips
+        # the CUDA attention kernel's grid-dim limit. Chunking is numerically
+        # identical (each row is an independent per-sample computation).
+        pred = (
+            self._batched_eval_forward(self._net, Xt, self.batch_size)
+            .cpu()
+            .numpy()
+            .astype(np.float32)
+        )
         return pred

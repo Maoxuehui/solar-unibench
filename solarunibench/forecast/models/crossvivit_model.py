@@ -381,12 +381,26 @@ class CrossViViTModel(TorchForecastMixin, ForecastModel):
                 f"X_past must be 3-D (n, lookback, Fp); got shape {X.shape}"
             )
         n = X.shape[0]
-        imgs = self._prepare_images(images, n)
-        Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
-        imgt = self._image_tensor(imgs)
+        imgs = self._prepare_images(images, n)  # CPU numpy (n,lb,4,img,img) | None
+        # Chunked inference: stage Xt + the image cube per micro-batch (the
+        # training micro-batch = batch_size // accum_steps, sized for the image
+        # path's 24GB VRAM budget) so the whole (large) test image cube is never
+        # staged on device at once and the attention kernel grid limit is not
+        # tripped. Numerically identical to a single forward.
+        eval_bs = max(1, self.batch_size // max(1, getattr(self, "accum_steps", 1)))
+        has_img = imgs is not None
+        outs = []
         self._net.eval()
         with torch.no_grad():
-            pred = self._net(Xt, imgt).cpu().numpy().astype(np.float32)
+            for start in range(0, n, eval_bs):
+                sl = slice(start, start + eval_bs)
+                Xt = self._sanitize(torch.from_numpy(X[sl])).to(self.device)
+                if has_img:
+                    imgt = self._image_tensor(imgs[sl])
+                    outs.append(self._net(Xt, imgt))
+                else:
+                    outs.append(self._net(Xt))
+        pred = torch.cat(outs, dim=0).cpu().numpy().astype(np.float32)
         return pred
 
     # -- internals -----------------------------------------------------------
