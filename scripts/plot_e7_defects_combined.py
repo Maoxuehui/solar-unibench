@@ -74,46 +74,49 @@ def _gap_distributions() -> dict[str, np.ndarray]:
 
 
 def _panel_a(ax: plt.Axes, diffs: dict[str, np.ndarray], stats: pd.DataFrame) -> None:
-    """Strip plot of gap distributions + stats annotation block."""
-    rng = np.random.default_rng(0)
-    for i, ds in enumerate(_DS_ORDER):
-        st = _DS_STYLE[ds]
-        arr = diffs.get(ds, np.array([]))
-        arr = arr[arr > 0]
-        # Subsample to <=4000 points per dataset (rendering speed; the bulk
-        # sits at the modal cadence anyway).
-        if arr.size > 4000:
-            idx = rng.choice(arr.size, 4000, replace=False)
-            arr = arr[idx]
-        y = np.full(arr.size, i, dtype=float) + rng.uniform(-0.16, 0.16, arr.size)
-        ax.scatter(arr, y, s=9, marker=st["marker"], c=st["color"],
-                   alpha=0.4, edgecolors=st["color"], linewidths=0.4)
-        # Modal-cadence reference line per dataset.
-        cad = stats.loc[ds, "modal_cadence_seconds"] / 60.0
-        if np.isfinite(cad):
-            ax.axvline(cad, color=st["color"], lw=1.0, ls="--", alpha=0.8)
-    ax.set_yticks(range(len(_DS_ORDER)),
-                  [_DS_STYLE[ds]["label"] for ds in _DS_ORDER])
-    for tick, ds in zip(ax.get_yticklabels(), _DS_ORDER):
-        tick.set_color(_DS_STYLE[ds]["color"])
-        tick.set_fontweight("bold")
-    ax.set_xscale("log")
-    ax.set_xlabel("Inter-step gap (minutes, log scale)")
-    ax.set_ylim(-0.6, len(_DS_ORDER) - 0.4)
-    ax.grid(True, axis="x", color="#E0E0E0", linestyle="--", linewidth=0.6)
-    ax.set_title("(a) Timestamp irregularity", fontsize=12, loc="left")
-    # Stats block: top-right inside the axes (away from the dense low-end).
-    lines = ["cad / gaps / dups"]
-    for ds in _DS_ORDER:
+    """Boxplot of gap distributions (original E7 style) in dataset-semantic colors.
+
+    X tick labels are multi-line: dataset / cad / gaps / dups.
+    """
+    data = [diffs.get(ds, np.array([])) for ds in _DS_ORDER]
+    present = [ds for ds, a in zip(_DS_ORDER, data) if a.size > 0]
+    data = [a for a in data if a.size > 0]
+    bp = ax.boxplot(
+        data, tick_labels=[_DS_STYLE[ds]["label"] for ds in present],
+        showfliers=True, patch_artist=True,
+        medianprops=dict(color="black", linewidth=1.2),
+    )
+    for patch, ds in zip(bp["boxes"], present):
+        patch.set_facecolor(_DS_STYLE[ds]["color"])
+        patch.set_alpha(0.75)
+    # Scatter the outlier points ON TOP with the dataset marker/color (shape
+    # double-encoding per the semantic-color spec).
+    for i, (ds, arr) in enumerate(zip(present, data)):
+        q1, q3 = np.percentile(arr, [25, 75])
+        iqr = q3 - q1
+        outliers = arr[(arr < q1 - 1.5 * iqr) | (arr > q3 + 1.5 * iqr)]
+        if outliers.size:
+            ax.scatter(np.full(outliers.size, i + 1), outliers,
+                       s=12, marker=_DS_STYLE[ds]["marker"],
+                       c=_DS_STYLE[ds]["color"], alpha=0.5,
+                       edgecolors="none", zorder=3)
+    ax.set_yscale("log")
+    # Multi-line x labels: dataset / cad / gaps / dups.
+    labels = []
+    for ds in present:
         r = stats.loc[ds]
         cad = r["modal_cadence_seconds"] / 60.0
-        cad_s = f"{cad:g}m" if cad >= 1 else f"{cad*60:g}s"
-        lines.append(
-            f"{_DS_STYLE[ds]['label']}: {cad_s} / {int(r['n_gaps'])} / {int(r['n_duplicates'])}"
+        cad_str = f"cad={cad:g}min" if cad >= 1 else f"cad={cad*60:g}s"
+        labels.append(
+            f"{_DS_STYLE[ds]['label']}\n{cad_str}\ngaps={int(r['n_gaps'])}\ndups={int(r['n_duplicates'])}"
         )
-    ax.text(0.985, 0.03, "\n".join(lines), transform=ax.transAxes,
-            ha="right", va="bottom", fontsize=8,
-            bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="#BBBBBB", alpha=0.9))
+    ax.set_xticks(range(1, len(present) + 1))
+    ax.set_xticklabels(labels, fontsize=9)
+    for tick, ds in zip(ax.get_xticklabels(), present):
+        tick.set_color(_DS_STYLE[ds]["color"])
+    ax.set_ylabel("Inter-step gap (minutes, log scale)")
+    ax.grid(True, axis="y", color="#E0E0E0", linestyle="--", linewidth=0.6)
+    ax.set_title("(a) Timestamp irregularity", fontsize=12, loc="left")
 
 
 def _panel_b(ax: plt.Axes, miss: pd.DataFrame) -> None:
@@ -144,7 +147,8 @@ def _panel_b(ax: plt.Axes, miss: pd.DataFrame) -> None:
     ax.set_xticks(range(len(cols)), cols, rotation=45, ha="right", fontsize=8)
     ax.set_yticks(range(len(_DS_ORDER)),
                   [_DS_STYLE[ds]["label"] for ds in _DS_ORDER], fontsize=9)
-    ax.set_title("(b) Missingness (Honest-NaN modalities)", fontsize=12, loc="left")
+    ax.set_title("(b) Data missingness — % NaN per canonical column\n"
+                 "(Honest-NaN modalities, not defects)", fontsize=12, loc="left")
     # X limits/y limits fixed to the matrix extent.
     ax.set_xlim(-0.5, len(cols) - 0.5)
     ax.set_ylim(len(_DS_ORDER) - 0.5, -0.5)
@@ -165,7 +169,7 @@ def main() -> int:
     diffs = _gap_distributions()
 
     fig, axes = plt.subplots(
-        1, 2, figsize=(14, 5.5),
+        1, 2, figsize=(15, 5.8),
         gridspec_kw={"width_ratios": [1.0, 1.25], "wspace": 0.22},
     )
     _panel_a(axes[0], diffs, stats)
