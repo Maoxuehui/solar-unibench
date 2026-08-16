@@ -96,9 +96,14 @@ PAPER_FIGURES: list[tuple[str, str, str]] = [
         "dominates 1-min data at 5-min lead; models win at coarser cadences).",
     ),
     (
-        "fig5_defect_missingness",
-        "fig_defect_missingness.png",
-        "E7 - Data-defect diagnostics: missingness heatmap across all datasets.",
+        "fig5_defects_combined",
+        "fig_defects_combined.png",
+        "E7 - Data-defect diagnostics (combined): (a) timestamp irregularity — "
+        "per-dataset inter-step gap distributions (log scale) with modal-cadence "
+        "dashes and gap/duplicate counts; (b) missingness matrix — 100%-NaN "
+        "Honest-NaN modalities highlighted in the dataset's semantic Okabe-Ito "
+        "color (shared binding with panel (a)). [supersedes the standalone "
+        "missingness heatmap]",
     ),
     (
         "fig6_optflow_sequence",
