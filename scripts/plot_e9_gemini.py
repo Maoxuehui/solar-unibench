@@ -114,12 +114,12 @@ def _panel_b(ax: plt.Axes) -> None:
             note = r"$\downarrow$ $-13.1\%$"
             ncol, nfw = ORANGE, "bold"
         # Note floats well above the value (no overlap with it).
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.085 * span, note,
+        ax.text(b.get_x() + b.get_width() / 2, v + 0.16 * span, note,
                 ha="center", va="bottom", fontsize=10, color=ncol,
                 fontweight=nfw)
     ax.set_xticks(np.arange(len(mae)), steps, fontsize=9.5)
     ax.set_ylabel(r"Daytime Forecast Error (MAE)")
-    ax.set_ylim(0.038, max(mae) + 0.50 * span)   # headroom for note + value
+    ax.set_ylim(0.038, max(mae) + 0.58 * span)   # headroom for note + value
     ax.grid(axis="y", linestyle="--", alpha=0.15)
     ax.set_axisbelow(True)
 
