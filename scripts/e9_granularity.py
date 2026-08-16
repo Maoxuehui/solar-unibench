@@ -5,7 +5,7 @@ weakens Smart Persistence (the target moves more between samples), so the
 skill denominator grows and deep models' relative skill should flip from
 negative (fine cadence, SP near-perfect) toward positive (coarse cadence).
 
-For each granularity: build windows, score Smart Persistence (MAE) and DLinear,
+For each granularity: build windows, score Smart Persistence (MAE) and the model probe (LightGBM; was DLinear),
 report MAE_SP, MAE_model, and skill = 1 - MAE_model/MAE_SP.
 Output: ``figures_full/results/results_e9_granularity.csv``.
 """
@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from solarunibench.forecast.core import EndogenousFeatureEngineer
-from solarunibench.forecast.models import DLinearModel, SmartPersistenceModel
+from solarunibench.forecast.models import LightGBMModel, SmartPersistenceModel
 from solarunibench.forecast.scaling import PhysicalFeatureScaler
 from solarunibench.loader import SolarUniBenchLoader
 
@@ -64,9 +64,9 @@ def daytime_mask(df):
 
 
 def eval_granularity(df: pd.DataFrame, freq: str) -> dict:
-    """Score SmartPersistence + DLinear at one granularity, MAE in PHYSICAL W/m^2.
+    """Score SmartPersistence + the model probe at one granularity, MAE in PHYSICAL W/m^2.
 
-    SP is computed on the UNSCALED test frame (physical ghi). DLinear trains on
+    SP is computed on the UNSCALED test frame (physical ghi). The probe trains on
     scaled features (for stability) but its predictions + the target are inverted
     (xIRRADIANCE_MAX) so its MAE is also in W/m^2 — comparable across granularities
     (the previous per-granularity scaling made MAEs non-comparable).
@@ -103,9 +103,10 @@ def eval_granularity(df: pd.DataFrame, freq: str) -> dict:
     y_phys_d = np.array([tgt[min(s + LOOKBACK + HORIZON - 1, len(test) - 1)] for s in idx])[day]
     mae_sp = mae(sp_pred_d, y_phys_d)
 
-    # DLinear on scaled data; invert predictions + target to physical W/m^2.
+    # Probe model on scaled data; invert predictions + target to physical W/m^2.
     irr_max = getattr(PhysicalFeatureScaler(), "irradiance_max", 1500)
-    m = DLinearModel(kernel_size=25, lr=1e-3, epochs=25, batch_size=256, device="cuda")
+    from solarunibench.experiments._config import LGBM_PARAMS
+    m = LightGBMModel(params=LGBM_PARAMS)  # probe swapped DLinear -> LightGBM (2026-08)
     m.fit(Xtr, Ytr)
     pred_phys = m.predict(Xte_d) * irr_max
     mae_m = mae(pred_phys, y_phys_d)
@@ -122,9 +123,9 @@ def eval_granularity(df: pd.DataFrame, freq: str) -> dict:
         pass
     return {
         "granularity": freq, "n_rows": int(n), "n_daytime_test": int(day.sum()),
-        "mae_sp_wm2": mae_sp, "mae_dlinear_wm2": mae_m,
-        "nmae_sp": mae_sp / max_ghi, "nmae_dlinear": mae_m / max_ghi,
-        "skill_dlinear_vs_sp": skill, "max_ghi_wm2": max_ghi,
+        "mae_sp_wm2": mae_sp, "mae_model_wm2": mae_m,
+        "nmae_sp": mae_sp / max_ghi, "nmae_model": mae_m / max_ghi,
+        "skill_model_vs_sp": skill, "max_ghi_wm2": max_ghi,
         "status": "ran",
     }
 
@@ -148,8 +149,8 @@ def main() -> int:
         rows.append(r)
         if r.get("status") == "ran":
             print(f"  {freq:>4}: n={r['n_rows']} SP={r['mae_sp_wm2']:.1f} W/m^2 "
-                  f"(nMAE {r['nmae_sp']:.3f}) | DLinear={r['mae_dlinear_wm2']:.1f} W/m^2 "
-                  f"(nMAE {r['nmae_dlinear']:.3f}) | skill={r['skill_dlinear_vs_sp']:+.3f}",
+                  f"(nMAE {r['nmae_sp']:.3f}) | model={r['mae_model_wm2']:.1f} W/m^2 "
+                  f"(nMAE {r['nmae_model']:.3f}) | skill={r['skill_model_vs_sp']:+.3f}",
                   flush=True)
         else:
             print(f"  {freq:>4}: {r.get('status')}", flush=True)
