@@ -48,13 +48,25 @@ def _crossover():
     colors = [PALETTE[0] if h else PALETTE[3] for h in holds]
     bars = ax.bar(datasets, margins, color=colors, edgecolor="black", linewidth=0.5)
     ax.axhline(0.0, color="black", linewidth=0.9)
+    # Display names consistent with the other figures (E7 combined panel etc.).
+    disp = {"gefcom2014": "GEFCom2014", "folsom": "Folsom",
+            "skippd": "SKIPPD", "sunlake": "SunLake"}
+    ax.set_xticks(range(len(datasets)), [disp[d] for d in datasets], fontsize=10)
     for b, m in zip(bars, margins):
         if np.isfinite(m):
             # 3-decimal labels: gefcom (+0.012) and skippd (+0.013) must be
             # distinguishable (2-decimal "+0.01" read ambiguously at print size).
-            ax.text(b.get_x() + b.get_width() / 2, m + 0.04 * (1 if m >= 0 else -1),
-                    f"{m:+.3f}", ha="center", va="bottom" if m >= 0 else "top",
-                    fontsize=11, fontweight="bold")
+            # Offset is 1.5% of the y-span (tight to the bar top; the SunLake
+            # label must stay inside the axes).
+            span = max(margins) - min(min(margins), 0.0)
+            ax.text(b.get_x() + b.get_width() / 2, m + 0.015 * span,
+                    f"{m:+.3f}", ha="center", va="bottom",
+                    fontsize=9.5, fontweight="bold")
+    # Keep ~12% headroom above the tallest bar so its label fits inside.
+    ymax = max(max(margins), 0.0)
+    ymin = min(min(margins), 0.0)
+    pad = 0.12 * (ymax - ymin if ymax > ymin else ymax)
+    ax.set_ylim(ymin - 0.08 * (ymax - ymin + pad), ymax + pad)
     ax.set_ylabel("Crossover margin (skill_simple+cleaned - skill_complex+raw)")
     ax.set_title("E9 cross-dataset crossover (physics-aligned 1h-ahead)\n"
                  "bar >= 0: governance > complexity holds")
