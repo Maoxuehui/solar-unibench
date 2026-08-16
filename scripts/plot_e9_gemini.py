@@ -104,22 +104,22 @@ def _panel_b(ax: plt.Axes) -> None:
     ax.axhline(0.0, color="black", linewidth=0.8)
     span = max(mae) - min(mae)
     for i, (b, v) in enumerate(zip(bars, mae)):
-        if i < 4:
-            note = "no-op"
-            # 'no-op' annotation sits ABOVE each bar in dark grey (readable).
-            ax.text(b.get_x() + b.get_width() / 2, v + 0.035 * span, note,
-                    ha="center", va="bottom", fontsize=10, color="0.25")
-        else:
-            ax.text(b.get_x() + b.get_width() / 2, v + 0.035 * span,
-                    r"$\downarrow$ $-13.1\%$ (Breakthrough)",
-                    ha="center", va="bottom", fontsize=10, color=ORANGE,
-                    fontweight="bold")
-        # Absolute MAE value above the bar top (outside the colored body).
+        # Absolute MAE value just above the bar top.
         ax.text(b.get_x() + b.get_width() / 2, v + 0.012 * span, f"{v:.4f}",
                 ha="center", va="bottom", fontsize=9, color="black")
+        if i < 4:
+            note = "no-op"
+            ncol, nfw = "0.25", "normal"
+        else:
+            note = r"$\downarrow$ $-13.1\%$"
+            ncol, nfw = ORANGE, "bold"
+        # Note floats well above the value (no overlap with it).
+        ax.text(b.get_x() + b.get_width() / 2, v + 0.085 * span, note,
+                ha="center", va="bottom", fontsize=10, color=ncol,
+                fontweight=nfw)
     ax.set_xticks(np.arange(len(mae)), steps, fontsize=9.5)
     ax.set_ylabel(r"Daytime Forecast Error (MAE)")
-    ax.set_ylim(0.038, max(mae) + 0.42 * span)   # headroom for note + value
+    ax.set_ylim(0.038, max(mae) + 0.50 * span)   # headroom for note + value
     ax.grid(axis="y", linestyle="--", alpha=0.15)
     ax.set_axisbelow(True)
 
