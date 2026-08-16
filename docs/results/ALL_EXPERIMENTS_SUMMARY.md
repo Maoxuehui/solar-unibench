@@ -120,11 +120,13 @@ MLP+cleaned (+0.221) beats PatchTST+raw (+0.054): the crossover. Δ-hygiene
 grows with complexity (PatchTST +0.118 largest). LSTM is the honest exception
 (cleaned slightly worse — disclosed).
 
-### Governance waterfall (Folsom, DLinear probe)
+### Governance waterfall (Folsom, LightGBM probe)
 
-`raw 0.2023 → +night 0.2024 → +clamp 0.2024 → +UTC 0.2024 → +clearsky
-features 0.1983 (−2.0%)` — label governance is a near-no-op on already-clean
-Folsom; **the clear-sky physical anchors carry the governance gain**.
+`raw 0.0532 → +night 0.0542 → +clamp 0.0542 → +UTC 0.0542 → +clearsky
+features 0.0462 (−13.1%)` — LightGBM probe (the crossover criterion's
+"simplest non-trivial" model; supersedes the DLinear probe, same ordering at
+−2.0%). Label governance is a near-no-op on already-clean Folsom; **the
+clear-sky physical anchors carry the governance gain**.
 
 ### Temporal granularity (Folsom 1 min → 1 h)
 

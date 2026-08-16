@@ -308,11 +308,13 @@ fixed by aligning a 12 h lookback / 1 h-ahead forecast in physical time
 crossover holds on **all 4 datasets** with margins: GEFCom +0.012, Folsom +0.097,
 SKIPPD +0.013, SunLake +0.198 (`fig_e9_cross_dataset_crossover.png`).
 
-**Governance waterfall (Folsom, `results_e9_waterfall.csv`):** label-governance
-(night-zero / range-clamp / UTC) is a near-no-op on already-clean raw (MAE
-0.2023 → 0.2024), while adding clear-sky anchor features cuts MAE to 0.1983
-(−2.0%) — the physical anchors dominate the governance gain
-(`fig_e9_waterfall.png`).
+**Governance waterfall (Folsom, LightGBM probe, `results_e9_waterfall.csv`):**
+label-governance (night-zero / range-clamp / UTC) is a near-no-op on
+already-clean raw (MAE 0.0532 → 0.0542), while adding clear-sky anchor
+features cuts MAE to 0.0462 (**−13.1%**) — the physical anchors dominate the
+governance gain, now measured with the same "simplest non-trivial" model the
+crossover criterion uses (`fig_e9_waterfall.png`; the earlier DLinear probe
+showed the same ordering at −2.0%).
 
 **Temporal granularity (Folsom 1min→1h, dual-metric `results_e9_granularity.csv`):**
 Smart-Persistence physical MAE rises 47.1 → 52.1 W/m² (nMAE 0.035 → 0.046) as

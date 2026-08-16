@@ -1,6 +1,7 @@
 """Phase 3 — Governance waterfall ablation (Folsom).
 
-A unified model (DLinear) is trained at each governance level on the SAME train
+A unified model (LightGBM — the crossover criterion's "simplest non-trivial"
+model; DLinear was the earlier probe) is trained at each governance level on the SAME train
 rows, scored on a FIXED cleaned test set (clean ground truth). Each step adds
 one governance operator; MAE should DECREASE as governance accumulates — the
 per-operator contribution to the headline "governance > complexity" gain.
@@ -27,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 from solarunibench.forecast.core import EndogenousFeatureEngineer
-from solarunibench.forecast.models import DLinearModel
+from solarunibench.forecast.models import LightGBMModel
 from solarunibench.forecast.scaling import PhysicalFeatureScaler
 from solarunibench.pipeline.adapters.folsom import FolsomPipeline
 from solarunibench.operators.quality import apply_quality_audit
@@ -147,7 +148,13 @@ def main() -> int:
         if len(Ytr) < 8 or len(Yte) < 8:
             print(f"  {label}: too few windows (train={len(Ytr)} test={len(Yte)})", flush=True)
             continue
-        m = DLinearModel(kernel_size=25, lr=1e-3, epochs=25, batch_size=256, device="cuda")
+        # LightGBM probe (DLinear removed from the display set 2026-08): the
+        # SAME "simplest non-trivial" model the crossover criterion uses, so
+        # the waterfall's per-operator contributions are consistent with the
+        # headline E9 evidence. FULL preset (SUB_FULL_CONFIG=1) n_estimators.
+        from solarunibench.experiments._config import LGBM_PARAMS
+
+        m = LightGBMModel(params=LGBM_PARAMS)
         m.fit(Xtr, Ytr)
         pred = m.predict(Xte)
         mae = float(np.mean(np.abs(np.asarray(pred) - np.asarray(Yte))))

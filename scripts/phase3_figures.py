@@ -84,16 +84,21 @@ def _waterfall():
     steps = df["step"].tolist()
     vals = df["daytime_mae"].tolist()
     colors = [PALETTE[4]] + ["#bbbbbb"] * (len(steps) - 2) + [PALETTE[0]]
-    ax.bar(steps, vals, color=colors[:len(steps)], edgecolor="black", linewidth=0.5)
+    bars = ax.bar(range(len(steps)), vals, color=colors[:len(steps)],
+                  edgecolor="black", linewidth=0.5)
+    ax.set_xticks(range(len(steps)), steps, rotation=20, ha="right", fontsize=9)
+    span = max(vals) - min(vals)
     for i, v in enumerate(vals):
-        ax.text(i, v, f"{v:.4f}", ha="center", va="bottom", fontsize=9)
-    # arrow from first to last
+        ax.text(i, v + 0.02 * span, f"{v:.4f}", ha="center", va="bottom",
+                fontsize=9.5, fontweight="bold")
+    # arrow from first to last (the cumulative governance gain)
     ax.annotate("", xy=(len(steps) - 1, vals[-1]), xytext=(0, vals[0]),
                 arrowprops=dict(arrowstyle="->", color=PALETTE[4], lw=1.3))
-    ax.set_ylabel("Daytime MAE (DLinear, scaled)")
+    ymax = max(vals)
+    ax.set_ylim(0, ymax * 1.14)
+    ax.set_ylabel("Daytime MAE (LightGBM, scaled)")
     ax.set_title("E9 governance waterfall (Folsom)\n"
                  "clearsky anchor features dominate the governance gain")
-    ax.tick_params(axis="x", labelrotation=20)
     return save_fig(fig, "fig_e9_waterfall", OUT)
 
 
