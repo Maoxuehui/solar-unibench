@@ -189,7 +189,6 @@ Daytime Skill_MAE% per horizon (0 = parity with Smart Persistence; +=better):
 |---|---|---|---|---|
 | LightGBM | −9.5 / −6.1 / −3.3 | −4.6 / +9.3 / +18.4 | +30.8 / +26.0 / +24.0 | +31.7 / +29.2 / +30.8 |
 | MLP | −93.8 / −48.2 / −45.0 | −200.3 / −122.4 / −51.9 | +22.9 / +26.6 / +22.0 | +27.6 / +27.2 / +25.4 |
-| DLinear | −590.2 / −446.0 / −381.6 | −282.4 / −169.4 / −114.7 | −79.1 / −77.1 / −72.5 | −2.9 / +0.8 / +7.8 |
 | LSTM | −10.4 / +1.9 / +5.9 | −12.7 / +1.8 / +17.0 | **+32.1** / +28.1 / +23.2 | **+33.9** / +23.8 / +22.6 |
 | iTransformer | −106.3 / −25.4 / −20.9 | −60.6 / −33.4 / −63.2 | +29.9 / +25.5 / +23.6 | +29.0 / +23.5 / +27.6 |
 | PatchTST-CI | −112.6 / −46.9 / −45.4 | −272.0 / −161.0 / −100.4 | +15.3 / +12.8 / +5.7 | +28.8 / +14.1 / +21.2 |
@@ -202,7 +201,6 @@ Daytime Skill_RMSE% per horizon (same sign convention):
 |---|---|---|---|---|
 | LightGBM | **+8.5 / +10.7 / +12.1** | **+3.9 / +9.1 / +12.0** | **+18.9 / +18.2 / +18.6** | **+27.4 / +28.2 / +31.7** |
 | MLP | −8.3 / +4.2 / +6.3 | −43.3 / −31.5 / −6.6 | +17.0 / +17.4 / +18.6 | +25.6 / +26.0 / +29.7 |
-| DLinear | −163.4 / −125.7 / −110.7 | −103.7 / −68.0 / −49.5 | −51.1 / −45.4 / −39.5 | +7.7 / +14.2 / +21.3 |
 | LSTM | +5.5 / +7.6 / +9.7 | −10.6 / −1.4 / +5.1 | +17.4 / +16.5 / +14.8 | +24.4 / +22.4 / +25.8 |
 | iTransformer | −10.7 / +5.9 / +6.4 | −16.8 / −10.0 / −24.1 | +16.6 / +14.8 / +15.5 | +23.0 / +20.5 / +24.0 |
 | PatchTST-CI | −19.8 / −1.6 / −1.7 | −95.9 / −62.1 / −41.7 | +9.0 / +10.7 / +6.3 | +20.2 / +13.2 / +21.4 |
@@ -215,7 +213,6 @@ Daytime MAE per horizon (normalized units):
 |---|---|---|---|---|
 | LightGBM | **0.014 / 0.017 / 0.019** | 0.015 / 0.019 / 0.022 | 0.032 / 0.036 / 0.039 | 0.072 / 0.084 / 0.090 |
 | MLP | 0.025 / 0.024 / 0.027 | 0.044 / 0.047 / 0.041 | 0.036 / 0.036 / 0.040 | 0.077 / 0.086 / 0.097 |
-| DLinear | 0.088 / 0.089 / 0.089 | 0.057 / 0.057 / 0.057 | 0.083 / 0.087 / 0.088 | 0.109 / 0.118 / 0.120 |
 | LSTM | 0.014 / 0.016 / **0.017** | 0.017 / 0.021 / 0.022 | **0.031** / 0.035 / 0.039 | **0.070** / 0.090 / 0.100 |
 | iTransformer | 0.026 / 0.020 / 0.022 | 0.024 / 0.028 / 0.044 | 0.032 / 0.037 / 0.039 | 0.075 / 0.091 / 0.094 |
 | PatchTST-CI | 0.027 / 0.024 / 0.027 | 0.055 / 0.055 / 0.054 | 0.039 / 0.043 / 0.048 | 0.076 / 0.102 / 0.102 |
@@ -228,7 +225,6 @@ Daytime RMSE per horizon (normalized units):
 |---|---|---|---|---|
 | LightGBM | **0.036 / 0.042 / 0.044** | **0.041 / 0.048 / 0.052** | **0.052 / 0.058 / 0.061** | **0.107 / 0.123 / 0.132** |
 | MLP | 0.043 / 0.045 / 0.047 | 0.061 / 0.069 / 0.063 | 0.053 / 0.058 / 0.061 | 0.109 / 0.127 / 0.136 |
-| DLinear | 0.104 / 0.106 / 0.106 | 0.087 / 0.088 / 0.089 | 0.097 / 0.103 / 0.105 | 0.136 / 0.147 / 0.152 |
 | LSTM | 0.037 / 0.043 / 0.046 | 0.047 / 0.053 / 0.056 | 0.053 / 0.059 / 0.064 | 0.111 / 0.133 / 0.143 |
 | iTransformer | 0.044 / 0.044 / 0.047 | 0.050 / 0.058 / 0.074 | 0.054 / 0.060 / 0.064 | 0.113 / 0.136 / 0.147 |
 | PatchTST-CI | 0.047 / 0.048 / 0.051 | 0.084 / 0.085 / 0.084 | 0.059 / 0.063 / 0.071 | 0.117 / 0.149 / 0.152 |
@@ -259,11 +255,13 @@ CSV (figures cannot drift from the table).
   SunLake (+32.1) and GEFCom (+33.9); **LightGBM is the best RMSE model on
   every dataset** (Skill_RMSE +8.5…+31.7 across all cells where it is positive,
   i.e. all but the 1-min MAE cells).
-- **DLinear is the worst model on every dataset** (trend/seasonal decomposition
-  + linear head; capacity limitation faithfully disclosed) — though it turns
-  positive on GEFCom at longer leads (Skill_MAE +7.8 at 3 h). PatchTST-CI
-  (channel-independent) is systematically weak on low-channel tabular signals;
-  the CD variant recovers most of the gap.
+- **DLinear is excluded from the displayed tables/figures** (user decision):
+  its trend/seasonal + linear head collapses on the 1-min datasets
+  (Skill_MAE −590%…−382% on Folsom), compressing every shared scale; its full
+  results remain in `e8_summary.csv` for completeness (it does turn positive on
+  GEFCom at longer leads, +7.8 at 3 h). PatchTST-CI (channel-independent) is
+  systematically weak on low-channel tabular signals; the CD variant recovers
+  most of the gap.
 
 > **CrossViViT v2 note (honest):** the benchmark's CrossViViT is a
 > **lightweight variant (~224 K params)** inspired by Boussif et al. 2023

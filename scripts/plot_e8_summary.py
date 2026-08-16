@@ -33,9 +33,12 @@ import pandas as pd
 
 from solarunibench.viz.style import MODEL_COLORS, PALETTE, set_style  # noqa: E402
 
-#: Column order for the 8 non-reference models.
+#: Column order for the displayed non-reference models. DLinear is EXCLUDED
+#: from figures + doc tables (user decision 2026-08: its −590%..−381% MAE
+#: skill on Folsom compresses the shared color scale and the crossover lines);
+#: its results remain in e8_summary.csv for completeness.
 _MODELS = [
-    "LightGBM", "MLP", "DLinear", "LSTM",
+    "LightGBM", "MLP", "LSTM",
     "iTransformer", "PatchTST-CI", "PatchTST-CD", "CrossViViT",
 ]
 
@@ -44,7 +47,6 @@ _MODELS = [
 #: so all 8 lines are distinguishable and stable across runs. The base palette
 #: has 6 Wong/Okabe-Ito colors, so the fallbacks add linestyle separation.
 _FALLBACK = {
-    "DLinear": "#8470FF",          # extend beyond the 6-color palette
     "iTransformer": "#555555",
     "PatchTST-CI": MODEL_COLORS["PatchTST"],
     "PatchTST-CD": "#66CCEE",
