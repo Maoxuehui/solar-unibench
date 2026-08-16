@@ -75,7 +75,7 @@ def _panel_a(ax: plt.Axes) -> None:
             va = "bottom" if v >= 0 else "top"
             off = 0.006 * (1 if v >= 0 else -1)
             ax.text(b.get_x() + b.get_width() / 2, v + off, f"{v:+.3f}",
-                    ha="center", va=va, fontsize=10, color=col,
+                    ha="center", va=va, fontsize=8.5, color=col,
                     fontweight="bold")
     # Y head/foot room so the +/- labels never collide with the zero line.
     all_vals = vs_mean + vs_best
