@@ -23,6 +23,11 @@ data/raw/
 audit.jsonl
 manifest.json
 checkpoints/
+logs/
+figures_full/
+
+# Local session config
+.claude/
 
 # IDE / OS
 .idea/

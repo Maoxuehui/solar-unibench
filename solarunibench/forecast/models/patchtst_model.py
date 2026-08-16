@@ -15,11 +15,15 @@ Design notes
   transformer with shared weights; channels are then averaged before the head.
   This is the PatchTST pattern (one model per variate, weights shared) and lets
   the net work for any ``Fp`` without a channel-mixing input projection.
-* **Patching along lookback.** ``variant="patchtst"`` unfolds each channel's
-  ``lookback`` sequence into ``n_patches = (lookback - patch_len)//stride + 1``
-  tokens of length ``patch_len``; ``variant="vanilla"`` disables patching so
-  each lookback step is its own token (a drop-in vanilla TS-Transformer per the
-  spec's "swap to vanilla" flag).
+* **Patching along lookback.** ``variant="patchtst"`` (channel-independent, the
+  PatchTST default) unfolds each channel's ``lookback`` sequence into
+  ``n_patches = (lookback - patch_len)//stride + 1`` tokens of length
+  ``patch_len``; ``variant="patchtst_cd"`` (channel-dependent) patches across
+  ALL channels together (each patch has width ``patch_len*Fp`` so the projection
+  mixes variates — the natural antagonist to channel-independence, useful when
+  cross-channel interactions carry signal); ``variant="vanilla"`` disables
+  patching so each lookback step is its own token (a drop-in vanilla
+  TS-Transformer per the spec's "swap to vanilla" flag).
 * **Scaled features in, no re-scaling inside.** The pipeline's
   :class:`PhysicalFeatureScaler` (default-on) already applies irradiance/1500
   and train-fit NWP z-scoring BEFORE feature engineering, so the model receives
@@ -40,7 +44,7 @@ import torch
 from torch import nn
 
 from ..core import ForecastModel
-from ._torch_base import TorchForecastMixin, fit_loop
+from ._torch_base import TorchForecastMixin, fit_loop, train_kwargs
 
 # Valid tokenization variants. ``patchtst`` patches along lookback (channel-
 # independent); ``patchtst_cd`` is the channel-dependent variant (each patch
@@ -117,13 +121,13 @@ class _PatchTSTNet(nn.Module):
         n, _, fp = x.shape
         if self.variant == "patchtst_cd":
             # Channel-dependent: each patch spans ALL channels (cross-channel
-            # mixing in the projection). x.unfold(1, patch_len, stride) ->
-            # (n, n_tokens, Fp, patch_len) -> (n, n_tokens, patch_len*Fp).
+            # mixing happens in the projection). x.unfold(1, patch_len, stride)
+            # -> (n, n_tokens, Fp, patch_len) -> (n, n_tokens, patch_len*Fp).
             tokens = x.unfold(1, self.patch_len, self.stride).permute(0, 1, 3, 2)
             tokens = tokens.reshape(n, self.n_tokens, self.patch_len * fp)
             h = self.proj(tokens) + self.pos           # (n, n_tokens, d_model)
             out = self.encoder(h).mean(dim=1)            # (n, d_model)
-            return self.head(out)
+            return self.head(out)                        # (n, horizon)
         # Channel-independent (patchtst / vanilla): merge (n, Fp) into batch.
         xc = x.permute(0, 2, 1).reshape(n * fp, -1)  # (n*Fp, lookback)
         if self.variant == "patchtst":
@@ -191,6 +195,10 @@ class PatchTSTModel(TorchForecastMixin, ForecastModel):
         lr: float = 1e-3,
         epochs: int = 8,
         batch_size: int = 32,
+        weight_decay: float = 0.0,
+        patience: int | None = None,
+        val_fraction: float = 0.0,
+        accum_steps: int = 1,
         device: str | torch.device | None = None,
         name: str = "PatchTST",
         variant: str = "patchtst",
@@ -209,6 +217,11 @@ class PatchTSTModel(TorchForecastMixin, ForecastModel):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
+        # FULL-config training additions (defaults preserve old tiny behavior).
+        self.weight_decay = weight_decay
+        self.patience = patience
+        self.val_fraction = val_fraction
+        self.accum_steps = accum_steps
         self.device = self._resolve_device(device)
         self._name = name
         self.variant = variant
@@ -247,11 +260,12 @@ class PatchTSTModel(TorchForecastMixin, ForecastModel):
         n, lookback, fp = X.shape
         horizon = Y.shape[1]
 
-        # Lookback-too-short is a configuration error for the patchtst variant;
-        # raise early with a clear message instead of miscompiling the encoder.
-        if self.variant == "patchtst" and lookback < self.patch_len:
+        # Lookback-too-short is a configuration error for both patching variants
+        # (patchtst + patchtst_cd); raise early with a clear message instead of
+        # miscompiling the encoder.
+        if self.variant in ("patchtst", "patchtst_cd") and lookback < self.patch_len:
             raise ValueError(
-                f"patchtst variant requires lookback >= patch_len "
+                f"{self.variant} variant requires lookback >= patch_len "
                 f"(got lookback={lookback}, patch_len={self.patch_len}); "
                 f"use a smaller patch_len or variant='vanilla'."
             )
@@ -280,10 +294,8 @@ class PatchTSTModel(TorchForecastMixin, ForecastModel):
             self._net,
             Xt,
             Yt,
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            lr=self.lr,
             loss_fn=loss_fn,
+            **train_kwargs(self),
         )
         return None
 
@@ -303,7 +315,13 @@ class PatchTSTModel(TorchForecastMixin, ForecastModel):
             )
         X = np.asarray(X_past, dtype=np.float32)
         Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
-        self._net.eval()
-        with torch.no_grad():
-            pred = self._net(Xt).cpu().numpy().astype(np.float32)
+        # Batched forward: a single pass over the whole (large) test set trips
+        # the CUDA attention kernel's grid-dim limit. Chunking is numerically
+        # identical (each row is an independent per-sample computation).
+        pred = (
+            self._batched_eval_forward(self._net, Xt, self.batch_size)
+            .cpu()
+            .numpy()
+            .astype(np.float32)
+        )
         return pred

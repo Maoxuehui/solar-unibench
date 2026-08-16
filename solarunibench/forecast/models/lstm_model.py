@@ -35,7 +35,7 @@ import torch
 from torch import nn
 
 from ..core import ForecastModel
-from ._torch_base import TorchForecastMixin, fit_loop
+from ._torch_base import TorchForecastMixin, fit_loop, train_kwargs
 
 
 class _LSTMNet(nn.Module):
@@ -102,6 +102,10 @@ class LSTMModel(TorchForecastMixin, ForecastModel):
         lr: float = 1e-3,
         epochs: int = 8,
         batch_size: int = 32,
+        weight_decay: float = 0.0,
+        patience: int | None = None,
+        val_fraction: float = 0.0,
+        accum_steps: int = 1,
         device: str | torch.device | None = None,
         name: str = "LSTM",
         seed: int = 0,
@@ -112,6 +116,11 @@ class LSTMModel(TorchForecastMixin, ForecastModel):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
+        # FULL-config training additions (defaults preserve old tiny behavior).
+        self.weight_decay = weight_decay
+        self.patience = patience
+        self.val_fraction = val_fraction
+        self.accum_steps = accum_steps
         self.device = self._resolve_device(device)
         self._name = name
         self.seed = seed
@@ -168,10 +177,8 @@ class LSTMModel(TorchForecastMixin, ForecastModel):
             self._net,
             Xt,
             Yt,
-            epochs=self.epochs,
-            batch_size=self.batch_size,
-            lr=self.lr,
             loss_fn=loss_fn,
+            **train_kwargs(self),
         )
         return None
 
@@ -190,7 +197,10 @@ class LSTMModel(TorchForecastMixin, ForecastModel):
             )
         X = np.asarray(X_past, dtype=np.float32)
         Xt = self._sanitize(torch.from_numpy(X)).to(self.device)
-        self._net.eval()
-        with torch.no_grad():
-            pred = self._net(Xt).cpu().numpy().astype(np.float32)
+        pred = (
+            self._batched_eval_forward(self._net, Xt, self.batch_size)
+            .cpu()
+            .numpy()
+            .astype(np.float32)
+        )
         return pred
