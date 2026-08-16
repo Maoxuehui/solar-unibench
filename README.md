@@ -1,7 +1,7 @@
 # Solar-UniBench — A Multi-modal Standardized Benchmark for Solar Forecasting
 
 **Target venue:** ESSD (Earth System Science Data)
-**Status:** Framework complete (Phases 1–8); full-config results populated for all experiments. Folsom sky images materialized for 2014–2016 (775,845 frames).
+**Status:** Framework complete (Phases 1–8); full-config results populated for all experiments. E8 rebuilt on the physics-time-aligned grid with CrossViViT v2 (2026-08). Folsom sky images materialized for 2014–2016 (775,845 frames).
 
 Solar-UniBench takes four heterogeneous, publicly-available solar-forecasting
 datasets and routes each through a single object-oriented **standardization
@@ -158,43 +158,72 @@ python scripts/select_figures.py
 
 ## Results
 
-> **Full-config results.** The tables below are generated from
-> `figures_full/results/` (`SUB_FULL_CONFIG=1`: convergence-tuned GPU models,
-> 50k-row/entity cap, 3-horizon grid; Folsom imagery = 2014–2016, 775,845 frames).
+> **Full-config results.** E8 tables below come from the rebuilt
+> physics-time-aligned benchmark in `figures/results/` (FULL training: 50
+> epochs, AdamW+Cosine, early stopping, daylight-masked Skill%). The E9/E2/E6
+> ablation tables come from `figures_full/results/` (`SUB_FULL_CONFIG=1`),
+> re-verified on the merged code tree 2026-08 (E9/E2 bit-identical to the
+> pre-merge archive; E6 re-based on the fully materialized Folsom imagery).
 > The dev-config `figures/` remains for the fast test suite.
 
-### E8 — Unified benchmark (Forecast Skill vs. Smart Persistence)
+### E8 — Unified benchmark (physics-time-aligned, Forecast Skill vs. Smart Persistence)
 
-9 models × 4 datasets × 3 horizons (1 h / 6 h / 24 h). Skill is reported against
-Smart Persistence (daylight-filtered). Values are mean skill across horizons.
+The E8 grid was **rebuilt** (2026-08) on a physics-time-aligned design: every
+dataset is forecast at its **native operational horizons** with a lookback
+matched to its physical memory scale, under a fixed F=4 input
+`[target_lag, cos_zenith, ghi_clearsky, clearness_index_aligned]` plus the
+known future astronomical trajectory `X_future=[ghi_clearsky, cos_zenith]`,
+scored by daylight-masked Skill% (grid rationale:
+`docs/results/experiment_grid_design.md`).
 
-| Model | GEFCom2014 (PV) | Folsom (GHI) | SKIPPD (PV) | SunLake (GHI) |
+| Dataset | Lookback | Horizons (physical) |
+|---|---|---|
+| Folsom (GHI, 1-min) | 4 h | 5 / 10 / 15 min |
+| SKIPPD (PV, 1-min) | 4 h | 5 / 10 / 15 min |
+| SunLake (GHI, 30-min) | 12 h | 30 / 60 / 90 min |
+| GEFCom2014 (PV, 1-h) | 24 h | 1 / 2 / 3 h |
+
+Daytime Skill_MAE% per horizon (0 = parity with Smart Persistence; +=better):
+
+| Model | Folsom 5/10/15min | SKIPPD 5/10/15min | SunLake 30/60/90min | GEFCom 1/2/3h |
 |---|---|---|---|---|
-| Smart Persistence | 0.00 (ref) | 0.00 (ref) | 0.00 (ref) | 0.00 (ref) |
-| LightGBM | +0.16 | −0.03 | −0.24 | +0.13 |
-| MLP | +0.17 | −0.31 | −0.22 | +0.04 |
-| DLinear | +0.05 | −2.43 | −2.19 | −1.44 |
-| LSTM | +0.21 | −1.39 | +0.13 | −0.14 |
-| PatchTST (CI) | −0.36 | −1.61 | −1.86 | −0.50 |
-| PatchTST-CD | +0.12 | −1.62 | −0.02 | −0.12 |
-| iTransformer | +0.18 | −1.31 | −0.45 | −0.11 |
-| CrossViViT (multimodal) | n/a | −1.23 | −0.75 | n/a |
+| LightGBM | −9.5 / −6.1 / −3.3 | −4.6 / +9.3 / +18.4 | +30.8 / +26.0 / +24.0 | +31.7 / +29.2 / +30.8 |
+| MLP | −93.8 / −48.2 / −45.0 | −200.3 / −122.4 / −51.9 | +22.9 / +26.6 / +22.0 | +27.6 / +27.2 / +25.4 |
+| DLinear | −590.2 / −446.0 / −381.6 | −282.4 / −169.4 / −114.7 | −79.1 / −77.1 / −72.5 | −2.9 / +0.8 / +7.8 |
+| LSTM | −10.4 / +1.9 / +5.9 | −12.7 / +1.8 / +17.0 | **+32.1** / +28.1 / +23.2 | **+33.9** / +23.8 / +22.6 |
+| iTransformer | −106.3 / −25.4 / −20.9 | −60.6 / −33.4 / −63.2 | +29.9 / +25.5 / +23.6 | +29.0 / +23.5 / +27.6 |
+| PatchTST-CI | −112.6 / −46.9 / −45.4 | −272.0 / −161.0 / −100.4 | +15.3 / +12.8 / +5.7 | +28.8 / +14.1 / +21.2 |
+| PatchTST-CD | −21.4 / −10.0 / +0.1 | −26.6 / +0.8 / +13.2 | +30.2 / +26.2 / +24.7 | +33.1 / +26.8 / +25.3 |
+| CrossViViT v2 | −13.8 / −14.9 / −3.9 | −12.0 / +8.1 / **+19.9** | n/a | n/a |
 
-`figures_full/results/results_benchmark.csv`. Negative = below the persistence
-baseline — Smart Persistence is a very strong reference on smooth PV/GHI at
-short horizons (e.g. SKIPPD h1 SP MAE ≈ 0.014), so even well-trained models can
-sit below it in skill terms. CrossViViT runs only where sky images resolve
-(Folsom/SKIPPD). **Honest negative results**: DLinear (trend/seasonal
-decomposition + linear) underperforms across all datasets — a model-capacity
-limitation faithfully disclosed. PatchTST channel-independent variant is unsuited
-for low-channel tabular signals (GEFCom skill −0.36).
+Canonical file: `figures/results/e8_summary.csv` (48 rows: 4 datasets × 4
+metrics × 3 horizons; raw per-cell values in `e8_full_checkpoint*.csv`).
+CrossViViT runs only where sky images resolve (Folsom/SKIPPD).
 
-> **CrossViViT capacity note (honest):** the full-config CrossViViT here is
-> **28.8 M parameters** (`d_model=384, depth=8`) — the largest config of the
-> *simplified port* in `forecast/models/crossvivit_model.py`. The original
-> paper's ~145 M model additionally uses RoPE positional encoding, per-station
-> statistics, and optical-flow / time-series context channels not implemented in
-> this port; reaching 145 M would require adding those components (future work).
+**Honest readings.**
+- On 1-min data at 5-min lead, persistence is near-unbeatable (clouds barely
+  move): every model is negative on Folsom h5; LSTM turns positive from 10 min
+  (+1.9 → +5.9), CrossViViT v2 reaches +19.9 on SKIPPD-15min.
+- At coarser cadences the models dominate: LSTM is the best MAE model on
+  SunLake (+32.1) and GEFCom (+33.9); LightGBM leads RMSE everywhere on those
+  two (+18.9–+31.7).
+- **DLinear is the worst model on every dataset** (trend/seasonal decomposition
+  + linear head; capacity limitation faithfully disclosed). PatchTST-CI
+  (channel-independent) is systematically weak on low-channel tabular signals;
+  the CD variant recovers most of the gap.
+- RMSE skill is positive far more often than MAE skill (models trim the large
+  errors first; full table in the CSV).
+
+> **CrossViViT v2 note (honest):** the benchmark's CrossViViT is a
+> **lightweight variant (~224 K params)** inspired by Boussif et al. 2023
+> (arXiv:2306.01112), **not** the official 145 M RoCrossViViT. v2 (2026-08)
+> keeps the image temporal axis (frame-position embeddings; no temporal
+> mean-pool) and fuses the known future trajectory `X_future` as extra tokens.
+> Single-seed MAE regressed slightly vs v1 while RMSE improved; kept as
+> official per the recorded decision + limitation statement
+> (`docs/results/e8_crossvivit_v2_notes.md`; v1 results archived under
+> `figures/results/archive_e8_pre_crossvivit_v2/`). The image-enabled variant
+> (`e8_crossvivit_image_v2.csv`) is reported separately on image-covered windows.
 
 > **Folsom imagery note:** Folsom sky-image experiments use **2014–2016 data**
 > (775,845 frames materialized into per-year stores `sky_images_2014.zarr`,
@@ -287,7 +316,8 @@ solar-unibench/
 │                            # run_baseline, rebuild_sky_zarr, select_figures
 ├── tests/                   # synthetic-fixture unit + contract-conformance tests
 ├── data/standardized/       # generated packages (gitignored)
-├── figures/                 # generated figures + result CSVs (gitignored)
+├── figures/                 # generated figures (results/ E8 deliverables ARE tracked)
+├── figures_full/            # full-config ablation results (results/ tracked)
 └── docs/                    # methodology + dataset docs + design spec
 ```
 
