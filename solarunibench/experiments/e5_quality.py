@@ -211,8 +211,8 @@ def physics_violation_rate(df: pd.DataFrame, capacity: float = _DEFAULT_CAPACITY
            "pv_overcap_frac": float("nan"), "any_violation_frac": float("nan")}
     if n == 0:
         return out
-    ghi = pd.to_numeric(sub.get("ghi_actual"), errors="coerce")
-    gcs = pd.to_numeric(sub.get("ghi_clearsky"), errors="coerce")
+    ghi = pd.to_numeric(sub["ghi_actual"], errors="coerce") if "ghi_actual" in sub else pd.Series(dtype=float)
+    gcs = pd.to_numeric(sub["ghi_clearsky"], errors="coerce") if "ghi_clearsky" in sub else pd.Series(dtype=float)
     ghi_viol = pd.Series(False, index=sub.index)
     has_ghi = ghi.notna().any() and gcs.notna().any()
     if has_ghi:
@@ -220,7 +220,7 @@ def physics_violation_rate(df: pd.DataFrame, capacity: float = _DEFAULT_CAPACITY
             ratio = ghi / np.maximum(gcs, 1e-6)
         ghi_viol = (ratio > ghi_over_factor).fillna(False)
         out["ghi_overclear_frac"] = float(ghi_viol.mean())  # 0.0 when none
-    pv = pd.to_numeric(sub.get("pv_power_normalized"), errors="coerce")
+    pv = pd.to_numeric(sub["pv_power_normalized"], errors="coerce") if "pv_power_normalized" in sub else pd.Series(dtype=float)
     pv_viol = pd.Series(False, index=sub.index)
     has_pv = pv.notna().any()
     if has_pv:
