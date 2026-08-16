@@ -196,23 +196,70 @@ Daytime Skill_MAE% per horizon (0 = parity with Smart Persistence; +=better):
 | PatchTST-CD | −21.4 / −10.0 / +0.1 | −26.6 / +0.8 / +13.2 | +30.2 / +26.2 / +24.7 | +33.1 / +26.8 / +25.3 |
 | CrossViViT v2 | −13.8 / −14.9 / −3.9 | −12.0 / +8.1 / **+19.9** | n/a | n/a |
 
+Daytime Skill_RMSE% per horizon (same sign convention):
+
+| Model | Folsom 5/10/15min | SKIPPD 5/10/15min | SunLake 30/60/90min | GEFCom 1/2/3h |
+|---|---|---|---|---|
+| LightGBM | **+8.5 / +10.7 / +12.1** | **+3.9 / +9.1 / +12.0** | **+18.9 / +18.2 / +18.6** | **+27.4 / +28.2 / +31.7** |
+| MLP | −8.3 / +4.2 / +6.3 | −43.3 / −31.5 / −6.6 | +17.0 / +17.4 / +18.6 | +25.6 / +26.0 / +29.7 |
+| DLinear | −163.4 / −125.7 / −110.7 | −103.7 / −68.0 / −49.5 | −51.1 / −45.4 / −39.5 | +7.7 / +14.2 / +21.3 |
+| LSTM | +5.5 / +7.6 / +9.7 | −10.6 / −1.4 / +5.1 | +17.4 / +16.5 / +14.8 | +24.4 / +22.4 / +25.8 |
+| iTransformer | −10.7 / +5.9 / +6.4 | −16.8 / −10.0 / −24.1 | +16.6 / +14.8 / +15.5 | +23.0 / +20.5 / +24.0 |
+| PatchTST-CI | −19.8 / −1.6 / −1.7 | −95.9 / −62.1 / −41.7 | +9.0 / +10.7 / +6.3 | +20.2 / +13.2 / +21.4 |
+| PatchTST-CD | +4.5 / +7.5 / +9.2 | −2.3 / +5.1 / +9.2 | +16.4 / +15.0 / +16.0 | +24.3 / +24.1 / +24.0 |
+| CrossViViT v2 | +4.0 / +6.7 / +9.5 | −0.4 / +4.1 / +9.4 | n/a | n/a |
+
+Daytime MAE per horizon (normalized units):
+
+| Model | Folsom 5/10/15min | SKIPPD 5/10/15min | SunLake 30/60/90min | GEFCom 1/2/3h |
+|---|---|---|---|---|
+| LightGBM | **0.014 / 0.017 / 0.019** | 0.015 / 0.019 / 0.022 | 0.032 / 0.036 / 0.039 | 0.072 / 0.084 / 0.090 |
+| MLP | 0.025 / 0.024 / 0.027 | 0.044 / 0.047 / 0.041 | 0.036 / 0.036 / 0.040 | 0.077 / 0.086 / 0.097 |
+| DLinear | 0.088 / 0.089 / 0.089 | 0.057 / 0.057 / 0.057 | 0.083 / 0.087 / 0.088 | 0.109 / 0.118 / 0.120 |
+| LSTM | 0.014 / 0.016 / **0.017** | 0.017 / 0.021 / 0.022 | **0.031** / 0.035 / 0.039 | **0.070** / 0.090 / 0.100 |
+| iTransformer | 0.026 / 0.020 / 0.022 | 0.024 / 0.028 / 0.044 | 0.032 / 0.037 / 0.039 | 0.075 / 0.091 / 0.094 |
+| PatchTST-CI | 0.027 / 0.024 / 0.027 | 0.055 / 0.055 / 0.054 | 0.039 / 0.043 / 0.048 | 0.076 / 0.102 / 0.102 |
+| PatchTST-CD | 0.015 / 0.018 / 0.019 | 0.019 / 0.021 / 0.023 | 0.032 / 0.036 / 0.039 | 0.071 / 0.087 / 0.097 |
+| CrossViViT v2 | 0.014 / 0.019 / 0.019 | **0.017 / 0.020 / 0.021** | n/a | n/a |
+
+Daytime RMSE per horizon (normalized units):
+
+| Model | Folsom 5/10/15min | SKIPPD 5/10/15min | SunLake 30/60/90min | GEFCom 1/2/3h |
+|---|---|---|---|---|
+| LightGBM | **0.036 / 0.042 / 0.044** | **0.041 / 0.048 / 0.052** | **0.052 / 0.058 / 0.061** | **0.107 / 0.123 / 0.132** |
+| MLP | 0.043 / 0.045 / 0.047 | 0.061 / 0.069 / 0.063 | 0.053 / 0.058 / 0.061 | 0.109 / 0.127 / 0.136 |
+| DLinear | 0.104 / 0.106 / 0.106 | 0.087 / 0.088 / 0.089 | 0.097 / 0.103 / 0.105 | 0.136 / 0.147 / 0.152 |
+| LSTM | 0.037 / 0.043 / 0.046 | 0.047 / 0.053 / 0.056 | 0.053 / 0.059 / 0.064 | 0.111 / 0.133 / 0.143 |
+| iTransformer | 0.044 / 0.044 / 0.047 | 0.050 / 0.058 / 0.074 | 0.054 / 0.060 / 0.064 | 0.113 / 0.136 / 0.147 |
+| PatchTST-CI | 0.047 / 0.048 / 0.051 | 0.084 / 0.085 / 0.084 | 0.059 / 0.063 / 0.071 | 0.117 / 0.149 / 0.152 |
+| PatchTST-CD | 0.038 / 0.043 / 0.046 | 0.044 / 0.050 / 0.054 | 0.054 / 0.060 / 0.063 | 0.111 / 0.130 / 0.147 |
+| CrossViViT v2 | 0.038 / 0.044 / 0.046 | 0.043 / 0.050 / 0.054 | n/a | n/a |
+
+(SmartPersistence reference MAE/RMSE per dataset: Folsom 0.013/0.016/0.019 and
+0.040/0.047/0.050 · SKIPPD 0.015/0.021/0.027 and 0.043/0.052/0.059 · SunLake
+0.046/0.049/0.051 and 0.064/0.071/0.075 · GEFCom 0.106/0.119/0.130 and
+0.147/0.171/0.193.)
+
 Canonical file: `figures/results/e8_summary.csv` (48 rows: 4 datasets × 4
 metrics × 3 horizons; raw per-cell values in `e8_full_checkpoint*.csv`).
 CrossViViT runs only where sky images resolve (Folsom/SKIPPD).
 
 **Honest readings.**
-- On 1-min data at 5-min lead, persistence is near-unbeatable (clouds barely
-  move): every model is negative on Folsom h5; LSTM turns positive from 10 min
-  (+1.9 → +5.9), CrossViViT v2 reaches +19.9 on SKIPPD-15min.
-- At coarser cadences the models dominate: LSTM is the best MAE model on
-  SunLake (+32.1) and GEFCom (+33.9); LightGBM leads RMSE everywhere on those
-  two (+18.9–+31.7).
+- On 1-min data at 5-min lead, persistence is near-unbeatable on MAE (clouds
+  barely move): every model is negative on Folsom h5; LSTM turns positive from
+  10 min (+1.9 → +5.9), CrossViViT v2 reaches +19.9 on SKIPPD-15min. On RMSE
+  skill, however, LightGBM/CrossViViT/PatchTST-CD are already positive at
+  5 min — the models trim the large errors first even when the median error
+  lags persistence.
+- At coarser cadences the models dominate: **LSTM is the best MAE model** on
+  SunLake (+32.1) and GEFCom (+33.9); **LightGBM is the best RMSE model on
+  every dataset** (Skill_RMSE +8.5…+31.7 across all cells where it is positive,
+  i.e. all but the 1-min MAE cells).
 - **DLinear is the worst model on every dataset** (trend/seasonal decomposition
-  + linear head; capacity limitation faithfully disclosed). PatchTST-CI
+  + linear head; capacity limitation faithfully disclosed) — though it turns
+  positive on GEFCom at longer leads (Skill_MAE +7.8 at 3 h). PatchTST-CI
   (channel-independent) is systematically weak on low-channel tabular signals;
   the CD variant recovers most of the gap.
-- RMSE skill is positive far more often than MAE skill (models trim the large
-  errors first; full table in the CSV).
 
 > **CrossViViT v2 note (honest):** the benchmark's CrossViViT is a
 > **lightweight variant (~224 K params)** inspired by Boussif et al. 2023
