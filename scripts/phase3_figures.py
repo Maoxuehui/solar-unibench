@@ -50,9 +50,11 @@ def _crossover():
     ax.axhline(0.0, color="black", linewidth=0.9)
     for b, m in zip(bars, margins):
         if np.isfinite(m):
+            # 3-decimal labels: gefcom (+0.012) and skippd (+0.013) must be
+            # distinguishable (2-decimal "+0.01" read ambiguously at print size).
             ax.text(b.get_x() + b.get_width() / 2, m + 0.04 * (1 if m >= 0 else -1),
-                    f"{m:+.2f}", ha="center", va="bottom" if m >= 0 else "top",
-                    fontsize=10, fontweight="bold")
+                    f"{m:+.3f}", ha="center", va="bottom" if m >= 0 else "top",
+                    fontsize=11, fontweight="bold")
     ax.set_ylabel("Crossover margin (skill_simple+cleaned - skill_complex+raw)")
     ax.set_title("E9 cross-dataset crossover (physics-aligned 1h-ahead)\n"
                  "bar >= 0: governance > complexity holds")
