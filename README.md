@@ -319,9 +319,11 @@ showed the same ordering at −2.0%).
 **Temporal granularity (Folsom 1min→1h, dual-metric `results_e9_granularity.csv`):**
 Smart-Persistence physical MAE rises 47.1 → 52.1 W/m² (nMAE 0.035 → 0.046) as
 cadence coarsens from 1 min to 1 h — the SP-skill-collapse hypothesis confirmed
-in unscaled units (`fig_e9_granularity_sp_collapse.png`). Honest caveat: DLinear
-(the chosen model) is too weak to exploit the collapse (skill −3.6..−5.8) —
-disclosed as a model-capacity limitation rather than re-run to force a flip.
+in unscaled units (`fig_e9_granularity_sp_collapse.png`). Honest caveat: even
+the LightGBM probe (swapped for DLinear 2026-08) does not exploit the collapse
+at this bounded grid (skill −6.1 at 1-min, −4.3 at 1-h) — disclosed as a
+setup limitation (lookback=12-row windows at every granularity) rather than
+re-run to force a flip.
 
 **Physical-closure parity (ESSD data validation, `fig_physics_closure_parity.png` / paper fig11):** measured GHI vs DNI·cos(z)+DHI — Folsom R²=0.9998 (single-station, 1-min) and SunLake R²=0.9398 (6-station wide-area), confirming the irradiance modality is physically consistent.
 

@@ -109,15 +109,15 @@ def _granularity():
     fig, ax = plt.subplots(figsize=(7.4, 4.4))
     x = np.arange(len(df))
     ax.plot(x, df["mae_sp_wm2"], color=PALETTE[3], marker="o", markersize=8,
-            linewidth=2.2, label="SmartPersistence MAE (W/m^2)")
-    ax.plot(x, df["mae_dlinear_wm2"], color=PALETTE[0], marker="s", markersize=7,
-            linewidth=2.0, linestyle="--", label="DLinear MAE (W/m^2)")
+            linewidth=2.2, label="SmartPersistence MAE (W/m²)")
+    ax.plot(x, df["mae_model_wm2"], color=PALETTE[0], marker="s", markersize=7,
+            linewidth=2.0, linestyle="--", label="LightGBM MAE (W/m²)")
     ax.set_xticks(x)
     ax.set_xticklabels(df["granularity"])
     ax.set_xlabel("Temporal granularity (Folsom resampled)")
-    ax.set_ylabel("Daytime MAE (W/m^2, unscaled physical)")
+    ax.set_ylabel("Daytime MAE (W/m², unscaled physical)")
     ax.set_title("E9 SP-skill collapse with coarser granularity (Folsom)\n"
-                 "SP weakens (MAE rises) as cadence coarsens; honest DLinear caveat shown")
+                 "SP weakens (MAE rises) as cadence coarsens; honest model caveat shown")
     ax.legend(loc="best", fontsize=9)
     return save_fig(fig, "fig_e9_granularity_sp_collapse", OUT)
 

@@ -131,8 +131,12 @@ clear-sky physical anchors carry the governance gain**.
 ### Temporal granularity (Folsom 1 min → 1 h)
 
 SP physical MAE rises 47.1 → 52.1 W/m² (nMAE 0.035 → 0.046) as cadence
-coarsens — SP-collapse confirmed in physical units. DLinear (probe model)
-fails to exploit it (skill −3.6…−5.8): honest capacity limitation, disclosed.
+coarsens — SP-collapse confirmed in physical units. The LightGBM probe
+(swapped for DLinear 2026-08; the earlier DLinear probe scored −3.6…−5.8)
+also fails to exploit the collapse on this bounded grid (skill −6.1 at
+1 min → −4.3 at 1 h, MAE 279–336 W/m²): the grid uses a fixed 12-row
+lookback at every granularity, so coarse cadences starve it of windows.
+Honest setup limitation, disclosed.
 
 ---
 
