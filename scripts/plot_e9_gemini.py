@@ -30,11 +30,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# -- global aesthetics: serif, 10-12pt, no titles, faint y-grid -------------
+# -- global aesthetics: match the shared viz design system (DejaVu Sans),
+# -- 10-12pt, no titles, faint y-grid ----------------------------------------
 mpl.rcParams.update({
-    "font.family": "serif",
-    "font.serif": ["Times New Roman", "DejaVu Serif"],
-    "mathtext.fontset": "stix",          # math matches the serif body
+    "font.family": "DejaVu Sans",
     "font.size": 11,
     "axes.labelsize": 12,
     "xtick.labelsize": 10,
@@ -76,7 +75,13 @@ def _panel_a(ax: plt.Axes) -> None:
             va = "bottom" if v >= 0 else "top"
             off = 0.006 * (1 if v >= 0 else -1)
             ax.text(b.get_x() + b.get_width() / 2, v + off, f"{v:+.3f}",
-                    ha="center", va=va, fontsize=10, color=col)
+                    ha="center", va=va, fontsize=10, color=col,
+                    fontweight="bold")
+    # Y head/foot room so the +/- labels never collide with the zero line.
+    all_vals = vs_mean + vs_best
+    lo, hi = min(all_vals), max(all_vals)
+    span = hi - lo
+    ax.set_ylim(lo - 0.22 * span, hi + 0.22 * span)
     ax.set_xticks(xpos, disp)
     ax.set_ylabel(r"CrossOver Margin $\chi$ (Skill Difference)")
     ax.grid(axis="y", linestyle="--", alpha=0.15)
@@ -100,17 +105,21 @@ def _panel_b(ax: plt.Axes) -> None:
     span = max(mae) - min(mae)
     for i, (b, v) in enumerate(zip(bars, mae)):
         if i < 4:
-            note, col = "no-op", "0.35"
+            note = "no-op"
+            # 'no-op' annotation sits ABOVE each bar in dark grey (readable).
+            ax.text(b.get_x() + b.get_width() / 2, v + 0.035 * span, note,
+                    ha="center", va="bottom", fontsize=10, color="0.25")
         else:
-            note, col = r"$\downarrow$ $-13.1\%$ (Breakthrough)", ORANGE
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.035 * span, note,
-                ha="center", va="bottom", fontsize=10, color=col,
-                fontweight="bold" if i == 4 else "normal")
-        ax.text(b.get_x() + b.get_width() / 2, v - 0.045 * span, f"{v:.4f}",
-                ha="center", va="top", fontsize=9, color="0.30")
+            ax.text(b.get_x() + b.get_width() / 2, v + 0.035 * span,
+                    r"$\downarrow$ $-13.1\%$ (Breakthrough)",
+                    ha="center", va="bottom", fontsize=10, color=ORANGE,
+                    fontweight="bold")
+        # Absolute MAE value above the bar top (outside the colored body).
+        ax.text(b.get_x() + b.get_width() / 2, v + 0.012 * span, f"{v:.4f}",
+                ha="center", va="bottom", fontsize=9, color="black")
     ax.set_xticks(np.arange(len(mae)), steps, fontsize=9.5)
     ax.set_ylabel(r"Daytime Forecast Error (MAE)")
-    ax.set_ylim(0.038, max(mae) + 0.30 * span)   # headroom for the annotation
+    ax.set_ylim(0.038, max(mae) + 0.42 * span)   # headroom for note + value
     ax.grid(axis="y", linestyle="--", alpha=0.15)
     ax.set_axisbelow(True)
 
