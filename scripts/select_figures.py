@@ -82,9 +82,18 @@ PAPER_FIGURES: list[tuple[str, str, str]] = [
     ),
     (
         "fig4_benchmark_heatmap",
-        "fig_benchmark_heatmap.png",
-        "E8 - Unified benchmark: Forecast Skill vs Smart Persistence "
-        "(baselines x datasets x horizons).",
+        "fig_e8_skill_heatmap.png",
+        "E8 - Unified benchmark (physics-time-aligned grid, CrossViViT v2): "
+        "Daytime Skill_MAE% / Skill_RMSE% heatmaps, 7 models x 4 datasets x 3 "
+        "native horizons vs Smart Persistence. [supersedes the fixed-step grid; "
+        "companion: fig4b horizon-crossover lines]",
+    ),
+    (
+        "fig4b_e8_horizon_lines",
+        "fig_e8_horizon_lines.png",
+        "E8 - Skill_MAE% vs forecast horizon per model and dataset: the "
+        "'when do models beat persistence' crossover view (persistence "
+        "dominates 1-min data at 5-min lead; models win at coarser cadences).",
     ),
     (
         "fig5_defect_missingness",
@@ -267,7 +276,19 @@ def main(argv: list[str] | None = None) -> int:
     exported = 0
     skipped = 0
     for stem, src_name, caption in PAPER_FIGURES:
+        # The E8 canonical figures live in <src>/results (next to the summary
+        # CSV); everything else in <src> directly. Fall back across both so the
+        # registry works for either layout.
         source = src_dir / src_name
+        if not source.exists():
+            # The E8 canonical figures live in figures/results (next to the
+            # summary CSV) regardless of which figures root is exported — the
+            # benchmark is config-independent (single FULL run).
+            for alt in (src_dir / "results" / src_name,
+                        REPO / "figures" / "results" / src_name):
+                if alt.exists():
+                    source = alt
+                    break
         try:
             result = _export_one(stem, source, out_dir, args.dpi, args.source_dpi)
         except Exception as exc:  # pragma: no cover - defensive per-figure
