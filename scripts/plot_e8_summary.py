@@ -54,12 +54,14 @@ _FALLBACK = {
 def _color(model: str) -> str:
     return MODEL_COLORS.get(model) or _FALLBACK.get(model) or "0.4"
 
-#: Dataset display order + physical-horizon labels (from benchmark/config.py).
+#: Dataset display order. Each entry: (dataset key, display, CSV step horizons,
+#: physical-horizon x-labels, unit). The CSV stores STEP counts (sunlake 1/2/3
+#: = 30/60/90 min; gefcom 1/2/3 = 1/2/3 h) — never mix the two.
 _DATASETS = [
-    ("folsom", "Folsom (1-min)", ["5", "10", "15"], "min"),
-    ("skippd", "SKIPPD (1-min)", ["5", "10", "15"], "min"),
-    ("sunlake", "SunLake (30-min)", ["30", "60", "90"], "min"),
-    ("gefcom2014", "GEFCom2014 (1-h)", ["1", "2", "3"], "h"),
+    ("folsom", "Folsom (1-min)", [5, 10, 15], ["5", "10", "15"], "min"),
+    ("skippd", "SKIPPD (1-min)", [5, 10, 15], ["5", "10", "15"], "min"),
+    ("sunlake", "SunLake (30-min)", [1, 2, 3], ["30", "60", "90"], "min"),
+    ("gefcom2014", "GEFCom2014 (1-h)", [1, 2, 3], ["1", "2", "3"], "h"),
 ]
 
 _SKILL_METRICS = [("Skill_MAE_pct", "Daytime Skill (MAE) %"),
@@ -80,10 +82,10 @@ def plot_heatmap(df: pd.DataFrame, out_dir: Path) -> Path:
         gridspec_kw={"hspace": 0.30},
     )
     cols, labels = [], []
-    for ds, disp, hzs, unit in _DATASETS:
-        for hz in hzs:
+    for ds, disp, csv_hz, phys_hz, unit in _DATASETS:
+        for hz, phz in zip(csv_hz, phys_hz):
             cols.append((ds, int(hz)))
-            labels.append(f"{disp.split(' (')[0]}\n{hz} {unit}")
+            labels.append(f"{disp.split(' (')[0]}\n{phz} {unit}")
     vmax_abs = 0.0
     mats = []
     for metric, _ in _SKILL_METRICS:
@@ -123,9 +125,8 @@ def plot_horizon_lines(df: pd.DataFrame, out_dir: Path) -> Path:
     """Skill_MAE% vs horizon per model; one panel per dataset."""
     set_style()
     fig, axes = plt.subplots(1, 4, figsize=(13.5, 3.6), sharey=False)
-    for ax, (ds, disp, hzs, unit) in zip(axes, _DATASETS):
+    for ax, (ds, disp, csv_hz, phys_hz, unit) in zip(axes, _DATASETS):
         d = df[(df.Dataset == ds) & (df.Metric == "Skill_MAE_pct")].sort_values("Horizon")
-        csv_hz = list(d.Horizon.unique())  # step counts (5/10/15 or 1/2/3)
         x = np.arange(len(csv_hz))
         for m in _MODELS:
             ys = [d[d.Horizon == int(h)][m].iloc[0] for h in csv_hz]
@@ -134,7 +135,7 @@ def plot_horizon_lines(df: pd.DataFrame, out_dir: Path) -> Path:
             ax.plot(x, ys, marker="o", ms=4, lw=1.6,
                     color=_color(m), label=m)
         ax.axhline(0, color="0.3", lw=0.8, ls="--")
-        ax.set_xticks(x, [f"{h} {unit}" for h in hzs], fontsize=9)
+        ax.set_xticks(x, [f"{h} {unit}" for h in phys_hz], fontsize=9)
         ax.set_title(disp, fontsize=10)
         ax.grid(alpha=0.25)
     axes[0].set_ylabel("Daytime Skill (MAE) %")
