@@ -100,7 +100,7 @@ def plot_heatmap(df: pd.DataFrame, out_dir: Path) -> Path:
         mats.append(mat)
         vmax_abs = max(vmax_abs, np.nanmax(np.abs(mat)))
     for ax, (metric, title), mat in zip(axes, _SKILL_METRICS, mats):
-        im = ax.imshow(mat, cmap="RdYlGn", vmin=-vmax_abs, vmax=vmax_abs,
+        im = ax.imshow(mat, cmap="RdBu_r", vmin=-vmax_abs, vmax=vmax_abs,
                        aspect="auto")
         ax.set_xticks(range(len(labels)), labels, fontsize=6.5)
         ax.set_yticks(range(len(_MODELS)), _MODELS, fontsize=9)
