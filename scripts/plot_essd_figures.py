@@ -218,8 +218,8 @@ def fig2() -> None:
     # separator on the tick row (ESSD-style grouped axis).
     labels = [f"{ph} {unit}" for _, _, ph, unit in cells]
 
-    fig, axes = plt.subplots(2, 1, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 1.05),
-                             sharex=True, gridspec_kw={"hspace": 0.42})
+    fig, axes = plt.subplots(2, 1, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 1.08),
+                             sharex=True, gridspec_kw={"hspace": 0.50})
     vmax = 0.0
     mats = []
     for metric in ("Skill_MAE_pct", "Skill_RMSE_pct"):
@@ -256,13 +256,19 @@ def fig2() -> None:
     axes[1].set_xticks(range(len(labels)), labels,
                        fontsize=TEXT_SIZE_PT - 2)     # 6.5 pt horizon-only ticks
     axes[1].set_xlabel("")   # bottom caption row removed per user request
-    # Grouped dataset axis: one name per 3-column block + '//' separators.
-    for g, ds in enumerate(DS_ORDER):
+    # Grouped dataset axis: one name per 3-column block, BELOW the horizon
+    # ticks (axes-fraction y < 0 so it can never climb onto panel (a));
+    # order follows the cell layout: Folsom, SKIPP'D, SunLake, GEFCom2014.
+    cell_ds_order = []
+    for ds, _, _, _ in cells:
+        if ds not in cell_ds_order:
+            cell_ds_order.append(ds)
+    for g, ds in enumerate(cell_ds_order):
         c0, c1 = 3 * g, 3 * g + 2
-        axes[1].text((c0 + c1) / 2, 1.72, DS_LABELS[ds],
+        axes[1].text((c0 + c1) / 2, -0.16, DS_LABELS[ds],
                      transform=axes[1].get_xaxis_transform(),
                      ha="center", va="top", fontsize=TEXT_SIZE_PT - 0.5,
-                     color=DS_COLORS[ds], fontweight="bold")
+                     color="black", fontweight="bold")
         if g > 0:  # separator between groups (on both heatmap panels)
             for ax in axes:
                 ax.axvline(c0 - 0.5, color="white", linewidth=2.0)
