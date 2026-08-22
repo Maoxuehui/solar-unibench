@@ -92,6 +92,13 @@ E8_SUMMARY = _REPO_ROOT / "figures" / "results" / "e8_summary.csv"
 # -- apply the design system globally ---------------------------------------
 mpl.rcParams.update({
     "font.family": FONT_FAMILY,
+    # Mathtext rendered with the SAME Arial family so formulas
+    # (\chi=\max(...)_{cleaned} etc.) match the axis text in weight and style.
+    "mathtext.fontset": "custom",
+    "mathtext.rm": FONT_FAMILY,
+    "mathtext.it": f"{FONT_FAMILY}:italic",
+    "mathtext.bf": f"{FONT_FAMILY}:bold",
+    "mathtext.default": "rm",
     "font.size": TEXT_SIZE_PT,
     "axes.labelsize": TEXT_SIZE_PT,
     "axes.titlesize": TEXT_SIZE_PT,
@@ -156,22 +163,26 @@ def fig1() -> None:
     )
     xpos = np.arange(len(DS_ORDER))
     b1 = ax1.bar(xpos - 0.19, margins_mean, width=0.35, facecolor="#0072B2",
-                 edgecolor="none", label=r"vs.\ deep-model mean")
+                 edgecolor="none", label=r"vs. deep-model mean")
     b2 = ax1.bar(xpos + 0.19, margins_best, width=0.35, facecolor="#E69F00",
                  edgecolor="#E69F00", linewidth=0.4, hatch="//",
-                 label=r"vs.\ deep-model best")
+                 label=r"vs. deep-model best")
     ax1.axhline(0, color="black", linewidth=0.8)
     for bars, vals, col in ((b1, margins_mean, "#0072B2"), (b2, margins_best, "#E69F00")):
         for b, v in zip(bars, vals):
             va = "bottom" if v >= 0 else "top"
             off = 0.006 * (1 if v >= 0 else -1)
             ax1.text(b.get_x() + b.get_width() / 2, v + off, f"{v:+.3f}",
-                     ha="center", va=va, fontsize=TEXT_SIZE_PT - 0.5, color=col)
+                     ha="center", va=va, fontsize=TEXT_SIZE_PT - 2.5, color=col)
     lo = min(margins_mean + margins_best); hi = max(margins_mean + margins_best)
     ax1.set_ylim(lo - 0.25 * (hi - lo), hi + 0.25 * (hi - lo))
     ax1.set_xticks(xpos, [DS_LABELS[d] for d in DS_ORDER])
     ax1.set_ylabel(r"Crossover margin $\chi$ (skill difference)")
     ax1.legend(frameon=False, loc="upper left")
+    # The chi definition formula, lower-left (kept from the gemini figure).
+    ax1.text(0.02, 0.03,
+             r"$\chi=\max(\mathrm{LGBM},\mathrm{MLP})_{\mathrm{cleaned}}-\mathrm{deep}_{\mathrm{raw}}$",
+             transform=ax1.transAxes, fontsize=TEXT_SIZE_PT - 1.5, color="0.25")
     _no_minor(ax1)
 
     steps = ["Raw", "+Night", "+Clamp", "+UTC", "+Clear-sky"]
@@ -183,15 +194,16 @@ def fig1() -> None:
     for i, v in enumerate(mae):
         ax2.text(i, v + 0.012 * span, f"{v:.4f}", ha="center", va="bottom",
                  fontsize=TEXT_SIZE_PT - 1.5, color="black")
+    # Notes float at 22%-span — fully clear of the value labels below them.
     for i in range(4):
-        ax2.text(i, v := mae[i] + 0.10 * span, "no-op", ha="center",
-                 va="bottom", fontsize=TEXT_SIZE_PT, color="0.30")
-    ax2.text(4, mae[4] + 0.10 * span, r"$\downarrow$ $-13.1\%$",
-             ha="center", va="bottom", fontsize=TEXT_SIZE_PT,
+        ax2.text(i, mae[i] + 0.22 * span, "no-op", ha="center",
+                 va="bottom", fontsize=TEXT_SIZE_PT - 1, color="0.30")
+    ax2.text(4, mae[4] + 0.22 * span, r"$\downarrow$ $-13.1\%$",
+             ha="center", va="bottom", fontsize=TEXT_SIZE_PT - 1,
              color="#D55E00", fontweight="bold")
     ax2.set_xticks(np.arange(len(mae)), steps)
     ax2.set_ylabel(r"Daytime forecast error (MAE)")
-    ax2.set_ylim(0.038, mae.max() + 0.55 * span)
+    ax2.set_ylim(0.038, mae.max() + 0.70 * span)
     _no_minor(ax2)
 
     _panel_tag(fig, 0.005, 0.985, "a")
