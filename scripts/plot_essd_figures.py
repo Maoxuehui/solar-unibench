@@ -229,8 +229,8 @@ def fig2() -> None:
     for ax, mat, ylab, subtitle in zip(
             axes, mats,
             (r"Skill, MAE (%)", r"Skill, RMSE (%)"),
-            (r"(a) Daytime skill vs.\ Smart Persistence — MAE",
-             r"(b) Daytime skill vs.\ Smart Persistence — RMSE")):
+            (r"(a) Daytime Skill (MAE) %",
+             r"(b) Daytime Skill (RMSE) %")):
         ax.imshow(mat, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
         ax.set_ylabel(ylab)
         ax.set_title(subtitle, fontsize=TEXT_SIZE_PT, loc="left", pad=3)
@@ -246,11 +246,12 @@ def fig2() -> None:
                             fontsize=TEXT_SIZE_PT - 1.5,
                             color="black" if abs(v) < vmax * 0.55 else "white")
         ax.set_yticks(range(len(models)), models)
-    axes[1].set_xticks(range(len(labels)), labels)
-    axes[1].set_xlabel(r"Dataset / forecast horizon (min or h)")
+    axes[1].set_xticks(range(len(labels)), labels,
+                       fontsize=TEXT_SIZE_PT - 2.5)   # two-line ticks: shrink to avoid overlap
+    axes[1].set_xlabel(r"Dataset / forecast horizon (min or h)",
+                       fontsize=TEXT_SIZE_PT - 1)
     # panel letters are already inside the sub-titles above; keep the corner
     # tags off fig2 to avoid duplication
-    fig.tight_layout(rect=(0, 0, 1, 0.99))
     fig.tight_layout(rect=(0, 0, 1, 0.99))
     _save(fig, "fig2_benchmark_skill_heatmap")
 
