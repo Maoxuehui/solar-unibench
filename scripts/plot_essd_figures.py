@@ -207,11 +207,13 @@ def fig2() -> None:
     s = pd.read_csv(E8_SUMMARY)
     models = ["LightGBM", "MLP", "LSTM", "iTransformer",
               "PatchTST-CI", "PatchTST-CD", "CrossViViT"]
-    cells = [("folsom", 5, "5"), ("folsom", 10, "10"), ("folsom", 15, "15"),
-             ("skippd", 5, "5"), ("skippd", 10, "10"), ("skippd", 15, "15"),
-             ("sunlake", 1, "30"), ("sunlake", 2, "60"), ("sunlake", 3, "90"),
-             ("gefcom2014", 1, "1"), ("gefcom2014", 2, "2"), ("gefcom2014", 3, "3")]
-    labels = [f"{DS_LABELS[ds]}\n{ph}" for ds, _, ph in cells]
+    cells = [("folsom", 5, "5", "min"), ("folsom", 10, "10", "min"),
+             ("folsom", 15, "15", "min"), ("skippd", 5, "5", "min"),
+             ("skippd", 10, "10", "min"), ("skippd", 15, "15", "min"),
+             ("sunlake", 1, "30", "min"), ("sunlake", 2, "60", "min"),
+             ("sunlake", 3, "90", "min"), ("gefcom2014", 1, "1", "h"),
+             ("gefcom2014", 2, "2", "h"), ("gefcom2014", 3, "3", "h")]
+    labels = [f"{DS_LABELS[ds]}\n{ph} {unit}" for ds, _, ph, unit in cells]
 
     fig, axes = plt.subplots(2, 1, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 1.05),
                              sharex=True, gridspec_kw={"hspace": 0.42})
@@ -219,7 +221,7 @@ def fig2() -> None:
     mats = []
     for metric in ("Skill_MAE_pct", "Skill_RMSE_pct"):
         mat = np.full((len(models), len(cells)), np.nan)
-        for j, (ds, hz, _) in enumerate(cells):
+        for j, (ds, hz, _, _unit) in enumerate(cells):
             d = s[(s.Dataset == ds) & (s.Metric == metric) & (s.Horizon == hz)]
             for i, m in enumerate(models):
                 if len(d) and not pd.isna(d[m].iloc[0]):
@@ -249,9 +251,8 @@ def fig2() -> None:
                             color="black" if abs(v) < vmax * 0.55 else "white")
         ax.set_yticks(range(len(models)), models)
     axes[1].set_xticks(range(len(labels)), labels,
-                       fontsize=TEXT_SIZE_PT - 2.5)   # two-line ticks: shrink to avoid overlap
-    axes[1].set_xlabel(r"Dataset / forecast horizon (min or h)",
-                       fontsize=TEXT_SIZE_PT - 1)
+                       fontsize=TEXT_SIZE_PT - 2.5)   # two-line ticks: keep small
+    axes[1].set_xlabel("")   # bottom caption row removed per user request
     # Shared diverging colorbar on the right edge (both panels share the scale).
     cbar = fig.colorbar(shared_im, ax=list(axes), fraction=0.025, pad=0.015)
     cbar.set_label(r"Daytime Skill (%)", fontsize=TEXT_SIZE_PT - 1)
