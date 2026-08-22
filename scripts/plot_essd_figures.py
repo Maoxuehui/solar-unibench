@@ -226,12 +226,14 @@ def fig2() -> None:
                     mat[i, j] = d[m].iloc[0]
         mats.append(mat)
         vmax = max(vmax, float(np.nanmax(np.abs(mat))))
+    shared_im = None
     for ax, mat, ylab, subtitle in zip(
             axes, mats,
             (r"Skill, MAE (%)", r"Skill, RMSE (%)"),
             (r"(a) Daytime Skill (MAE) %",
              r"(b) Daytime Skill (RMSE) %")):
-        ax.imshow(mat, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
+        shared_im = ax.imshow(mat, cmap="RdBu_r", vmin=-vmax, vmax=vmax,
+                              aspect="auto")
         ax.set_ylabel(ylab)
         ax.set_title(subtitle, fontsize=TEXT_SIZE_PT, loc="left", pad=3)
         ax.grid(False)
@@ -250,6 +252,10 @@ def fig2() -> None:
                        fontsize=TEXT_SIZE_PT - 2.5)   # two-line ticks: shrink to avoid overlap
     axes[1].set_xlabel(r"Dataset / forecast horizon (min or h)",
                        fontsize=TEXT_SIZE_PT - 1)
+    # Shared diverging colorbar on the right edge (both panels share the scale).
+    cbar = fig.colorbar(shared_im, ax=list(axes), fraction=0.025, pad=0.015)
+    cbar.set_label(r"Daytime Skill (%)", fontsize=TEXT_SIZE_PT - 1)
+    cbar.ax.tick_params(labelsize=TEXT_SIZE_PT - 1.5)
     # panel letters are already inside the sub-titles above; keep the corner
     # tags off fig2 to avoid duplication
     fig.tight_layout(rect=(0, 0, 1, 0.99))
