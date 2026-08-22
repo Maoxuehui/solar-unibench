@@ -89,17 +89,21 @@ def _panel_a(ax: plt.Axes, diffs: dict[str, np.ndarray], stats: pd.DataFrame) ->
     for patch, ds in zip(bp["boxes"], present):
         patch.set_facecolor(_DS_STYLE[ds]["color"])
         patch.set_alpha(0.75)
-    # Scatter the outlier points ON TOP with the dataset marker/color (shape
-    # double-encoding per the semantic-color spec).
+    # Scatter the outlier points ON TOP in de-noised black (alpha 0.2, no
+    # edges, jittered): density reads through shading, the colored boxes stay
+    # the dataset-identity channel.
+    rng = np.random.default_rng(0)
     for i, (ds, arr) in enumerate(zip(present, data)):
         q1, q3 = np.percentile(arr, [25, 75])
         iqr = q3 - q1
         outliers = arr[(arr < q1 - 1.5 * iqr) | (arr > q3 + 1.5 * iqr)]
         if outliers.size:
-            ax.scatter(np.full(outliers.size, i + 1), outliers,
-                       s=12, marker=_DS_STYLE[ds]["marker"],
-                       c=_DS_STYLE[ds]["color"], alpha=0.5,
-                       edgecolors="none", zorder=3)
+            if outliers.size > 3000:  # cap rendering density
+                outliers = outliers[rng.choice(outliers.size, 3000, replace=False)]
+            ax.scatter(np.full(outliers.size, i + 1)
+                       + rng.uniform(-0.13, 0.13, outliers.size),
+                       outliers, color="black", alpha=0.2, edgecolors="none",
+                       s=15, zorder=3)
     ax.set_yscale("log")
     # Multi-line x labels: dataset / cad / gaps / dups.
     labels = []
@@ -114,9 +118,26 @@ def _panel_a(ax: plt.Axes, diffs: dict[str, np.ndarray], stats: pd.DataFrame) ->
     ax.set_xticklabels(labels, fontsize=9)
     for tick, ds in zip(ax.get_xticklabels(), present):
         tick.set_color(_DS_STYLE[ds]["color"])
-    ax.set_ylabel("Inter-step gap (minutes, log scale)")
+    ax.set_ylabel(r"Inter-step Time Gap $\Delta t$ (min)", fontsize=10)
     ax.grid(True, axis="y", color="#E0E0E0", linestyle="--", linewidth=0.6)
-    ax.set_title("(a) Timestamp irregularity", fontsize=12, loc="left")
+    ax.set_title("(a) Timestamp Gaps", fontsize=12, loc="left")
+
+
+#: Academic LaTeX labels for the canonical columns (panel (b) x axis).
+_ACADEMIC_LABELS: dict[str, str] = {
+    "pv_power_normalized": r"$\mathrm{PV}_{\mathrm{norm}}$",
+    "ghi_actual": r"$\mathrm{GHI}_{\mathrm{act}}$",
+    "dni_actual": r"$\mathrm{DNI}_{\mathrm{act}}$",
+    "dhi_actual": r"$\mathrm{DHI}_{\mathrm{act}}$",
+    "cos_zenith": r"$\cos\theta_z$",
+    "solar_azimuth": r"$\gamma_s$",
+    "ghi_clearsky": r"$\mathrm{GHI}_{\mathrm{cs}}$",
+    "dni_clearsky": r"$\mathrm{DNI}_{\mathrm{cs}}$",
+    "dhi_clearsky": r"$\mathrm{DHI}_{\mathrm{cs}}$",
+    "clearness_index": r"$k_t$",
+    "quality_flag": "Quality Flag",
+    "split": "Data Split",
+}
 
 
 def _panel_b(ax: plt.Axes, miss: pd.DataFrame) -> None:
@@ -144,11 +165,12 @@ def _panel_b(ax: plt.Axes, miss: pd.DataFrame) -> None:
                                            edgecolor="white", lw=1.2))
                 ax.text(j, i, f"{v:.0f}", ha="center", va="center",
                         fontsize=7, color="black")
-    ax.set_xticks(range(len(cols)), cols, rotation=45, ha="right", fontsize=8)
+    ax.set_xticks(range(len(cols)),
+                  [_ACADEMIC_LABELS.get(c, c) for c in cols],
+                  rotation=45, ha="right", fontsize=8)
     ax.set_yticks(range(len(_DS_ORDER)),
                   [_DS_STYLE[ds]["label"] for ds in _DS_ORDER], fontsize=9)
-    ax.set_title("(b) Data missingness — % NaN per canonical column\n"
-                 "(Honest-NaN modalities, not defects)", fontsize=12, loc="left")
+    ax.set_title("(b) Column-Wise Missingness (%)", fontsize=12, loc="left")
     # X limits/y limits fixed to the matrix extent.
     ax.set_xlim(-0.5, len(cols) - 0.5)
     ax.set_ylim(len(_DS_ORDER) - 0.5, -0.5)
