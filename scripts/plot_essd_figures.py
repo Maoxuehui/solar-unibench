@@ -226,10 +226,14 @@ def fig2() -> None:
                     mat[i, j] = d[m].iloc[0]
         mats.append(mat)
         vmax = max(vmax, float(np.nanmax(np.abs(mat))))
-    for ax, mat, ylab in zip(axes, mats,
-                             (r"Skill, MAE (%)", r"Skill, RMSE (%)")):
+    for ax, mat, ylab, subtitle in zip(
+            axes, mats,
+            (r"Skill, MAE (%)", r"Skill, RMSE (%)"),
+            (r"(a) Daytime skill vs.\ Smart Persistence — MAE",
+             r"(b) Daytime skill vs.\ Smart Persistence — RMSE")):
         ax.imshow(mat, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
         ax.set_ylabel(ylab)
+        ax.set_title(subtitle, fontsize=TEXT_SIZE_PT, loc="left", pad=3)
         ax.grid(False)
         for i in range(mat.shape[0]):
             for j in range(mat.shape[1]):
@@ -244,8 +248,9 @@ def fig2() -> None:
         ax.set_yticks(range(len(models)), models)
     axes[1].set_xticks(range(len(labels)), labels)
     axes[1].set_xlabel(r"Dataset / forecast horizon (min or h)")
-    _panel_tag(fig, 0.005, 0.995, "a")
-    _panel_tag(fig, 0.005, 0.520, "b")
+    # panel letters are already inside the sub-titles above; keep the corner
+    # tags off fig2 to avoid duplication
+    fig.tight_layout(rect=(0, 0, 1, 0.99))
     fig.tight_layout(rect=(0, 0, 1, 0.99))
     _save(fig, "fig2_benchmark_skill_heatmap")
 
