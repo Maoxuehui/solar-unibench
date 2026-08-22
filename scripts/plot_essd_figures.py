@@ -213,7 +213,10 @@ def fig2() -> None:
              ("sunlake", 1, "30", "min"), ("sunlake", 2, "60", "min"),
              ("sunlake", 3, "90", "min"), ("gefcom2014", 1, "1", "h"),
              ("gefcom2014", 2, "2", "h"), ("gefcom2014", 3, "3", "h")]
-    labels = [f"{DS_LABELS[ds]}\n{ph} {unit}" for ds, _, ph, unit in cells]
+    # Horizon-only ticks (6.5 pt — back above the 6 pt floor); dataset names
+    # are drawn ONCE per 3-column group below the ticks + a '// ' group
+    # separator on the tick row (ESSD-style grouped axis).
+    labels = [f"{ph} {unit}" for _, _, ph, unit in cells]
 
     fig, axes = plt.subplots(2, 1, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 1.05),
                              sharex=True, gridspec_kw={"hspace": 0.42})
@@ -251,8 +254,18 @@ def fig2() -> None:
                             color="black" if abs(v) < vmax * 0.55 else "white")
         ax.set_yticks(range(len(models)), models)
     axes[1].set_xticks(range(len(labels)), labels,
-                       fontsize=TEXT_SIZE_PT - 3.5)   # 5 pt: 12 two-line ticks across 180 mm
+                       fontsize=TEXT_SIZE_PT - 2)     # 6.5 pt horizon-only ticks
     axes[1].set_xlabel("")   # bottom caption row removed per user request
+    # Grouped dataset axis: one name per 3-column block + '//' separators.
+    for g, ds in enumerate(DS_ORDER):
+        c0, c1 = 3 * g, 3 * g + 2
+        axes[1].text((c0 + c1) / 2, 1.72, DS_LABELS[ds],
+                     transform=axes[1].get_xaxis_transform(),
+                     ha="center", va="top", fontsize=TEXT_SIZE_PT - 0.5,
+                     color=DS_COLORS[ds], fontweight="bold")
+        if g > 0:  # separator between groups (on both heatmap panels)
+            for ax in axes:
+                ax.axvline(c0 - 0.5, color="white", linewidth=2.0)
     # Shared diverging colorbar on the right edge (both panels share the scale).
     cbar = fig.colorbar(shared_im, ax=list(axes), fraction=0.025, pad=0.015)
     cbar.set_label(r"Daytime Skill (%)", fontsize=TEXT_SIZE_PT - 1)
