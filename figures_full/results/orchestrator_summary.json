@@ -1,19 +1,24 @@
 {
   "out_dir": "figures_full",
   "selected": [
-    "E6"
+    "E4"
   ],
   "experiments": [
     {
-      "id": "E6",
+      "id": "E4",
       "status": "ran",
       "figures": [
-        "figures_full\\fig_align_lag_hist.png",
-        "figures_full\\fig_align_skill.png"
+        "figures_full\\fig_optflow_sequence.png",
+        "figures_full\\fig_optflow_psnr_decay.png",
+        "figures_full\\fig_uncertainty_reliability.png",
+        "figures_full\\fig_optflow_ece_vs_lead.png"
       ],
-      "n_figures": 2,
+      "n_figures": 4,
       "metric_keys": [
-        "datasets",
+        "decay",
+        "reliability",
+        "status",
+        "dataset",
         "config"
       ]
     }
