@@ -337,30 +337,23 @@ def fig4() -> None:
         _, diffs[ds] = _irregularity(loader.load_tabular(ds))
 
     fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 0.66),
-        gridspec_kw={"width_ratios": [1.0, 1.3], "wspace": 0.26},
+        1, 2, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 0.70),
+        gridspec_kw={"width_ratios": [1.0, 1.35]},
     )
     data = [diffs[ds] for ds in DS_ORDER]
+    # Original minimal rendering: boxplot's OWN fliers only (no jittered
+    # scatter overlay — the dense sunlake tail smudged the panel).
     bp = ax1.boxplot(data, tick_labels=[DS_LABELS[d] for d in DS_ORDER],
                      showfliers=True, patch_artist=True,
-                     medianprops=dict(color="black", linewidth=1.0))
+                     medianprops=dict(color="black", linewidth=1.0),
+                     flierprops=dict(marker="o", markersize=2,
+                                     markerfacecolor="none",
+                                     markeredgecolor="0.35", alpha=0.6))
     for patch, ds in zip(bp["boxes"], DS_ORDER):
         patch.set_facecolor(DS_COLORS[ds]); patch.set_alpha(0.75)
-    rng = np.random.default_rng(0)
-    for i, (ds, arr) in enumerate(zip(DS_ORDER, data)):
-        q1, q3 = np.percentile(arr, [25, 75]); iqr = q3 - q1
-        out = arr[(arr < q1 - 1.5 * iqr) | (arr > q3 + 1.5 * iqr)]
-        if out.size:
-            if out.size > 3000:
-                out = out[rng.choice(out.size, 3000, replace=False)]
-            # Outliers carry the DATSET color (identity channel restored);
-            # alpha keeps density legible where they stack.
-            ax1.scatter(np.full(out.size, i + 1) + rng.uniform(-0.13, 0.13, out.size),
-                        out, color=DS_COLORS[ds], alpha=0.4, edgecolors="none",
-                        s=15, zorder=3)
     ax1.set_yscale("log")
     ax1.set_ylabel(r"Inter-step time gap $\Delta t$ (min)")
-    # Dataset names stay BLACK (identity carried by the box/scatter colors).
+    ax1.tick_params(axis="x", labelsize=TEXT_SIZE_PT - 2)  # 6.5 pt: no overlap
     _no_minor(ax1)
 
     cols = list(CANONICAL_COLUMNS)
@@ -383,20 +376,20 @@ def fig4() -> None:
                 ax2.text(j, i, f"{v:.0f}", ha="center", va="center",
                          fontsize=TEXT_SIZE_PT - 1.5, color="black")
     ax2.set_xticks(range(len(cols)), [ACADEMIC_LABELS.get(c, c) for c in cols],
-                   rotation=45, ha="right", fontsize=TEXT_SIZE_PT - 2.5,
-                   rotation_mode="anchor")   # anchor: full label inside the canvas
+                   rotation=40, ha="right", fontsize=TEXT_SIZE_PT - 3,
+                   rotation_mode="anchor")   # 5.5 pt + anchor: labels fully inside
     ax2.set_yticks(range(len(DS_ORDER)), [DS_LABELS[d] for d in DS_ORDER])
     ax2.grid(False)
     ax2.set_xlim(-0.5, len(cols) - 0.5)
     ax2.set_ylim(len(DS_ORDER) - 0.5, -0.5)
 
-    # Concise academic sub-titles (panel letters embedded).
+    # Concise academic sub-titles carry the panel letters — no corner tags
+    # (they duplicated the letters).
     ax1.set_title("(a) Timestamp Gaps", fontsize=TEXT_SIZE_PT, loc="left", pad=3)
     ax2.set_title("(b) Column-Wise Missingness (%)", fontsize=TEXT_SIZE_PT,
                   loc="left", pad=3)
-    _panel_tag(fig, 0.005, 0.985, "a")
-    _panel_tag(fig, 0.42, 0.985, "b")
-    fig.tight_layout(rect=(0, 0.04, 1, 0.96))
+    fig.tight_layout(rect=(0, 0.05, 1, 0.96))
+    fig.subplots_adjust(left=0.075, wspace=0.42)   # (b) y-labels clear of (a)
     _save(fig, "fig4_data_defects")
 
 
