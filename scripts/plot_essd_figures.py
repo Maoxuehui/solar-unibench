@@ -66,7 +66,7 @@ DS_COLORS = {
     "sunlake": "#CC79A7",      # reddish purple
 }
 DS_LABELS = {"gefcom2014": "GEFCom2014", "folsom": "Folsom",
-             "skippd": "SKIPPD", "sunlake": "SunLake"}
+             "skippd": "SKIPP'D", "sunlake": "SunLake"}
 DS_ORDER = ["gefcom2014", "folsom", "skippd", "sunlake"]
 
 #: Academic LaTeX column notation (no snake_case on axes).
@@ -251,7 +251,7 @@ def fig2() -> None:
                             color="black" if abs(v) < vmax * 0.55 else "white")
         ax.set_yticks(range(len(models)), models)
     axes[1].set_xticks(range(len(labels)), labels,
-                       fontsize=TEXT_SIZE_PT - 2.5)   # two-line ticks: keep small
+                       fontsize=TEXT_SIZE_PT - 3.5)   # 5 pt: 12 two-line ticks across 180 mm
     axes[1].set_xlabel("")   # bottom caption row removed per user request
     # Shared diverging colorbar on the right edge (both panels share the scale).
     cbar = fig.colorbar(shared_im, ax=list(axes), fraction=0.025, pad=0.015)
