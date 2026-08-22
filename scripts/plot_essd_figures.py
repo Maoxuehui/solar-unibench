@@ -376,9 +376,11 @@ def fig4() -> None:
                 ax2.text(j, i, f"{v:.0f}", ha="center", va="center",
                          fontsize=TEXT_SIZE_PT - 1.5, color="black")
     ax2.set_xticks(range(len(cols)), [ACADEMIC_LABELS.get(c, c) for c in cols],
-                   rotation=40, ha="right", fontsize=TEXT_SIZE_PT - 3,
-                   rotation_mode="anchor")   # 5.5 pt + anchor: labels fully inside
-    ax2.set_yticks(range(len(DS_ORDER)), [DS_LABELS[d] for d in DS_ORDER])
+                   rotation=40, ha="right", fontsize=TEXT_SIZE_PT - 2,
+                   rotation_mode="anchor")   # 6.5 pt + anchor: labels fully inside
+    # (b) y dataset labels sized to MATCH panel (a)'s x dataset labels.
+    ax2.set_yticks(range(len(DS_ORDER)), [DS_LABELS[d] for d in DS_ORDER],
+                   fontsize=TEXT_SIZE_PT - 2)
     ax2.grid(False)
     ax2.set_xlim(-0.5, len(cols) - 0.5)
     ax2.set_ylim(len(DS_ORDER) - 0.5, -0.5)
