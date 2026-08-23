@@ -41,3 +41,4 @@ Thumbs.db
 .raw_cache/
 logs/
 *.LAST_MEMBER
+.fig6_lag_cache.npz

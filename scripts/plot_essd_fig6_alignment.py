@@ -86,7 +86,20 @@ _TOLERANCE_S = 30.0
 
 
 def _lag_arrays(dataset: str) -> tuple[np.ndarray, np.ndarray, float]:
-    """Re-derive exact/NN lag arrays (seconds) for one dataset via E6's path."""
+    """Exact/NN lag arrays (seconds) for one dataset — CACHED after first scan.
+
+    The first call re-derives the lags from the standardized packages via
+    E6's own recipe (~35 min for the 775k-frame Folsom cube) and writes them
+    to a .npz cache; every later call (style iterations etc.) loads the cache
+    in milliseconds. Delete the cache file to force a re-derivation.
+    """
+    cache = _REPO_ROOT / "figures_essd" / ".fig6_lag_cache.npz"
+    key_exact, key_nn, key_med = f"{dataset}_exact", f"{dataset}_nn", f"{dataset}_med"
+    if cache.exists():
+        z = np.load(cache)
+        if key_exact in z and key_nn in z:
+            return z[key_exact], z[key_nn], float(z[key_med])
+
     from solarunibench.benchmark.crossvivit_image import _resolve_sky_cube
     from solarunibench.experiments import e6_alignment as e6
     from solarunibench.loader import SolarUniBenchLoader
@@ -108,15 +121,27 @@ def _lag_arrays(dataset: str) -> tuple[np.ndarray, np.ndarray, float]:
     exact = lags[lags == 0.0]
     nn = lags[lags <= _TOLERANCE_S]
     med = float(np.median(nn)) if nn.size else 0.0
+
+    # Persist ALL datasets' arrays accumulated so far (merge with any cached).
+    payload = {}
+    if cache.exists():
+        z = np.load(cache)
+        payload = {k: z[k] for k in z.files}
+    payload.update({key_exact: exact, key_nn: nn, key_med: np.float64(med)})
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(cache, **payload)
     return exact, nn, med
 
 
 def main() -> int:
     fig, axes = plt.subplots(
         1, 2, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm),
-        gridspec_kw={"wspace": 0.22},
     )
-    for ax, (ds, title, sub) in zip(axes, _PANELS):
+    # Spacing FIRST so large y tick numbers (e.g. 350000) never clip against
+    # the left panel's bounding box.
+    plt.subplots_adjust(wspace=0.35, left=0.085, right=0.985,
+                        top=0.86, bottom=0.24)
+    for ax, (ds, _t, _s) in zip(axes, _PANELS):
         exact, nn, med = _lag_arrays(ds)
         bins = np.linspace(0, _TOLERANCE_S, 31)
         if nn.size:
@@ -126,26 +151,25 @@ def main() -> int:
         if exact.size:
             ax.hist(exact, bins=bins, color=COL_EXACT, alpha=0.8,
                     edgecolor="black", linewidth=0.4, label="Exact Match")
+        # Median line PROMINENT: lw=2, above the bars.
         ax.axvline(med if np.isfinite(med) else 0.0, color=COL_MEDIAN,
-                   linestyle="--", linewidth=1.3, label="Median NN Lag")
+                   linestyle="--", linewidth=2.0, zorder=5,
+                   label="Median NN Lag")
         ax.set_xlim(XMIN, XMAX)
         ax.set_xlabel(r"Time Alignment Lag $|t_{\mathrm{img}} - t_{\mathrm{tab}}|$ (s)")
-        # Clean header: bold dataset name + ΔSkill subtitle, axes-fraction top.
-        ax.set_title(title, fontsize=TITLE_PT, fontweight="bold", pad=14)
-        ax.text(0.5, 1.02, sub, transform=ax.transAxes,
-                ha="center", va="bottom", fontsize=SUBTITLE_PT)
-        leg = ax.legend(frameon=False, loc="upper right")
-        leg.set_zorder(5)
+    # Single merged left-aligned titles (panel letter + dataset + Delta Skill).
+    axes[0].set_title(r"$\mathbf{(a)}$ Folsom ($\Delta\mathrm{Skill} = +0.186$)",
+                      loc="left", fontsize=TITLE_PT, pad=8)
+    axes[1].set_title(r"$\mathbf{(b)}$ SKIPP'D ($\Delta\mathrm{Skill} = -0.247$)",
+                      loc="left", fontsize=TITLE_PT, pad=8)
     axes[0].set_ylabel("Frame Count")
+    for ax in axes:
+        leg = ax.legend(frameon=False, loc="upper right")
+        leg.set_zorder(6)
 
-    fig.text(0.005, 0.985, "(a)", fontsize=9.5, fontweight="bold",
-             ha="left", va="top")
-    fig.text(0.515, 0.985, "(b)", fontsize=9.5, fontweight="bold",
-             ha="left", va="top")
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT.with_suffix(".pdf"))
-    fig.savefig(OUT.with_suffix(".png"), dpi=DPI_RASTER)
+    fig.savefig(OUT.with_suffix(".pdf"), bbox_inches="tight")
+    fig.savefig(OUT.with_suffix(".png"), dpi=DPI_RASTER, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {OUT}.pdf (+ .png)")
     return 0
