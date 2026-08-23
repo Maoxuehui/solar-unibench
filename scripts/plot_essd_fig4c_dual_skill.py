@@ -66,6 +66,7 @@ mpl.rcParams.update({
     "axes.axisbelow": True,
     "xtick.minor.visible": False,
     "ytick.minor.visible": False,
+    "axes.unicode_minus": False,   # real '-' glyphs from Arial (never boxes)
     "axes.facecolor": "white",
     "figure.facecolor": "white",
     "savefig.facecolor": "white",
@@ -86,7 +87,7 @@ def main() -> int:
     s = pd.read_csv(E8_SUMMARY)
     fig, axes = plt.subplots(
         2, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm),
-        gridspec_kw={"wspace": 0.28, "hspace": 0.42},
+        gridspec_kw={"wspace": 0.40, "hspace": 0.35},
     )
     tag = "a"
     for r, (metric, rowlab) in enumerate(ROWS):
@@ -105,25 +106,30 @@ def main() -> int:
                        linewidth=GRID_WIDTH + 0.2)
             ax.set_xticks(x, [f"{p} {unit}" for p in phys])
             ax.grid(which="minor", visible=False)
-            if r == 0:
-                ax.set_title(strip, fontsize=TEXT_SIZE_PT)
             if c == 0:
                 ax.set_ylabel(rowlab)
-            # (a)-(h) tag, top-left inside each panel
-            ax.text(0.02, 0.97, f"({tag})", transform=ax.transAxes,
-                    fontsize=PANEL_TAG_PT, fontweight="bold",
-                    ha="left", va="top")
+            # Panel letter OUTSIDE the axes, top-left — never touches data.
+            ax.set_title(f"$\\mathbf{{({tag})}}$", fontsize=PANEL_TAG_PT,
+                         loc="left", pad=3)
             tag = chr(ord(tag) + 1)
+
+    # Global column headers (Plan A): centered ABOVE each column, spanning
+    # both rows visually — dataset identity without per-panel titles.
+    for c, (_, strip, _, _, _) in enumerate(COLS):
+        pos = axes[0, c].get_position()
+        fig.text(pos.x0 + pos.width / 2, pos.y1 + 0.045, strip,
+                 ha="center", va="bottom", fontsize=TEXT_SIZE_PT,
+                 fontweight="bold")
 
     # Single-row unified legend at the very top, frameless.
     handles = [plt.Line2D([], [], marker="o", markersize=MARKER_SIZE + 2,
                           linewidth=LINE_WIDTH_DATA + 0.4,
                           color=MODEL_COLORS[m], label=m) for m in MODELS]
     fig.legend(handles=handles, ncol=7, loc="lower center",
-               bbox_to_anchor=(0.5, 0.985), frameon=False,
+               bbox_to_anchor=(0.5, 0.995), frameon=False,
                handletextpad=0.35, columnspacing=1.1)
 
-    fig.tight_layout(rect=(0, 0, 1, 0.955))
+    plt.subplots_adjust(wspace=0.40, hspace=0.35)   # labels never collide
     OUT.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT.with_suffix(".pdf"))
     fig.savefig(OUT.with_suffix(".png"), dpi=DPI_RASTER)

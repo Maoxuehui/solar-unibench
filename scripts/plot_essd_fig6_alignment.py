@@ -122,7 +122,7 @@ def main() -> int:
         if nn.size:
             ax.hist(nn, bins=bins, color=COL_NN, alpha=0.8,
                     edgecolor="black", linewidth=0.4,
-                    label=r"NN Matching ($\le 30\,\mathrm{s}$)")
+                    label=r"NN Matching ($\leq 30\,\mathrm{s}$)")
         if exact.size:
             ax.hist(exact, bins=bins, color=COL_EXACT, alpha=0.8,
                     edgecolor="black", linewidth=0.4, label="Exact Match")
