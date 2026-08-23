@@ -115,22 +115,23 @@ def main() -> int:
 
     # Layout FIRST (axes move), THEN compute header positions + legend from
     # the FINAL axes geometry — otherwise the top elements clip/misplace.
-    plt.subplots_adjust(wspace=0.40, hspace=0.35, top=0.90)
+    plt.subplots_adjust(wspace=0.40, hspace=0.35, top=0.86)
 
     # Global column headers (Plan A): centered ABOVE each column, spanning
     # both rows visually — dataset identity without per-panel titles.
     for c, (_, strip, _, _, _) in enumerate(COLS):
         pos = axes[0, c].get_position()
-        fig.text(pos.x0 + pos.width / 2, pos.y1 + 0.020, strip,
+        fig.text(pos.x0 + pos.width / 2, pos.y1 + 0.030, strip,
                  ha="center", va="bottom", fontsize=TEXT_SIZE_PT,
                  fontweight="bold")
 
-    # Single-row unified legend tucked just above the column headers.
+    # Single-row unified legend, frameless, hovering just ABOVE the dataset
+    # header row (bottom of legend ~0.010 above the header text baseline).
     handles = [plt.Line2D([], [], marker="o", markersize=MARKER_SIZE + 2,
                           linewidth=LINE_WIDTH_DATA + 0.4,
                           color=MODEL_COLORS[m], label=m) for m in MODELS]
     fig.legend(handles=handles, ncol=7, loc="lower center",
-               bbox_to_anchor=(0.5, 0.998), frameon=False,
+               bbox_to_anchor=(0.5, 0.945), frameon=False,
                handletextpad=0.35, columnspacing=1.1)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
