@@ -113,11 +113,15 @@ def main() -> int:
                          loc="left", pad=3)
             tag = chr(ord(tag) + 1)
 
+    # Layout FIRST (axes move), THEN compute header positions + legend from
+    # the FINAL axes geometry — otherwise the top elements clip/misplace.
+    plt.subplots_adjust(wspace=0.40, hspace=0.35, top=0.86)
+
     # Global column headers (Plan A): centered ABOVE each column, spanning
     # both rows visually — dataset identity without per-panel titles.
     for c, (_, strip, _, _, _) in enumerate(COLS):
         pos = axes[0, c].get_position()
-        fig.text(pos.x0 + pos.width / 2, pos.y1 + 0.045, strip,
+        fig.text(pos.x0 + pos.width / 2, pos.y1 + 0.030, strip,
                  ha="center", va="bottom", fontsize=TEXT_SIZE_PT,
                  fontweight="bold")
 
@@ -129,10 +133,9 @@ def main() -> int:
                bbox_to_anchor=(0.5, 0.995), frameon=False,
                handletextpad=0.35, columnspacing=1.1)
 
-    plt.subplots_adjust(wspace=0.40, hspace=0.35)   # labels never collide
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(OUT.with_suffix(".pdf"))
-    fig.savefig(OUT.with_suffix(".png"), dpi=DPI_RASTER)
+    fig.savefig(OUT.with_suffix(".pdf"), bbox_inches="tight")
+    fig.savefig(OUT.with_suffix(".png"), dpi=DPI_RASTER, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {OUT}.pdf (+ .png)")
     return 0
