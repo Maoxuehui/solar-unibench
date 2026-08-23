@@ -159,7 +159,7 @@ def fig1() -> None:
 
     fig, (ax1, ax2) = plt.subplots(
         1, 2, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 0.78),
-        gridspec_kw={"wspace": 0.30},
+        gridspec_kw={"wspace": 0.42},   # breathing room between (a) and (b)
     )
     xpos = np.arange(len(DS_ORDER))
     b1 = ax1.bar(xpos - 0.19, margins_mean, width=0.35, facecolor="#0072B2",
@@ -176,7 +176,8 @@ def fig1() -> None:
                      ha="center", va=va, fontsize=TEXT_SIZE_PT - 2.5, color=col)
     lo = min(margins_mean + margins_best); hi = max(margins_mean + margins_best)
     ax1.set_ylim(lo - 0.25 * (hi - lo), hi + 0.25 * (hi - lo))
-    ax1.set_xticks(xpos, [DS_LABELS[d] for d in DS_ORDER])
+    ax1.set_xticks(xpos, [DS_LABELS[d] for d in DS_ORDER],
+                   fontsize=TEXT_SIZE_PT - 2)
     ax1.set_ylabel(r"Crossover margin $\chi$ (skill difference)")
     ax1.legend(frameon=False, loc="upper left")
     # The chi definition formula, lower-left (kept from the gemini figure).
@@ -201,7 +202,7 @@ def fig1() -> None:
     ax2.text(4, mae[4] + 0.22 * span, r"$\downarrow$ $-13.1\%$",
              ha="center", va="bottom", fontsize=TEXT_SIZE_PT - 1,
              color="#D55E00", fontweight="bold")
-    ax2.set_xticks(np.arange(len(mae)), steps)
+    ax2.set_xticks(np.arange(len(mae)), steps, fontsize=TEXT_SIZE_PT - 2)
     ax2.set_ylabel(r"Daytime forecast error (MAE)")
     ax2.set_ylim(0.038, mae.max() + 0.70 * span)
     _no_minor(ax2)
