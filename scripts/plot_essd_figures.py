@@ -428,41 +428,61 @@ def fig5() -> None:
     )
     per_lead, decay = metrics["per_lead"], metrics["decay"]
 
-    fig = plt.figure(figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 1.05))
-    gs = fig.add_gridspec(2, 2, height_ratios=[1.0, 0.8], hspace=0.42, wspace=0.28)
+    # 180 x 130 mm: top row (a-d) image sequence, bottom row (e-f) decay.
+    fig = plt.figure(figsize=(WIDTH_MM * mm, 130 * mm))
+    gs = fig.add_gridspec(2, 1, height_ratios=[1.0, 0.72], hspace=0.50,
+                          wspace=0.26)
+    sub_img = gs[0].subgridspec(1, 4, wspace=0.06)
+    sub_line = gs[1].subgridspec(1, 2, wspace=0.30)
 
     k = 1 if 1 in per_lead else list(per_lead)[0]
     ch = e4._GALLERY_CHANNEL
-    imgs = (per_lead[k]["seed"][0, ch], per_lead[k]["pred"][0, ch],
-            per_lead[k]["truth"][0, ch], per_lead[k]["unc"][0])
-    sub = gs[0].subgridspec(1, 4, wspace=0.05)
-    titles = ("Context", f"Extrapolated ($K$={k})", "Observed", "Uncertainty")
-    for s_, im, t, cm in zip(sub, imgs, titles,
-                             ("inferno", "inferno", "inferno", "viridis")):
+    seed = per_lead[k]["seed"][0, ch]
+    pred = per_lead[k]["pred"][0, ch]
+    truth = per_lead[k]["truth"][0, ch]
+    unc = per_lead[k]["unc"][0]
+
+    # (a-c) share ONE inferno scale + a single colorbar; (d) keeps viridis.
+    img_axes = []
+    for s_, im, t in zip(
+            sub_img, (seed, pred, truth),
+            ("(a) Context Seed", f"(b) Extrapolated ($K$={k})", "(c) Ground Truth")):
         ax = fig.add_subplot(s_)
-        me = ax.imshow(im, cmap=cm)
+        me = ax.imshow(im, cmap="inferno", vmin=0.0, vmax=0.9)
         ax.set_title(t, fontsize=TEXT_SIZE_PT)
         ax.set_xticks([]); ax.set_yticks([]); ax.grid(False)
-        fig.colorbar(me, ax=ax, fraction=0.046, pad=0.04)
+        img_axes.append(ax)
+    cbar = fig.colorbar(me, ax=img_axes, fraction=0.025, pad=0.015)
+    cbar.ax.tick_params(labelsize=TEXT_SIZE_PT - 1)
+    ax = fig.add_subplot(sub_img[3])
+    me_u = ax.imshow(unc, cmap="viridis")
+    ax.set_title("(d) Alignment Uncertainty", fontsize=TEXT_SIZE_PT)
+    ax.set_xticks([]); ax.set_yticks([]); ax.grid(False)
+    cbar_u = fig.colorbar(me_u, ax=[ax], fraction=0.08, pad=0.04)
+    cbar_u.ax.tick_params(labelsize=TEXT_SIZE_PT - 1.5)
 
     psnr = np.asarray(decay["psnr_per_lead"], dtype=float)
     ssim = np.asarray(decay["ssim_per_lead"], dtype=float)
     kk = np.arange(1, psnr.size + 1)
-    ax_l = fig.add_subplot(gs[1, 0])
-    ax_l.plot(kk, psnr, color="#0072B2", marker="o", markersize=MARKER_SIZE + 2,
-              linewidth=LINE_WIDTH_DATA + 0.4)
-    ax_l.set_xlabel(r"Extrapolation lead $K$ (steps)")
+    ax_l = fig.add_subplot(sub_line[0])
+    ax_l.plot(kk, psnr, color=WONG_PALETTE[6], marker="o",
+              markersize=MARKER_SIZE + 2, linewidth=LINE_WIDTH_DATA + 0.4)
+    ax_l.set_xlabel(r"Forecast Horizon $K$ (steps)")
     ax_l.set_ylabel(r"PSNR (dB)")
+    ax_l.set_title("(e) PSNR Decay", fontsize=TEXT_SIZE_PT, loc="left")
+    ax_l.spines["top"].set_visible(False)
+    ax_l.spines["right"].set_visible(False)
     _no_minor(ax_l)
-    ax_r = fig.add_subplot(gs[1, 1])
-    ax_r.plot(kk, ssim, color="#D55E00", marker="s", markersize=MARKER_SIZE + 2,
-              linewidth=LINE_WIDTH_DATA + 0.4)
-    ax_r.set_xlabel(r"Extrapolation lead $K$ (steps)")
+    ax_r = fig.add_subplot(sub_line[1])
+    ax_r.plot(kk, ssim, color=WONG_PALETTE[0], marker="s",
+              markersize=MARKER_SIZE + 2, linewidth=LINE_WIDTH_DATA + 0.4)
+    ax_r.set_xlabel(r"Forecast Horizon $K$ (steps)")
     ax_r.set_ylabel(r"SSIM")
+    ax_r.set_title("(f) SSIM Decay", fontsize=TEXT_SIZE_PT, loc="left")
+    ax_r.spines["top"].set_visible(False)
+    ax_r.spines["right"].set_visible(False)
     _no_minor(ax_r)
 
-    _panel_tag(fig, 0.005, 0.995, "a")
-    _panel_tag(fig, 0.005, 0.50, "b")
     fig.tight_layout(rect=(0, 0, 1, 0.99))
     _save(fig, "fig5_optflow_quality")
 
