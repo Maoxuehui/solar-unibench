@@ -87,11 +87,12 @@ def main() -> int:
     # Equal image boxes: fixed margins + equal per-panel widths; the shared
     # colorbar returns BETWEEN (c) and (d) — those two get a wide gap by
     # shifting (d) right via position edit after layout.
-    plt.subplots_adjust(wspace=0.12, left=0.015, right=0.845,
+    plt.subplots_adjust(wspace=0.20, left=0.015, right=0.845,
                         top=0.82, bottom=0.02)
-    # Widen the (c)-(d) gap: move (d) to the freed right zone.
+    # Widen the (c)-(d) gap: move (d) to the freed right zone (slightly less
+    # than before — the tighter (a-c) spacing already reclaims some width).
     pos_d0 = axs[3].get_position()
-    axs[3].set_position([pos_d0.x0 + 0.145, pos_d0.y0,
+    axs[3].set_position([pos_d0.x0 + 0.118, pos_d0.y0,
                          pos_d0.width, pos_d0.height])
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
