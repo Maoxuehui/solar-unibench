@@ -113,9 +113,9 @@ def main() -> int:
     pos_c = axs[2].get_position()
     pos_d = axs[3].get_position()
     gap_mid = (pos_c.x1 + pos_d.x0) / 2
-    # Shift the whole radiance-bar stack a third of an image width toward (c)
-    # (per user request) while keeping clear air on both sides.
-    cb_x = gap_mid - 0.006 - pos_c.width / 3.0
+    # Radiance bar nudge RIGHT (off (c)'s edge) after the group moved closer
+    # to (d): drop the toward-(c) offset entirely, keep a small clear gap.
+    cb_x = gap_mid - 0.030
     cb_ax = fig.add_axes([cb_x, pos_c.y0,
                           0.011, pos_c.height])
     cbar = fig.colorbar(h, cax=cb_ax)
@@ -131,12 +131,12 @@ def main() -> int:
         s.set_visible(True)
     # (d)'s own small bar, far right, same fixed-width rule; label shortened
     # to avoid repeating 'uncertainty' from the panel title.
-    # Reliability bar slightly SHORTER than the image box (aesthetics: the
-    # bar should read as an annotation, not a full-height ruler).
-    inset = pos_d.height * 0.12
-    cbu_ax = fig.add_axes([pos_d.x1 + 0.006, pos_d.y0 + inset,
-                           0.008, pos_d.height - 2 * inset])
-    cbar_u = fig.colorbar(hu, cax=cbu_ax)
+    # Reliability bar: full image height again (user preference); the BAR's
+    # tick span is clipped to 0.65-0.95 without touching the image scaling
+    # (extend=none keeps the mapping, ticks set explicitly).
+    cbu_ax = fig.add_axes([pos_d.x1 + 0.006, pos_d.y0,
+                           0.008, pos_d.height])
+    cbar_u = fig.colorbar(hu, cax=cbu_ax, ticks=[0.65, 0.75, 0.85, 0.95])
     cbar_u.set_label("Reliability", fontsize=TEXT_SIZE_PT - 1,
                      rotation=90, labelpad=2)
     cbar_u.ax.tick_params(labelsize=TEXT_SIZE_PT - 1.5)
