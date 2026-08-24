@@ -112,7 +112,10 @@ def main() -> int:
     pos_c = axs[2].get_position()
     pos_d = axs[3].get_position()
     gap_mid = (pos_c.x1 + pos_d.x0) / 2
-    cb_ax = fig.add_axes([gap_mid - 0.006, pos_c.y0,
+    # Shift the whole radiance-bar stack a third of an image width toward (c)
+    # (per user request) while keeping clear air on both sides.
+    cb_x = gap_mid - 0.006 - pos_c.width / 3.0
+    cb_ax = fig.add_axes([cb_x, pos_c.y0,
                           0.011, pos_c.height])
     cbar = fig.colorbar(h, cax=cb_ax)
     cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT,
