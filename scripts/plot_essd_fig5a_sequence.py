@@ -86,8 +86,9 @@ def main() -> int:
     fig, axs = plt.subplots(1, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
     # Equal image boxes: fixed margins + equal per-panel widths; both
     # colorbars live in manually-placed axes so they never steal panel space.
-    # Tight inter-panel wspace frees the left edge for the shared colorbar.
-    plt.subplots_adjust(wspace=0.12, left=0.155, right=0.985,
+    # Left edge is RESERVED for the shared colorbar (bar + rotated label +
+    # tick numbers need ~0.20 fig-width); the four panels fit to its right.
+    plt.subplots_adjust(wspace=0.12, left=0.205, right=0.985,
                         top=0.82, bottom=0.02)
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
@@ -102,11 +103,12 @@ def main() -> int:
         ax.set_xticks([]); ax.set_yticks([])
         for s in ax.spines.values():
             s.set_visible(True)
-    # SINGLE shared colorbar LEFT of the strip (own fixed-width axes; a left
-    # column never collides with (d)) — (a)-(d) keep identical boxes/baselines.
+    # SINGLE shared colorbar LEFT of the strip, fully inside the reserved
+    # left margin (bar sits at ~0.14-0.155; its label renders further left
+    # and CANNOT touch panel (a) which starts at 0.205).
     pos_a = axs[0].get_position()
     pos_d = axs[3].get_position()
-    cb_ax = fig.add_axes([pos_a.x0 - 0.050, pos_a.y0,
+    cb_ax = fig.add_axes([pos_a.x0 - 0.062, pos_a.y0,
                           0.011, pos_a.height])
     cbar = fig.colorbar(h, cax=cb_ax)
     cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT,
