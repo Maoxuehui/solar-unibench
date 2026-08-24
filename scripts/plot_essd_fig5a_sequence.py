@@ -86,7 +86,8 @@ def main() -> int:
     fig, axs = plt.subplots(1, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
     # Equal image boxes: fixed margins + equal per-panel widths; both
     # colorbars live in manually-placed axes so they never steal panel space.
-    plt.subplots_adjust(wspace=0.25, left=0.135, right=0.985,
+    # Tight inter-panel wspace frees the left edge for the shared colorbar.
+    plt.subplots_adjust(wspace=0.12, left=0.155, right=0.985,
                         top=0.82, bottom=0.02)
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
@@ -105,11 +106,11 @@ def main() -> int:
     # column never collides with (d)) — (a)-(d) keep identical boxes/baselines.
     pos_a = axs[0].get_position()
     pos_d = axs[3].get_position()
-    cb_ax = fig.add_axes([pos_a.x0 - 0.045, pos_a.y0,
-                          0.010, pos_a.height])
+    cb_ax = fig.add_axes([pos_a.x0 - 0.050, pos_a.y0,
+                          0.011, pos_a.height])
     cbar = fig.colorbar(h, cax=cb_ax)
     cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT,
-                   rotation=90, labelpad=3)
+                   rotation=90, labelpad=4)
     cbar.ax.tick_params(labelsize=TEXT_SIZE_PT - 1)
 
     ax_d = axs[3]
