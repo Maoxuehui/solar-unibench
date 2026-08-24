@@ -84,7 +84,10 @@ def _gallery() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 def main() -> int:
     seed, pred, truth, unc = _gallery()
     fig, axs = plt.subplots(1, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
-    plt.subplots_adjust(wspace=0.25, left=0.02, right=0.90, top=0.82, bottom=0.02)
+    # Equal image boxes: fixed margins + equal per-panel widths; both
+    # colorbars live in manually-placed axes so they never steal panel space.
+    plt.subplots_adjust(wspace=0.25, left=0.015, right=0.985,
+                        top=0.82, bottom=0.02)
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
               r"$\mathbf{(b)}$ Extrapolated ($K=1$)",
@@ -98,8 +101,13 @@ def main() -> int:
         ax.set_xticks([]); ax.set_yticks([])
         for s in ax.spines.values():
             s.set_visible(True)
-    # SINGLE shared colorbar right of (c) — uses the (c) axes mappable.
-    cbar = fig.colorbar(h, ax=list(axs[:3]), fraction=0.035, pad=0.02)
+    # SINGLE shared colorbar between (c) and (d), in its own fixed-width
+    # axes — (a)-(d) keep identical image boxes and title baselines.
+    pos_c = axs[2].get_position()
+    pos_d = axs[3].get_position()
+    cb_ax = fig.add_axes([pos_c.x1 + 0.012, pos_c.y0,
+                          0.010, pos_c.height])
+    cbar = fig.colorbar(h, cax=cb_ax)
     cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT)
     cbar.ax.tick_params(labelsize=TEXT_SIZE_PT - 1)
 
@@ -109,7 +117,10 @@ def main() -> int:
     ax_d.set_xticks([]); ax_d.set_yticks([])
     for s in ax_d.spines.values():
         s.set_visible(True)
-    cbar_u = fig.colorbar(hu, ax=[ax_d], fraction=0.085, pad=0.04)
+    # (d)'s own small bar, far right, same fixed width rule.
+    cbu_ax = fig.add_axes([pos_d.x1 + 0.006, pos_d.y0,
+                           0.008, pos_d.height])
+    cbar_u = fig.colorbar(hu, cax=cbu_ax)
     cbar_u.set_label("Uncertainty", fontsize=TEXT_SIZE_PT - 1)
     cbar_u.ax.tick_params(labelsize=TEXT_SIZE_PT - 1.5)
 
