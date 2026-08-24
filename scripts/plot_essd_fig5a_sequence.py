@@ -83,21 +83,15 @@ def _gallery() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
 def main() -> int:
     seed, pred, truth, unc = _gallery()
-    fig, axs = plt.subplots(1, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
-    # Equal image boxes: fixed margins + equal per-panel widths; the shared
-    # colorbar returns BETWEEN (c) and (d) — those two get a wide gap by
-    # shifting (d) right via position edit after layout.
-    plt.subplots_adjust(wspace=0.20, left=0.015, right=0.845,
-                        top=0.82, bottom=0.02)
-    # Widen the (c)-(d) gap: move (d) to the freed right zone (slightly less
-    # than before — the tighter (a-c) spacing already reclaims some width).
-    pos_d0 = axs[3].get_position()
-    axs[3].set_position([pos_d0.x0 + 0.095, pos_d0.y0,
-                         pos_d0.width, pos_d0.height])
+    fig, axs = plt.subplots(1, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 1.16))
+    # Tight uniform strip: all four images side by side; both colorbars live
+    # BELOW (radiance spans a-c, reliability under d) - nothing splits the row.
+    plt.subplots_adjust(wspace=0.08, left=0.015, right=0.985,
+                        top=0.84, bottom=0.30)
 
-    titles = (r"$\mathbf{(a)}$ Context (seed)",
+    titles = (r"$\mathbf{(a)}$ Context input",
               r"$\mathbf{(b)}$ Extrapolated ($K = 1$)",
-              r"$\mathbf{(c)}$ Real future",
+              r"$\mathbf{(c)}$ Ground truth",
               r"$\mathbf{(d)}$ Reliability")
     imgs = (seed, pred, truth)
     for ax, im, t in zip(axs[:3], imgs, titles[:3]):
@@ -107,21 +101,6 @@ def main() -> int:
         ax.set_xticks([]); ax.set_yticks([])
         for s in ax.spines.values():
             s.set_visible(True)
-    # SINGLE shared colorbar back BETWEEN (c) and (d): the wide reserved gap
-    # (~0.13 fig-width) holds bar + rotated label + ticks comfortably.
-    pos_a = axs[0].get_position()
-    pos_c = axs[2].get_position()
-    pos_d = axs[3].get_position()
-    gap_mid = (pos_c.x1 + pos_d.x0) / 2
-    # Radiance bar nudge RIGHT (off (c)'s edge) after the group moved closer
-    # to (d): drop the toward-(c) offset entirely, keep a small clear gap.
-    cb_x = gap_mid - 0.030
-    cb_ax = fig.add_axes([cb_x, pos_c.y0,
-                          0.011, pos_c.height])
-    cbar = fig.colorbar(h, cax=cb_ax)
-    cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT,
-                   rotation=90, labelpad=10)
-    cbar.ax.tick_params(labelsize=TEXT_SIZE_PT - 1)
 
     ax_d = axs[3]
     hu = ax_d.imshow(unc, cmap="Blues", aspect="equal")   # distinct ramp
@@ -129,17 +108,27 @@ def main() -> int:
     ax_d.set_xticks([]); ax_d.set_yticks([])
     for s in ax_d.spines.values():
         s.set_visible(True)
-    # (d)'s own small bar, far right, same fixed-width rule; label shortened
-    # to avoid repeating 'uncertainty' from the panel title.
-    # Reliability bar: full image height again (user preference); the BAR's
-    # tick span is clipped to 0.65-0.95 without touching the image scaling
-    # (extend=none keeps the mapping, ticks set explicitly).
-    cbu_ax = fig.add_axes([pos_d.x1 + 0.006, pos_d.y0,
-                           0.008, pos_d.height])
-    cbar_u = fig.colorbar(hu, cax=cbu_ax, ticks=[0.65, 0.75, 0.85, 0.95])
-    cbar_u.set_label("Reliability", fontsize=TEXT_SIZE_PT - 1,
-                     rotation=90, labelpad=2)
-    cbar_u.ax.tick_params(labelsize=TEXT_SIZE_PT - 1.5)
+
+    pos_a = axs[0].get_position()
+    pos_c = axs[2].get_position()
+    pos_d = axs[3].get_position()
+    # HORIZONTAL radiance bar spanning (a)-(c), directly beneath the row.
+    bar_h = 0.030
+    cb_ax = fig.add_axes([pos_a.x0, pos_a.y0 - 0.085,
+                          pos_c.x1 - pos_a.x0, bar_h])
+    cbar = fig.colorbar(h, cax=cb_ax, orientation="horizontal")
+    cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT, labelpad=2)
+    cbar.ax.tick_params(labelsize=TEXT_SIZE_PT - 1)
+    cbar.ax.xaxis.set_major_formatter(plt.FormatStrFormatter("%.2f"))
+
+    # HORIZONTAL reliability bar under (d) only, aligned to the same depth.
+    cbu_ax = fig.add_axes([pos_d.x0, pos_d.y0 - 0.085,
+                           pos_d.width, bar_h])
+    cbar_u = fig.colorbar(hu, cax=cbu_ax, orientation="horizontal",
+                          ticks=[0.65, 0.80, 0.95])
+    cbar_u.set_label("Reliability", fontsize=TEXT_SIZE_PT, labelpad=2)
+    cbar_u.ax.tick_params(labelsize=TEXT_SIZE_PT - 1)
+    cbar_u.ax.xaxis.set_major_formatter(plt.FormatStrFormatter("%.2f"))
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT.with_suffix(".pdf"), bbox_inches="tight")
