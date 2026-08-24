@@ -105,7 +105,7 @@ def main() -> int:
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-    plt.subplots_adjust(left=0.095, right=0.87, wspace=0.30,
+    plt.subplots_adjust(left=0.095, right=0.86, wspace=0.52,
                         bottom=0.16, top=0.87)
     cbar_ax = fig.add_axes([0.895, 0.18, 0.016, 0.64])
     cb = fig.colorbar(hb, cax=cbar_ax)
