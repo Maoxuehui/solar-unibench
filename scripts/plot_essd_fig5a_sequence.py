@@ -95,7 +95,7 @@ def main() -> int:
                          pos_d0.width, pos_d0.height])
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
-              r"$\mathbf{(b)}$ Extrapolated ($K=1$)",
+              r"$\mathbf{(b)}$ Extrapolated ($K = 1$)",
               r"$\mathbf{(c)}$ Real future",
               r"$\mathbf{(d)}$ Reliability")
     imgs = (seed, pred, truth)
@@ -116,7 +116,7 @@ def main() -> int:
                           0.011, pos_c.height])
     cbar = fig.colorbar(h, cax=cb_ax)
     cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT,
-                   rotation=90, labelpad=4)
+                   rotation=90, labelpad=10)
     cbar.ax.tick_params(labelsize=TEXT_SIZE_PT - 1)
 
     ax_d = axs[3]
