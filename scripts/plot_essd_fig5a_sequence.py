@@ -92,7 +92,7 @@ def main() -> int:
     # Widen the (c)-(d) gap: move (d) to the freed right zone (slightly less
     # than before — the tighter (a-c) spacing already reclaims some width).
     pos_d0 = axs[3].get_position()
-    axs[3].set_position([pos_d0.x0 + 0.118, pos_d0.y0,
+    axs[3].set_position([pos_d0.x0 + 0.095, pos_d0.y0,
                          pos_d0.width, pos_d0.height])
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
@@ -131,8 +131,11 @@ def main() -> int:
         s.set_visible(True)
     # (d)'s own small bar, far right, same fixed-width rule; label shortened
     # to avoid repeating 'uncertainty' from the panel title.
-    cbu_ax = fig.add_axes([pos_d.x1 + 0.006, pos_d.y0,
-                           0.008, pos_d.height])
+    # Reliability bar slightly SHORTER than the image box (aesthetics: the
+    # bar should read as an annotation, not a full-height ruler).
+    inset = pos_d.height * 0.12
+    cbu_ax = fig.add_axes([pos_d.x1 + 0.006, pos_d.y0 + inset,
+                           0.008, pos_d.height - 2 * inset])
     cbar_u = fig.colorbar(hu, cax=cbu_ax)
     cbar_u.set_label("Reliability", fontsize=TEXT_SIZE_PT - 1,
                      rotation=90, labelpad=2)
