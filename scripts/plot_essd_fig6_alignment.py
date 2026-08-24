@@ -163,6 +163,7 @@ def main() -> int:
     axes[1].set_title(r"$\mathbf{(b)}$ SKIPP'D ($\Delta\mathrm{Skill} = -0.247$)",
                       loc="left", fontsize=TITLE_PT, pad=8)
     axes[0].set_ylabel("Frame Count")
+    axes[1].set_ylabel("Frame Count")
     for ax in axes:
         leg = ax.legend(frameon=False, loc="upper right")
         leg.set_zorder(6)
