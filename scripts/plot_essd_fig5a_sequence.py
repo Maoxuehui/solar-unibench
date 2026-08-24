@@ -84,12 +84,15 @@ def _gallery() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 def main() -> int:
     seed, pred, truth, unc = _gallery()
     fig, axs = plt.subplots(1, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
-    # Equal image boxes: fixed margins + equal per-panel widths; both
-    # colorbars live in manually-placed axes so they never steal panel space.
-    # Left edge is RESERVED for the shared colorbar (bar + rotated label +
-    # tick numbers need ~0.20 fig-width); the four panels fit to its right.
-    plt.subplots_adjust(wspace=0.12, left=0.205, right=0.985,
+    # Equal image boxes: fixed margins + equal per-panel widths; the shared
+    # colorbar returns BETWEEN (c) and (d) — those two get a wide gap by
+    # shifting (d) right via position edit after layout.
+    plt.subplots_adjust(wspace=0.12, left=0.015, right=0.845,
                         top=0.82, bottom=0.02)
+    # Widen the (c)-(d) gap: move (d) to the freed right zone.
+    pos_d0 = axs[3].get_position()
+    axs[3].set_position([pos_d0.x0 + 0.145, pos_d0.y0,
+                         pos_d0.width, pos_d0.height])
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
               r"$\mathbf{(b)}$ Extrapolated ($K=1$)",
@@ -103,13 +106,14 @@ def main() -> int:
         ax.set_xticks([]); ax.set_yticks([])
         for s in ax.spines.values():
             s.set_visible(True)
-    # SINGLE shared colorbar LEFT of the strip, fully inside the reserved
-    # left margin (bar sits at ~0.14-0.155; its label renders further left
-    # and CANNOT touch panel (a) which starts at 0.205).
+    # SINGLE shared colorbar back BETWEEN (c) and (d): the wide reserved gap
+    # (~0.13 fig-width) holds bar + rotated label + ticks comfortably.
     pos_a = axs[0].get_position()
+    pos_c = axs[2].get_position()
     pos_d = axs[3].get_position()
-    cb_ax = fig.add_axes([pos_a.x0 - 0.062, pos_a.y0,
-                          0.011, pos_a.height])
+    gap_mid = (pos_c.x1 + pos_d.x0) / 2
+    cb_ax = fig.add_axes([gap_mid - 0.006, pos_c.y0,
+                          0.011, pos_c.height])
     cbar = fig.colorbar(h, cax=cb_ax)
     cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT,
                    rotation=90, labelpad=4)
