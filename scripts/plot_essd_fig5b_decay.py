@@ -81,16 +81,16 @@ def main() -> int:
 
     axs[0].plot(kk, psnr, color=COL_PSNR, marker="o",
                 markersize=MARKER_SIZE + 2, linewidth=LINE_WIDTH_DATA + 0.4)
-    axs[0].set_title(r"$\mathbf{(a)}$ PSNR (dB)", loc="left",
-                     fontsize=TITLE_PT, pad=8)
-    axs[0].set_xlabel(r"Forecast Horizon $K$ (steps)")
+    axs[0].set_title(r"$\mathbf{(a)}$", loc="left",
+                     fontsize=TITLE_PT, pad=10)
+    axs[0].set_xlabel(r"Forecast horizon $K$ (steps)")
     axs[0].set_ylabel(r"PSNR (dB)")
 
     axs[1].plot(kk, ssim, color=COL_SSIM, marker="s",
                 markersize=MARKER_SIZE + 2, linewidth=LINE_WIDTH_DATA + 0.4)
-    axs[1].set_title(r"$\mathbf{(b)}$ SSIM", loc="left",
-                     fontsize=TITLE_PT, pad=8)
-    axs[1].set_xlabel(r"Forecast Horizon $K$ (steps)")
+    axs[1].set_title(r"$\mathbf{(b)}$", loc="left",
+                     fontsize=TITLE_PT, pad=10)
+    axs[1].set_xlabel(r"Forecast horizon $K$ (steps)")
     axs[1].set_ylabel(r"SSIM")
     axs[1].set_ylim(SSIM_YMIN, SSIM_YMAX)   # kill the dead space below 0.5
 

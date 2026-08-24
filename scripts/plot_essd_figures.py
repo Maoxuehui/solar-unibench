@@ -467,7 +467,7 @@ def fig5() -> None:
     ax_l = fig.add_subplot(sub_line[0])
     ax_l.plot(kk, psnr, color=WONG_PALETTE[6], marker="o",
               markersize=MARKER_SIZE + 2, linewidth=LINE_WIDTH_DATA + 0.4)
-    ax_l.set_xlabel(r"Forecast Horizon $K$ (steps)")
+    ax_l.set_xlabel(r"Forecast horizon $K$ (steps)")
     ax_l.set_ylabel(r"PSNR (dB)")
     ax_l.set_title("(e) PSNR Decay", fontsize=TEXT_SIZE_PT, loc="left")
     ax_l.spines["top"].set_visible(False)
@@ -476,7 +476,7 @@ def fig5() -> None:
     ax_r = fig.add_subplot(sub_line[1])
     ax_r.plot(kk, ssim, color=WONG_PALETTE[0], marker="s",
               markersize=MARKER_SIZE + 2, linewidth=LINE_WIDTH_DATA + 0.4)
-    ax_r.set_xlabel(r"Forecast Horizon $K$ (steps)")
+    ax_r.set_xlabel(r"Forecast horizon $K$ (steps)")
     ax_r.set_ylabel(r"SSIM")
     ax_r.set_title("(f) SSIM Decay", fontsize=TEXT_SIZE_PT, loc="left")
     ax_r.spines["top"].set_visible(False)
