@@ -86,13 +86,13 @@ def main() -> int:
     fig, axs = plt.subplots(1, 4, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
     # Equal image boxes: fixed margins + equal per-panel widths; both
     # colorbars live in manually-placed axes so they never steal panel space.
-    plt.subplots_adjust(wspace=0.25, left=0.075, right=0.985,
+    plt.subplots_adjust(wspace=0.25, left=0.135, right=0.985,
                         top=0.82, bottom=0.02)
 
     titles = (r"$\mathbf{(a)}$ Context (seed)",
               r"$\mathbf{(b)}$ Extrapolated ($K=1$)",
               r"$\mathbf{(c)}$ Real future",
-              r"$\mathbf{(d)}$ Reliability (uncertainty)")
+              r"$\mathbf{(d)}$ Reliability")
     imgs = (seed, pred, truth)
     for ax, im, t in zip(axs[:3], imgs, titles[:3]):
         h = ax.imshow(im, cmap="inferno", vmin=VMIN, vmax=VMAX,
@@ -105,7 +105,7 @@ def main() -> int:
     # column never collides with (d)) — (a)-(d) keep identical boxes/baselines.
     pos_a = axs[0].get_position()
     pos_d = axs[3].get_position()
-    cb_ax = fig.add_axes([pos_a.x0 - 0.030, pos_a.y0,
+    cb_ax = fig.add_axes([pos_a.x0 - 0.045, pos_a.y0,
                           0.010, pos_a.height])
     cbar = fig.colorbar(h, cax=cb_ax)
     cbar.set_label("Normalized radiance", fontsize=TEXT_SIZE_PT,
