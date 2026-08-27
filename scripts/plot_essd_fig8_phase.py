@@ -37,12 +37,13 @@ GRID_COLOR = "#E5E5E5"
 GRID_WIDTH = 0.3
 TITLE_PT = 10
 
-MOD_COLORS = {"TSI": "#56B4E9", "MET": "#E69F00", "NWP": "#009E73"}
+#: Line styling matched to fig3_benchmark_horizon_lines: uniform thin lines
+#: (LINE_WIDTH_DATA + 0.4 = 1.0) + small markers (MARKER_SIZE + 2 = 3.5),
+#: Wong palette order as in the rest of the set.
+MOD_COLORS = {"MET": "#E69F00", "TSI": "#56B4E9", "NWP": "#009E73"}
 MOD_LABELS = {"TSI": "TSI", "MET": "Surface MET", "NWP": "NAM NWP (Control)"}
-#: Plan-B hierarchy: MET is the protagonist, TSI/NWP recede as background.
-MOD_STYLE = {"MET": dict(linewidth=2.5, markersize=7),
-             "TSI": dict(linewidth=1.5, markersize=5),
-             "NWP": dict(linewidth=1.5, markersize=5)}
+MOD_STYLE = {g: dict(linewidth=LINE_WIDTH_DATA + 0.4,
+                     markersize=MARKER_SIZE + 2) for g in MOD_COLORS}
 BEST_MET_DELTA = 30          # the discovered systematic clock delay (min)
 
 mpl.rcParams.update({
