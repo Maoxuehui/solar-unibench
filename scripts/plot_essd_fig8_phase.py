@@ -38,7 +38,12 @@ GRID_WIDTH = 0.3
 TITLE_PT = 10
 
 MOD_COLORS = {"TSI": "#56B4E9", "MET": "#E69F00", "NWP": "#009E73"}
-MOD_LABELS = {"TSI": "TSI Features", "MET": "Surface Met", "NWP": "NAM NWP"}
+MOD_LABELS = {"TSI": "TSI", "MET": "Surface MET", "NWP": "NAM NWP (Control)"}
+#: Plan-B hierarchy: MET is the protagonist, TSI/NWP recede as background.
+MOD_STYLE = {"MET": dict(linewidth=2.5, markersize=7),
+             "TSI": dict(linewidth=1.5, markersize=5),
+             "NWP": dict(linewidth=1.5, markersize=5)}
+BEST_MET_DELTA = 30          # the discovered systematic clock delay (min)
 
 mpl.rcParams.update({
     "font.family": FONT_FAMILY,
@@ -74,25 +79,48 @@ OUT = _REPO_ROOT / "figures_essd" / "fig8_phase_response"
 def main() -> int:
     res = pd.read_csv(RESULTS)
     fig, axes = plt.subplots(1, 2, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
-    plt.subplots_adjust(wspace=0.32, left=0.09, right=0.97, top=0.82, bottom=0.17)
+    plt.subplots_adjust(wspace=0.32, left=0.09, right=0.97, top=0.86, bottom=0.17)
 
-    for ax, metric, title in ((axes[0], "rmse", r"$\mathbf{(a)}$ RMSE"),
-                              (axes[1], "mae", r"$\mathbf{(b)}$ MAE")):
+    for ax, metric, title in ((axes[0], "rmse", r"$\mathbf{(a)}$"),
+                              (axes[1], "mae", r"$\mathbf{(b)}$")):
         for g, d in res.groupby("modality"):
             d = d.sort_values("delta_min")
+            st = MOD_STYLE[g]
             ax.plot(d.delta_min, d[metric], marker="o",
-                    markersize=MARKER_SIZE + 2,
-                    linewidth=LINE_WIDTH_DATA + 0.4,
-                    color=MOD_COLORS[g], label=MOD_LABELS[g])
+                    markersize=st["markersize"],
+                    linewidth=st["linewidth"],
+                    color=MOD_COLORS[g], label=MOD_LABELS[g],
+                    zorder=5 if g == "MET" else 3)
+        # baseline clock line (grey) + the discovered MET delay (light red)
         ax.axvline(0, color="#A0A0A0", linestyle="--", linewidth=GRID_WIDTH + 0.2)
-        ax.set_xlabel(r"Clock phase shift $\Delta$ (min)")
-        ax.set_ylabel(f"Validation {metric.upper()} (W m$^{{-2}}$)"
-                      if metric == "rmse" else f"Validation {metric.upper()} (W m$^{{-2}}$)")
+        ax.axvline(BEST_MET_DELTA, color="#E66A6A", linestyle="--",
+                   linewidth=1.0, alpha=0.7, zorder=2)
+        ax.set_xlabel(r"Clock phase shift $\Delta$ [min]")
+        ax.set_ylabel((r"Validation RMSE [W$\cdot$m$^{-2}$]" if metric == "rmse"
+                       else r"Validation MAE [W$\cdot$m$^{-2}$]"))
         ax.set_title(title, loc="left", fontsize=TITLE_PT, pad=10)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-    axes[0].legend(frameon=False, loc="upper left")
+    # Annotate the discovered systematic delay above the +30 min line (once,
+    # on the left panel where the V-shape minimum is most visible).
+    ax0 = axes[0]
+    ymin, ymax = ax0.get_ylim()
+    ax0.text(BEST_MET_DELTA, ymax - 0.03 * (ymax - ymin),
+             r"$\hat{\Delta}_{\mathrm{MET}} = +30$ min",
+             ha="center", va="top", fontsize=TEXT_SIZE_PT - 0.5,
+             color="#C04040",
+             bbox=dict(boxstyle="round,pad=0.25", facecolor="white",
+                       edgecolor="none", alpha=0.85))
+
+    # Single-row horizontal legend floating ABOVE both panels (no occlusion).
+    handles, labels = axes[0].get_legend_handles_labels()
+    order = ["MET", "TSI", "NWP"]
+    label_to_handle = dict(zip(labels, handles))
+    ordered = [label_to_handle[MOD_LABELS[g]] for g in order]
+    fig.legend(ordered, [MOD_LABELS[g] for g in order],
+               ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.02),
+               frameon=False, handletextpad=0.4, columnspacing=1.4)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT.with_suffix(".pdf"), bbox_inches="tight")
