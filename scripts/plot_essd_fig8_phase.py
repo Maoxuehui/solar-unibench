@@ -79,7 +79,7 @@ OUT = _REPO_ROOT / "figures_essd" / "fig8_phase_response"
 def main() -> int:
     res = pd.read_csv(RESULTS)
     fig, axes = plt.subplots(1, 2, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm))
-    plt.subplots_adjust(wspace=0.32, left=0.09, right=0.97, top=0.80, bottom=0.17)
+    plt.subplots_adjust(wspace=0.32, left=0.09, right=0.97, top=0.86, bottom=0.17)
 
     for ax, metric, title in ((axes[0], "rmse", r"$\mathbf{(a)}$"),
                               (axes[1], "mae", r"$\mathbf{(b)}$")):
@@ -102,14 +102,14 @@ def main() -> int:
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-    # Annotate the discovered systematic delay in the EMPTY lower band of the
-    # left panel (below the V-shape minimum, clear of every curve — the MET
-    # minimum at ~136 sits high; the floor below 145 is data-free).
+    # Annotate the discovered systematic delay in the MID-UPPER band of the
+    # left panel, offset RIGHT of the +30 min line so the dashed vline does
+    # not strike through the text (that was the 'ghosting').
     ax0 = axes[0]
     ymin, ymax = ax0.get_ylim()
-    ax0.text(BEST_MET_DELTA, ymin + 0.10 * (ymax - ymin),
+    ax0.text(BEST_MET_DELTA + 6, ymin + 0.55 * (ymax - ymin),
              r"$\hat{\Delta}_{\mathrm{MET}} = +30$ min",
-             ha="left", va="bottom", fontsize=TEXT_SIZE_PT - 0.5,
+             ha="left", va="center", fontsize=TEXT_SIZE_PT - 0.5,
              color="#C04040",
              bbox=dict(boxstyle="round,pad=0.25", facecolor="white",
                        edgecolor="none", alpha=0.9))
@@ -120,7 +120,7 @@ def main() -> int:
     label_to_handle = dict(zip(labels, handles))
     ordered = [label_to_handle[MOD_LABELS[g]] for g in order]
     fig.legend(ordered, [MOD_LABELS[g] for g in order],
-               ncol=3, loc="lower center", bbox_to_anchor=(0.5, 1.00),
+               ncol=3, loc="lower center", bbox_to_anchor=(0.5, 0.985),
                frameon=False, handletextpad=0.4, columnspacing=1.4)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
