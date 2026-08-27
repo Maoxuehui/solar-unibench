@@ -237,7 +237,7 @@ median image↔scalar lag **1.0 s**. Downstream 1 h LightGBM:
 | unaligned | 139.2 | −0.398 |
 | **aligned** | **101.1** | **−0.212** |
 
-Alignment halves the skill deficit (**skill_gain +0.186**); conclusion
+Alignment halves the skill deficit (**skill_gain +0.619**); conclusion
 re-verified on the merged tree with 3× more imagery than the first pass.
 
 ---

@@ -78,7 +78,7 @@ OUT = _REPO_ROOT / "figures_essd" / "fig6_alignment_lag"
 
 #: Panel spec: dataset -> (title, ΔSkill subtitle text).
 _PANELS = [
-    ("folsom", "Folsom", r"$\Delta\mathrm{Skill} = +0.186$"),
+    ("folsom", "Folsom", r"$\Delta\mathrm{Skill} = +0.619$"),
     ("skippd", "SKIPP'D", r"$\Delta\mathrm{Skill} = -0.247$"),
 ]
 
@@ -158,7 +158,7 @@ def main() -> int:
         ax.set_xlim(XMIN, XMAX)
         ax.set_xlabel(r"Time Alignment Lag $|t_{\mathrm{img}} - t_{\mathrm{tab}}|$ (s)")
     # Single merged left-aligned titles (panel letter + dataset + Delta Skill).
-    axes[0].set_title(r"$\mathbf{(a)}$ Folsom ($\Delta\mathrm{Skill} = +0.186$)",
+    axes[0].set_title(r"$\mathbf{(a)}$ Folsom ($\Delta\mathrm{Skill} = +0.619$)",
                       loc="left", fontsize=TITLE_PT, pad=8)
     axes[1].set_title(r"$\mathbf{(b)}$ SKIPP'D ($\Delta\mathrm{Skill} = -0.247$)",
                       loc="left", fontsize=TITLE_PT, pad=8)
