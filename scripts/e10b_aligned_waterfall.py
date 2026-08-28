@@ -142,51 +142,49 @@ def main() -> int:
         "+hygiene": gov,
         "+phase_rect": phase_rectify(gov.copy(), PHASE_DELTA_MIN),
     }
-    # The MET stream is a FEATURE in every stage (like the E10 sweep) so the
-    # phase shift at stage 3 actually bites; clear-sky adds the anchors on top.
-    met_feats = tuple(MET_COLS)
+    # v5 — MET-INFORMED BASELINE: target-lag + the 5 raw MET columns are in
+    # the feature set from Stage 1 (no baseline-shift artifacts; every later
+    # delta is measured on the fully-informed base). Counterfactual branch:
+    # +30 min MET shift applied on top of Stage 2 (sub-sampled discrete grid),
+    # then clear-sky layered on the distorted space.
+    MET_F = tuple(MET_COLS)
     feature_sets = {
-        "raw": met_feats,
-        "+hygiene": met_feats,
-        "+phase_rect": met_feats,
-        "+clear_sky": met_feats + ("ghi_clearsky", "cos_zenith"),
+        "base": MET_F,
+        "+hygiene": MET_F,
+        "+clear_sky": MET_F + ("ghi_clearsky", "cos_zenith"),
     }
-    # For the clear-sky stage the frame is the PHASE-RECTIFIED one (stage 4
-    # stacks on stage 3); for the sibling waterfall (no phase stage) it stacks
-    # on hygiene directly — measured separately below.
 
     rows = []
-    # --- aligned 4-stage cascade -------------------------------------------
-    prev_mae = None
-    cum = None
-    for stage in ("raw", "+hygiene", "+phase_rect", "+clear_sky"):
-        frame = frames.get(stage, frames["+phase_rect"])  # clear_sky reuses #3
-        fcols = feature_sets[stage]
-        train = frame.iloc[:n_tr].reset_index(drop=True)
-        test = cleaned_ref.iloc[test_slice].reset_index(drop=True)
-        r = eval_stage(train, test, fcols)
-        r.update({"stage": stage, "waterfall": "aligned_4stage",
-                  "delta_mae_pct": None if prev_mae is None
-                  else (r["mae"] / prev_mae - 1.0) * 100.0})
-        rows.append(r)
-        prev_mae = r["mae"]
-        print(f"  [aligned] {stage:<14} MAE={r['mae']:.4f}"
-              f"  ({'' if prev_mae is None else ''})", flush=True)
 
-    # --- sibling 3-stage (hygiene -> clear-sky directly) --------------------
-    prev_mae = None
-    for stage in ("raw", "+hygiene", "+clear_sky"):
-        frame = frames.get(stage, frames["+hygiene"])
-        fcols = feature_sets[stage]
+    def run_cell(waterfall: str, stage: str, frame: pd.DataFrame, fcols,
+                 ref_mae) -> float:
         train = frame.iloc[:n_tr].reset_index(drop=True)
         test = cleaned_ref.iloc[test_slice].reset_index(drop=True)
         r = eval_stage(train, test, fcols)
-        r.update({"stage": stage, "waterfall": "sibling_3stage",
-                  "delta_mae_pct": None if prev_mae is None
-                  else (r["mae"] / prev_mae - 1.0) * 100.0})
+        r.update({"stage": stage, "waterfall": waterfall,
+                  "delta_mae_pct": (None if ref_mae is None
+                                    else (r["mae"] / ref_mae - 1.0) * 100.0)})
         rows.append(r)
-        prev_mae = r["mae"]
-        print(f"  [sibling ] {stage:<14} MAE={r['mae']:.4f}", flush=True)
+        return r["mae"]
+
+    # --- MAIN 3-stage pipeline (MET-informed baseline) -----------------------
+    base_mae = run_cell("main_3stage", "base", raw, feature_sets["base"], None)
+    print(f"  [main ] base          MAE={base_mae:.4f}", flush=True)
+    hyg_mae = run_cell("main_3stage", "+hygiene", gov,
+                       feature_sets["+hygiene"], base_mae)
+    print(f"  [main ] +hygiene      MAE={hyg_mae:.4f}", flush=True)
+    cs_mae = run_cell("main_3stage", "+clear_sky", gov,
+                      feature_sets["+clear_sky"], hyg_mae)
+    print(f"  [main ] +clear_sky    MAE={cs_mae:.4f}", flush=True)
+
+    # --- COUNTERFACTUAL stress branch (branches from Stage 2) ---------------
+    cf = frames["+phase_rect"]
+    pr_mae = run_cell("counterfactual", "+phase_rect", cf,
+                      MET_F, hyg_mae)
+    print(f"  [cf   ] +phase_rect   MAE={pr_mae:.4f}", flush=True)
+    prcs_mae = run_cell("counterfactual", "+phase_rect_clear_sky", cf,
+                        feature_sets["+clear_sky"], pr_mae)
+    print(f"  [cf   ] +clear_sky_on_distorted  MAE={prcs_mae:.4f}", flush=True)
 
     res = pd.DataFrame(rows)[["waterfall", "stage", "mae", "delta_mae_pct", "n_test"]]
     out = Path("figures_full/results/results_e10b_aligned_waterfall.csv")
@@ -194,15 +192,17 @@ def main() -> int:
     res.to_csv(out, index=False)
     print(f"\nwrote {out}", flush=True)
 
-    a = res[res.waterfall == "aligned_4stage"].set_index("stage")["mae"]
-    print("\n| waterfall | raw | +hygiene | +phase_rect | +clear_sky | net |")
-    print("|---|---|---|---|---|---|")
-    print(f"| aligned 4-stage | {a['raw']:.4f} | {a['+hygiene']:.4f} "
-          f"| {a['+phase_rect']:.4f} | {a['+clear_sky']:.4f} "
-          f"| {(a['+clear_sky']/a['raw']-1)*100:+.1f}% |")
-    print(f"| sibling 3-stage | {a['raw']:.4f} | {a['+hygiene']:.4f} | — "
-          f"| {res[(res.waterfall=='sibling_3stage')&(res.stage=='+clear_sky')].mae.iloc[0]:.4f} "
-          f"| {(res[(res.waterfall=='sibling_3stage')&(res.stage=='+clear_sky')].mae.iloc[0]/a['raw']-1)*100:+.1f}% |")
+    m = dict(base=base_mae, hyg=hyg_mae, cs=cs_mae, pr=pr_mae, prcs=prcs_mae)
+    print("")
+    print("| branch | stage | MAE | delta% |")
+    print("|---|---|---|---|")
+    print(f"| main | base (MET-informed) | {m['base']:.4f} | — |")
+    print(f"| main | +hygiene | {m['hyg']:.4f} | {(m['hyg']/m['base']-1)*100:+.2f}% |")
+    print(f"| main | +clear_sky | {m['cs']:.4f} | {(m['cs']/m['hyg']-1)*100:+.2f}% |")
+    print(f"| main | NET | {m['cs']:.4f} | {(m['cs']/m['base']-1)*100:+.2f}% |")
+    print(f"| cf | +phase_rect (vs +hygiene) | {m['pr']:.4f} | {(m['pr']/m['hyg']-1)*100:+.2f}% |")
+    print(f"| cf | +clear_sky on distorted (vs +phase_rect) | {m['prcs']:.4f} | {(m['prcs']/m['pr']-1)*100:+.2f}% |")
+    print(f"| cf | recalibration gap (cf-final vs main-final) | {m['prcs']:.4f} vs {m['cs']:.4f} | {(m['prcs']/m['cs']-1)*100:+.2f}% |")
 
     # ---------------- figure -------------------------------------------------
     import matplotlib
@@ -211,27 +211,31 @@ def main() -> int:
     from solarunibench.viz.style import set_style
 
     set_style("light")
-    stages = ["Raw", "+Hygiene", "+Phase\nRectification", "+Clear-sky"]
-    mae = [a[s] for s in ("raw", "+hygiene", "+phase_rect", "+clear_sky")]
-    fig, ax = plt.subplots(figsize=(8.0, 4.6))
-    colors = ["#08306b", "#2171b5", "#D55E00", "#009E73"]
-    bars = ax.bar(np.arange(4), mae, width=0.62, facecolor=colors, edgecolor="none")
-    span = max(mae) - min(mae)
-    for i, v in enumerate(mae):
-        ax.text(i, v + 0.012 * span, f"{v:.4f}", ha="center", va="bottom",
-                fontsize=9, color="black")
-    for i in range(1, 4):
-        pct = (mae[i] / mae[i - 1] - 1) * 100
-        ax.annotate("", xy=(i, mae[i]), xytext=(i - 1, mae[i - 1]),
-                    arrowprops=dict(arrowstyle="->", color="#D55E00", lw=1.0,
-                                    connectionstyle="arc3,rad=-0.25"))
-        ax.text(i - 0.5, max(mae[i], mae[i - 1]) + 0.07 * span, f"{pct:+.1f}%",
-                ha="center", fontsize=8.5, color="#C04040")
-    ax.set_xticks(np.arange(4), stages, fontsize=9)
+    # MAIN pipeline bars (solid) + counterfactual overlay (hatched, offset).
+    stages = ["Base", "+Hygiene", "+Clear-sky"]
+    main_mae = [base_mae, hyg_mae, cs_mae]
+    cf_mae = [hyg_mae, pr_mae, prcs_mae]   # branch origin at Stage 2
+    fig, ax = plt.subplots(figsize=(8.4, 4.6))
+    colors = ["#08306b", "#2171b5", "#009E73"]
+    x = np.arange(3)
+    ax.bar(x - 0.16, main_mae, width=0.30, facecolor=colors,
+           edgecolor="none", label="main pipeline")
+    ax.bar(x + 0.16, cf_mae, width=0.30, facecolor="#D55E00", alpha=0.55,
+           hatch="//", edgecolor="#D55E00", linewidth=0.5,
+           label="counterfactual (+30 min MET shift)")
+    span = max(main_mae + cf_mae) - min(main_mae + cf_mae)
+    for xi, v in zip(x - 0.16, main_mae):
+        ax.text(xi, v + 0.012 * span, f"{v:.4f}", ha="center", va="bottom",
+                fontsize=8, color="black")
+    for xi, v in zip(x + 0.16, cf_mae):
+        ax.text(xi, v + 0.012 * span, f"{v:.4f}", ha="center", va="bottom",
+                fontsize=8, color="#C04040")
+    ax.set_xticks(x, stages, fontsize=9)
     ax.set_ylabel("Daytime MAE (LightGBM, scaled)")
-    ax.set_ylim(0, max(mae) + 0.22 * span)
-    ax.set_title("Folsom aligned governance waterfall — "
-                 "phase rectification measured in-line", fontsize=10, loc="left")
+    ax.set_ylim(0, max(main_mae + cf_mae) + 0.25 * span)
+    ax.legend(frameon=False, fontsize=8.5, loc="upper right")
+    ax.set_title("Folsom governance waterfall v5 — MET-informed baseline + "
+                 "phase-shift counterfactual", fontsize=10, loc="left")
     fig.tight_layout()
     fig_path = Path("figures_full/fig_e10b_aligned_waterfall.png")
     fig.savefig(fig_path, dpi=300, bbox_inches="tight")
