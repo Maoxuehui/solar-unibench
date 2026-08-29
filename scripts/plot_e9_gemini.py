@@ -93,33 +93,41 @@ def _panel_a(ax: plt.Axes) -> None:
 
 
 def _panel_b(ax: plt.Axes) -> None:
-    steps = ["Raw\nBaseline", "+Night", "+Range\nClamp", "+UTC\nAlign", "+ClearSky\nFeatures"]
-    mae = [0.0532, 0.0542, 0.0542, 0.0542, 0.0462]
-    # Monotone blue ramp (dark -> light) for governance steps; the final
-    # breakthrough step flips to the high-contrast orange emphasis.
-    ramp = ["#08306b", "#2171b5", "#4292c6", "#6baed6"]
-    colors = ramp + [ORANGE]
-    bars = ax.bar(np.arange(len(mae)), mae, width=0.62, facecolor=colors,
+    """(b) Governance waterfall — the MET-informed 3-stage variant (E10b-MET).
+
+    Values are read LIVE from results_e10b_waterfall_met.csv (no hardcoding);
+    Base/+Hygiene keep the blue ramp of panel (a), the +Clear-sky
+    breakthrough bar + its connector + the -7.51% label carry panel (a)'s
+    academic orange.
+    """
+    import pandas as pd
+
+    res = pd.read_csv(_REPO_ROOT / "figures_full" / "results"
+                      / "results_e10b_waterfall_met.csv")
+    m = res[res.waterfall == "main_3stage"].set_index("stage")["mae"]
+    mae = [float(m["base"]), float(m["+hygiene"]), float(m["+clear_sky"])]
+    steps = ["Base (Target-lag + 5 MET)", "+Hygiene", "+Clear-sky"]
+
+    colors = ["#08306b", "#2171b5", ORANGE]   # blue ramp -> academic orange
+    bars = ax.bar(np.arange(3), mae, width=0.55, facecolor=colors,
                   edgecolor="none")
     ax.axhline(0.0, color="black", linewidth=0.8)
     span = max(mae) - min(mae)
     for i, (b, v) in enumerate(zip(bars, mae)):
-        # Absolute MAE value just above the bar top.
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.012 * span, f"{v:.4f}",
+        ax.text(b.get_x() + b.get_width() / 2, v + 0.22 * span, f"{v:.5f}",
                 ha="center", va="bottom", fontsize=9, color="black")
-        if i < 4:
-            note = "no-op"
-            ncol, nfw = "0.25", "normal"
-        else:
-            note = r"$\downarrow$ $-13.1\%$"
-            ncol, nfw = ORANGE, "bold"
-        # Note floats well above the value (no overlap with it).
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.16 * span, note,
-                ha="center", va="bottom", fontsize=10, color=ncol,
-                fontweight=nfw)
-    ax.set_xticks(np.arange(len(mae)), steps, fontsize=9.5)
+    for i in (1, 2):
+        pct = (mae[i] / mae[i - 1] - 1) * 100
+        ax.annotate("", xy=(i, mae[i]), xytext=(i - 1, mae[i - 1]),
+                    arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.0,
+                                    connectionstyle="arc3,rad=-0.15"))
+        band = 0.20 if i == 2 else 0.14
+        ax.text(i - 0.5, max(mae[i], mae[i - 1]) + band * span,
+                f"{pct:+.2f}%", ha="center", va="bottom", fontsize=8.5,
+                color=ORANGE)
+    ax.set_xticks(np.arange(3), steps, fontsize=9.5)
     ax.set_ylabel(r"Daytime Forecast Error (MAE)")
-    ax.set_ylim(0.038, max(mae) + 0.58 * span)   # headroom for note + value
+    ax.set_ylim(0.04, max(mae) + 0.42 * span)   # headroom for both bands
     ax.grid(axis="y", linestyle="--", alpha=0.15)
     ax.set_axisbelow(True)
 
