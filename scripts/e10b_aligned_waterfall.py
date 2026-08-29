@@ -177,14 +177,9 @@ def main() -> int:
                       feature_sets["+clear_sky"], hyg_mae)
     print(f"  [main ] +clear_sky    MAE={cs_mae:.4f}", flush=True)
 
-    # --- COUNTERFACTUAL stress branch (branches from Stage 2) ---------------
-    cf = frames["+phase_rect"]
-    pr_mae = run_cell("counterfactual", "+phase_rect", cf,
-                      MET_F, hyg_mae)
-    print(f"  [cf   ] +phase_rect   MAE={pr_mae:.4f}", flush=True)
-    prcs_mae = run_cell("counterfactual", "+phase_rect_clear_sky", cf,
-                        feature_sets["+clear_sky"], pr_mae)
-    print(f"  [cf   ] +clear_sky_on_distorted  MAE={prcs_mae:.4f}", flush=True)
+    # --- COUNTERFACTUAL stress branch: RETIRED in this variant (user: this
+    # experiment excludes the phase-shift alignment). The main 3-stage
+    # MET-informed pipeline above is the complete result.
 
     res = pd.DataFrame(rows)[["waterfall", "stage", "mae", "delta_mae_pct", "n_test"]]
     out = Path("figures_full/results/results_e10b_aligned_waterfall.csv")
@@ -192,7 +187,7 @@ def main() -> int:
     res.to_csv(out, index=False)
     print(f"\nwrote {out}", flush=True)
 
-    m = dict(base=base_mae, hyg=hyg_mae, cs=cs_mae, pr=pr_mae, prcs=prcs_mae)
+    m = dict(base=base_mae, hyg=hyg_mae, cs=cs_mae)
     print("")
     print("| branch | stage | MAE | delta% |")
     print("|---|---|---|---|")
@@ -200,9 +195,6 @@ def main() -> int:
     print(f"| main | +hygiene | {m['hyg']:.4f} | {(m['hyg']/m['base']-1)*100:+.2f}% |")
     print(f"| main | +clear_sky | {m['cs']:.4f} | {(m['cs']/m['hyg']-1)*100:+.2f}% |")
     print(f"| main | NET | {m['cs']:.4f} | {(m['cs']/m['base']-1)*100:+.2f}% |")
-    print(f"| cf | +phase_rect (vs +hygiene) | {m['pr']:.4f} | {(m['pr']/m['hyg']-1)*100:+.2f}% |")
-    print(f"| cf | +clear_sky on distorted (vs +phase_rect) | {m['prcs']:.4f} | {(m['prcs']/m['pr']-1)*100:+.2f}% |")
-    print(f"| cf | recalibration gap (cf-final vs main-final) | {m['prcs']:.4f} vs {m['cs']:.4f} | {(m['prcs']/m['cs']-1)*100:+.2f}% |")
 
     # ---------------- figure -------------------------------------------------
     import matplotlib
@@ -211,31 +203,29 @@ def main() -> int:
     from solarunibench.viz.style import set_style
 
     set_style("light")
-    # MAIN pipeline bars (solid) + counterfactual overlay (hatched, offset).
-    stages = ["Base", "+Hygiene", "+Clear-sky"]
+    # MET-only 3-stage waterfall (phase-shift counterfactual excluded here).
+    stages = ["Base\n(Target-lag + 5 MET)", "+Hygiene", "+Clear-sky"]
     main_mae = [base_mae, hyg_mae, cs_mae]
-    cf_mae = [hyg_mae, pr_mae, prcs_mae]   # branch origin at Stage 2
-    fig, ax = plt.subplots(figsize=(8.4, 4.6))
+    fig, ax = plt.subplots(figsize=(7.6, 4.4))
     colors = ["#08306b", "#2171b5", "#009E73"]
     x = np.arange(3)
-    ax.bar(x - 0.16, main_mae, width=0.30, facecolor=colors,
-           edgecolor="none", label="main pipeline")
-    ax.bar(x + 0.16, cf_mae, width=0.30, facecolor="#D55E00", alpha=0.55,
-           hatch="//", edgecolor="#D55E00", linewidth=0.5,
-           label="counterfactual (+30 min MET shift)")
-    span = max(main_mae + cf_mae) - min(main_mae + cf_mae)
-    for xi, v in zip(x - 0.16, main_mae):
+    ax.bar(x, main_mae, width=0.55, facecolor=colors, edgecolor="none")
+    span = max(main_mae) - min(main_mae)
+    for xi, v in zip(x, main_mae):
         ax.text(xi, v + 0.012 * span, f"{v:.4f}", ha="center", va="bottom",
-                fontsize=8, color="black")
-    for xi, v in zip(x + 0.16, cf_mae):
-        ax.text(xi, v + 0.012 * span, f"{v:.4f}", ha="center", va="bottom",
-                fontsize=8, color="#C04040")
+                fontsize=9, color="black")
+    for i in (1, 2):
+        pct = (main_mae[i] / main_mae[i - 1] - 1) * 100
+        ax.annotate("", xy=(i, main_mae[i]), xytext=(i - 1, main_mae[i - 1]),
+                    arrowprops=dict(arrowstyle="->", color="#D55E00", lw=1.0,
+                                    connectionstyle="arc3,rad=-0.25"))
+        ax.text(i - 0.5, max(main_mae[i], main_mae[i - 1]) + 0.06 * span,
+                f"{pct:+.2f}%", ha="center", fontsize=8.5, color="#C04040")
     ax.set_xticks(x, stages, fontsize=9)
     ax.set_ylabel("Daytime MAE (LightGBM, scaled)")
-    ax.set_ylim(0, max(main_mae + cf_mae) + 0.25 * span)
-    ax.legend(frameon=False, fontsize=8.5, loc="upper right")
-    ax.set_title("Folsom governance waterfall v5 — MET-informed baseline + "
-                 "phase-shift counterfactual", fontsize=10, loc="left")
+    ax.set_ylim(0, max(main_mae) + 0.25 * span)
+    ax.set_title("Folsom governance waterfall — MET-informed baseline",
+                 fontsize=10, loc="left")
     fig.tight_layout()
     fig_path = Path("figures_full/fig_e10b_aligned_waterfall.png")
     fig.savefig(fig_path, dpi=300, bbox_inches="tight")
