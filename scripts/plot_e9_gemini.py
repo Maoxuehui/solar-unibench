@@ -115,7 +115,7 @@ def _panel_b(ax: plt.Axes) -> None:
     span = max(mae) - min(mae)
     for i, (b, v) in enumerate(zip(bars, mae)):
         ax.text(b.get_x() + b.get_width() / 2, v + 0.22 * span, f"{v:.5f}",
-                ha="center", va="bottom", fontsize=9, color="black")
+                ha="center", va="bottom", fontsize=8.5, color="black")
     for i in (1, 2):
         pct = (mae[i] / mae[i - 1] - 1) * 100
         ax.annotate("", xy=(i, mae[i]), xytext=(i - 1, mae[i - 1]),
@@ -123,7 +123,7 @@ def _panel_b(ax: plt.Axes) -> None:
                                     connectionstyle="arc3,rad=-0.15"))
         # -7.51% sits slightly BELOW -0.15%'s band (its column pair
         # spans lower; visually anchors the deeper drop).
-        band = 0.02 if i == 2 else 0.14
+        band = 0.0 if i == 2 else 0.14
         ax.text(i - 0.5, max(mae[i], mae[i - 1]) + band * span,
                 f"{pct:+.2f}%", ha="center", va="bottom", fontsize=8.5,
                 color=ORANGE)
@@ -140,7 +140,7 @@ def main() -> int:
     _panel_a(axes[0])
     _panel_b(axes[1])
     fig.text(0.012, 0.955, "(a)", fontsize=13, fontweight="bold")
-    fig.text(0.545, 0.955, "(b)", fontsize=13, fontweight="bold")
+    fig.text(0.415, 0.955, "(b)", fontsize=13, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.945))
     fig.savefig(OUT.with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     fig.savefig(OUT.with_suffix(".png"), dpi=300, bbox_inches="tight")
