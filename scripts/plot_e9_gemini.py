@@ -65,10 +65,10 @@ def _panel_a(ax: plt.Axes) -> None:
     disp, vs_mean, vs_best = _compute_frontier()
     xpos = np.arange(len(disp))
     b1 = ax.bar(xpos - 0.19, vs_mean, width=0.35, facecolor=BLUE, edgecolor="none",
-                label=r"vs.\ deep-model $\mu$")
+                label=r"vs. deep-model $\mu$")
     b2 = ax.bar(xpos + 0.19, vs_best, width=0.35, facecolor=ORANGE,
                 edgecolor=ORANGE, linewidth=0.5, hatch="//",
-                label=r"vs.\ deep-model best")
+                label=r"vs. deep-model best")
     ax.axhline(0.0, color="black", linewidth=0.8)
     for bars, vals, col in ((b1, vs_mean, BLUE), (b2, vs_best, ORANGE)):
         for b, v in zip(bars, vals):
@@ -123,7 +123,7 @@ def _panel_b(ax: plt.Axes) -> None:
                                     connectionstyle="arc3,rad=-0.15"))
         # -7.51% sits slightly BELOW -0.15%'s band (its column pair
         # spans lower; visually anchors the deeper drop).
-        band = 0.08 if i == 2 else 0.14
+        band = 0.02 if i == 2 else 0.14
         ax.text(i - 0.5, max(mae[i], mae[i - 1]) + band * span,
                 f"{pct:+.2f}%", ha="center", va="bottom", fontsize=8.5,
                 color=ORANGE)
