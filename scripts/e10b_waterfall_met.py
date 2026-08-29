@@ -204,6 +204,10 @@ def main() -> int:
 
     set_style("light")
     # MET-only 3-stage waterfall (phase-shift counterfactual excluded here).
+    # ESSD pass: raw unrounded metrics from the run (no hardcoded numbers),
+    # 5-decimal bar labels so the -0.15% hygiene no-op reads 0.05304 ->
+    # 0.05296, no embedded title (caption owns the description), gentler
+    # arcs + generous top headroom so no text or curve touches the boundary.
     stages = ["Base\n(Target-lag + 5 MET)", "+Hygiene", "+Clear-sky"]
     main_mae = [base_mae, hyg_mae, cs_mae]
     fig, ax = plt.subplots(figsize=(7.6, 4.4))
@@ -212,24 +216,24 @@ def main() -> int:
     ax.bar(x, main_mae, width=0.55, facecolor=colors, edgecolor="none")
     span = max(main_mae) - min(main_mae)
     for xi, v in zip(x, main_mae):
-        ax.text(xi, v + 0.012 * span, f"{v:.4f}", ha="center", va="bottom",
+        ax.text(xi, v + 0.018 * span, f"{v:.5f}", ha="center", va="bottom",
                 fontsize=9, color="black")
     for i in (1, 2):
         pct = (main_mae[i] / main_mae[i - 1] - 1) * 100
         ax.annotate("", xy=(i, main_mae[i]), xytext=(i - 1, main_mae[i - 1]),
                     arrowprops=dict(arrowstyle="->", color="#D55E00", lw=1.0,
-                                    connectionstyle="arc3,rad=-0.25"))
-        ax.text(i - 0.5, max(main_mae[i], main_mae[i - 1]) + 0.06 * span,
-                f"{pct:+.2f}%", ha="center", fontsize=8.5, color="#C04040")
+                                    connectionstyle="arc3,rad=-0.15"))
+        ax.text(i - 0.5, max(main_mae[i], main_mae[i - 1]) + 0.10 * span,
+                f"{pct:+.2f}%", ha="center", va="bottom", fontsize=8.5,
+                color="#C04040")
     ax.set_xticks(x, stages, fontsize=9)
     ax.set_ylabel("Daytime MAE (LightGBM, scaled)")
-    ax.set_ylim(0, max(main_mae) + 0.25 * span)
-    ax.set_title("Folsom governance waterfall — MET-informed baseline",
-                 fontsize=10, loc="left")
+    ax.set_ylim(0, max(main_mae) + 0.42 * span)   # breathing room, no title
     fig.tight_layout()
     fig_path = Path("figures_full/fig_e10b_waterfall_met.png")
     fig.savefig(fig_path, dpi=300, bbox_inches="tight")
-    print(f"wrote {fig_path}", flush=True)
+    fig.savefig(fig_path.with_suffix(".pdf"), bbox_inches="tight")
+    print(f"wrote {fig_path} (+ .pdf)", flush=True)
     return 0
 
 
