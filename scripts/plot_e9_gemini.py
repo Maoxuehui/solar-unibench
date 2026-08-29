@@ -126,7 +126,7 @@ def _panel_b(ax: plt.Axes) -> None:
         band = 0.0 if i == 2 else 0.14
         ax.text(i - 0.5, max(mae[i], mae[i - 1]) + band * span,
                 f"{pct:+.2f}%", ha="center", va="bottom", fontsize=8.5,
-                color=ORANGE)
+                color=ORANGE, fontweight="bold")
     ax.set_xticks(np.arange(3), steps, fontsize=9.5)
     ax.set_ylabel(r"Daytime Forecast Error (MAE)")
     ax.set_ylim(0.04, max(mae) + 0.42 * span)   # headroom for both bands
@@ -139,8 +139,12 @@ def main() -> int:
                              gridspec_kw={"wspace": 0.28})
     _panel_a(axes[0])
     _panel_b(axes[1])
-    fig.text(0.012, 0.955, "(a)", fontsize=13, fontweight="bold")
-    fig.text(0.415, 0.955, "(b)", fontsize=13, fontweight="bold")
+    # Subfigure tags in AXES coordinates: above the outer edge of each
+    # panel's y-label column (-0.22 aligns with the label text).
+    axes[0].text(-0.22, 1.05, "(a)", transform=axes[0].transAxes,
+                 fontsize=14, fontweight="bold", va="bottom", ha="left")
+    axes[1].text(-0.22, 1.05, "(b)", transform=axes[1].transAxes,
+                 fontsize=14, fontweight="bold", va="bottom", ha="left")
     fig.tight_layout(rect=(0, 0, 1, 0.945))
     fig.savefig(OUT.with_suffix(".pdf"), dpi=300, bbox_inches="tight")
     fig.savefig(OUT.with_suffix(".png"), dpi=300, bbox_inches="tight")
