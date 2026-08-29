@@ -216,14 +216,17 @@ def main() -> int:
     ax.bar(x, main_mae, width=0.55, facecolor=colors, edgecolor="none")
     span = max(main_mae) - min(main_mae)
     for xi, v in zip(x, main_mae):
-        ax.text(xi, v + 0.22 * span, f"{v:.5f}", ha="center", va="bottom",
+        ax.text(xi, v + 0.24 * span, f"{v:.5f}", ha="center", va="bottom",
                 fontsize=9, color="black")
     for i in (1, 2):
         pct = (main_mae[i] / main_mae[i - 1] - 1) * 100
         ax.annotate("", xy=(i, main_mae[i]), xytext=(i - 1, main_mae[i - 1]),
                     arrowprops=dict(arrowstyle="->", color="#D55E00", lw=1.0,
                                     connectionstyle="arc3,rad=-0.15"))
-        ax.text(i - 0.5, max(main_mae[i], main_mae[i - 1]) + 0.14 * span,
+        # -7.51% spans a taller column pair (0.05296 -> 0.04899); lift
+        # its band a touch more so it sits clear of the arc apex.
+        _band = 0.20 if i == 2 else 0.14
+        ax.text(i - 0.5, max(main_mae[i], main_mae[i - 1]) + _band * span,
                 f"{pct:+.2f}%", ha="center", va="bottom", fontsize=8.5,
                 color="#C04040")
     ax.set_xticks(x, stages, fontsize=9)
