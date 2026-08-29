@@ -121,7 +121,9 @@ def _panel_b(ax: plt.Axes) -> None:
         ax.annotate("", xy=(i, mae[i]), xytext=(i - 1, mae[i - 1]),
                     arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.0,
                                     connectionstyle="arc3,rad=-0.15"))
-        band = 0.20 if i == 2 else 0.14
+        # -7.51% sits slightly BELOW -0.15%'s band (its column pair
+        # spans lower; visually anchors the deeper drop).
+        band = 0.08 if i == 2 else 0.14
         ax.text(i - 0.5, max(mae[i], mae[i - 1]) + band * span,
                 f"{pct:+.2f}%", ha="center", va="bottom", fontsize=8.5,
                 color=ORANGE)
