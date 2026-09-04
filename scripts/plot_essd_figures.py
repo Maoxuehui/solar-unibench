@@ -400,8 +400,8 @@ def fig4() -> None:
 
     # Concise academic sub-titles carry the panel letters — no corner tags
     # (they duplicated the letters).
-    ax1.set_title("(a) Timestamp Gaps", fontsize=TEXT_SIZE_PT, loc="left", pad=3)
-    ax2.set_title("(b) Column-Wise Missingness (%)", fontsize=TEXT_SIZE_PT,
+    ax1.set_title("(a) Timestamp gaps", fontsize=TEXT_SIZE_PT, loc="left", pad=3)
+    ax2.set_title("(b) Column-wise missingness (%)", fontsize=TEXT_SIZE_PT,
                   loc="left", pad=3)
     fig.tight_layout(rect=(0, 0.05, 1, 0.96))
     fig.subplots_adjust(left=0.075, wspace=0.42)   # (b) y-labels clear of (a)
