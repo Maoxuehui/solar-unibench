@@ -38,8 +38,9 @@ WONG_PALETTE = ["#E69F00", "#56B4E9", "#009E73", "#CC79A7",
                 "#D55E00", "#F0E442", "#0072B2", "#000000"]
 GRID_COLOR = "#E8E8E8"
 GRID_WIDTH = 0.5
-DIAGONAL_COLOR = "#000000"   # black y=x reference — decoupled from the
-                              # viridis colorbar, CVD-safe against every ramp step
+DIAGONAL_COLOR = "#E63946"   # high-contrast red y=x reference — viridis has
+                              # no red hue, so the diagonal separates from every
+                              # ramp step
 STATS_PT = 8.5
 TITLE_PT = 10
 
@@ -87,7 +88,7 @@ def main() -> int:
         hb = ax.hexbin(ghi, recon, gridsize=80, cmap="viridis", mincnt=1,
                        edgecolors="none", extent=[0, lim, 0, lim], zorder=2)
         ax.plot([0, lim], [0, lim], color=DIAGONAL_COLOR, linestyle="--",
-                linewidth=1.5, label="y = x (perfect closure)", zorder=3)
+                linewidth=1.2, label="y = x (perfect closure)", zorder=3)
         ax.set_xlim(0, lim); ax.set_ylim(0, lim)
         ax.grid(**grid_kw)
         ax.set_title(title, loc="left", fontsize=TITLE_PT, pad=10)
