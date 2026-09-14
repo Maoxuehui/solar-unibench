@@ -38,7 +38,8 @@ WONG_PALETTE = ["#E69F00", "#56B4E9", "#009E73", "#CC79A7",
                 "#D55E00", "#F0E442", "#0072B2", "#000000"]
 GRID_COLOR = "#E8E8E8"
 GRID_WIDTH = 0.5
-DIAGONAL_COLOR = "#F2E06B"   # bright reference yellow — readable over viridis
+DIAGONAL_COLOR = "#000000"   # black y=x reference — decoupled from the
+                              # viridis colorbar, CVD-safe against every ramp step
 STATS_PT = 8.5
 TITLE_PT = 10
 
