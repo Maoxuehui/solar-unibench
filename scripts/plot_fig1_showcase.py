@@ -185,7 +185,7 @@ def draw_modalities(fig, rect) -> None:
     im = ax4.imshow(mn, aspect="auto", cmap="RdBu_r", vmin=-2, vmax=2,
                     interpolation="nearest")
     ax4.set_xticks([0, 11, 23], ["0", "12", "23"], fontsize=7)
-    ax4.set_yticks([0, 5, 11], ["V78", "V157", "V228"], fontsize=7)
+    ax4.set_yticks([0, 5, 11], ["TCC", "RH", "TP"], fontsize=7)
     ax4.set_xlabel("hour of day", fontsize=7.5, labelpad=1.5)
     cax = fig.add_axes([x0 + 3 * (iw + gap) + 0.62 * iw,
                         y_img - 0.022, 0.34 * iw, 0.010])
