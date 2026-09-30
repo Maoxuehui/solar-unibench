@@ -170,24 +170,24 @@ def draw_modalities(fig, rect) -> None:
             sp.set_color("#111111"); sp.set_linewidth(1.0)
         return ax
 
-    # (b1) SKIPP'D sky RGB
-    _mk(0).imshow(pick_skippd_frame(), interpolation="nearest")
-    # (b2) Folsom GOES 10x10, honest pixelated look
-    _mk(1).imshow(pick_folsom_goes(), cmap="gray", interpolation="nearest")
-    # (b3) SunLake SEVIRI VIS006
-    _mk(2).imshow(pick_sunlake_patch(), cmap=CMAP_VIS, vmin=0, vmax=0.9,
-                  interpolation="nearest")
-    # (b4) GEFCom NWP heatmap 12 vars x 24 h, normalized per variable
+    # (b1) Folsom GOES 10x10, honest pixelated look
+    _mk(0).imshow(pick_folsom_goes(), cmap="gray", interpolation="nearest")
+    # (b2) GEFCom NWP heatmap 12 vars x 24 h, normalized per variable
     m, vars12 = pick_gefcom_heatmap()
     mn = (m - m.mean(axis=1, keepdims=True)) \
         / (m.std(axis=1, keepdims=True) + 1e-9)
-    ax4 = _mk(3)
+    ax4 = _mk(1)
     im = ax4.imshow(mn, aspect="auto", cmap="RdBu_r", vmin=-2, vmax=2,
                     interpolation="nearest")
     ax4.set_xticks([0, 11, 23], ["0", "12", "23"], fontsize=7)
     ax4.set_yticks([0, 3, 4, 11], ["CW", "RH", "TCC", "TP"], fontsize=7)
     ax4.set_xlabel("hour of day", fontsize=7.5, labelpad=1.5)
-    cax = fig.add_axes([x0 + 3 * (iw + gap) + 0.62 * iw,
+    # (b3) SunLake SEVIRI VIS006
+    _mk(2).imshow(pick_sunlake_patch(), cmap=CMAP_VIS, vmin=0, vmax=0.9,
+                  interpolation="nearest")
+    # (b4) SKIPP'D sky RGB
+    _mk(3).imshow(pick_skippd_frame(), interpolation="nearest")
+    cax = fig.add_axes([x0 + 1 * (iw + gap) + 0.33 * iw,
                         y_img - 0.022, 0.34 * iw, 0.010])
     cb = fig.colorbar(im, cax=cax, orientation="horizontal")
     cb.set_ticks([-2, 0, 2]); cb.ax.tick_params(labelsize=6.5, length=2,
@@ -199,8 +199,8 @@ def draw_modalities(fig, rect) -> None:
                  ha="left", va="top",
                  bbox=dict(boxstyle="square,pad=0.18", facecolor="black",
                            alpha=0.55, edgecolor="none"))
-    caps = ["SKIPP'D sky RGB\n64 × 64", "Folsom GOES-15\n10 × 10 px",
-            "SunLake SEVIRI RSS\n64 × 64, 11-ch", "GEFCom2014 NWP\n12 vars × 24 h"]
+    caps = ["Folsom GOES-15\n10 × 10 px", "GEFCom2014 NWP\n12 vars × 24 h",
+            "SunLake SEVIRI RSS\n64 × 64, 11-ch", "SKIPP'D sky RGB\n64 × 64"]
     for k, c in enumerate(caps):
         fig.text(x0 + k * (iw + gap) + iw / 2, y_img - 0.030, c,
                  fontsize=7.5, color=INK_2, ha="center", va="top")
