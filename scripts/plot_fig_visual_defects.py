@@ -176,8 +176,7 @@ def panel_d(ax):
         df.to_csv(cache, index=False)
         df.to_csv(ORIENT_CSV, index=False)
         print(f"wrote {cache}", flush=True)
-    _scan_orientation_last = rots
-    return rots
+    _plot_orientation(ax, rots)
 
 
 def _scan_orientation():
@@ -225,6 +224,10 @@ def _scan_orientation():
             rots[ym] = (math.degrees(math.atan2(np.sin(ang).mean(),
                                                 np.cos(ang).mean())) % 360,
                         int(keep.sum()))
+    return rots
+
+
+def _plot_orientation(ax, rots):
     ys = pd.to_datetime([f"{y}-{m:02d}-01" for y, m in rots])
     rv = np.array([r[0] for r in rots.values()])
     ax.plot(ys, rv, marker="o", ms=2.5, lw=0.7, color="#0072B2")
@@ -246,7 +249,7 @@ def _scan_orientation():
 def main() -> int:
     global fig
     fig = plt.figure(figsize=(180 / 25.4, 46 / 25.4))
-    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 1.7, 1.5], wspace=0.30,
+    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 2.05, 1.35], wspace=0.26,
                           left=0.025, right=0.995, top=0.88, bottom=0.17)
     a = fig.add_subplot(gs[0]); frame_axis(a); panel_a(a)
     b = fig.add_subplot(gs[1]); frame_axis(b); panel_b(b)
