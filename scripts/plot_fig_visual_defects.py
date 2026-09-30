@@ -51,6 +51,7 @@ mpl.rcParams.update({
 STD = _REPO_ROOT / "data" / "standardized"
 OUT_FIG = _REPO_ROOT / "Figures" / "fig_visual_defects"
 ORIENT_CSV = _REPO_ROOT / "figures_full" / "results" / "results_camera_orientation.csv"
+SOURCES_JSON = _REPO_ROOT / "figures" / "results" / "fig_visual_defects_sources.json"
 VERM = "#D55E00"
 GREEN = "#009E73"
 PT_TITLE = 9
@@ -75,7 +76,7 @@ def frame_axis(ax):
         sp.set_color("#333333"); sp.set_linewidth(0.6)
 
 
-def overlay(ax, img, mask, alpha=0.40):
+def overlay(ax, img, mask, alpha=0.28):
     ax.imshow(img)
     ov = img.copy()
     ov[mask] = (0xD5, 0x5E, 0x00)
@@ -108,6 +109,16 @@ def panel_b(ax):
 
 
 def find_daylight_gap():
+    """Same-day daylight gap — cached indices when available."""
+    import json
+    if SOURCES_JSON.exists():
+        info = json.loads(SOURCES_JSON.read_text(encoding="utf-8"))
+        c = info["panels"]["c_temporal_gap"]
+        g, _ = store(2014)
+        dt = c["gap_min"] * 60.0
+        print(f"[gap] loaded cache: {c['before_utc']} -> {c['after_utc']} "
+              f"({c['gap_min']} min)", flush=True)
+        return g, c["before_index"], c["after_index"], dt
     """Largest same-day, daylight store gap in 2014 (5-120 min)."""
     g, ts = store(2014)
     tab = pd.read_parquet(STD / "folsom" / "time_series.parquet")
@@ -137,22 +148,42 @@ def panel_c(sub):
     g, i0, i1, dt = find_daylight_gap()
     ts = store(2014)[1]
     (axL, axR) = [fig.add_subplot(s) for s in sub]
-    for ax, i, tag in ((axL, i0, "before"), (axR, i1, "after")):
+    for ax, i in ((axL, i0), (axR, i1)):
         frame_axis(ax)
         ax.imshow(dec(g, i))
-        ax.set_xlabel(f"{tag} {ts[i]:%H:%M}", fontsize=7.5, labelpad=1.5)
-    axL.annotate("", xy=(1.06, 0.5), xytext=(-0.06, 0.5),
-                 xycoords=axR.axes, textcoords=axL.axes,
-                 arrowprops=dict(arrowstyle="->", lw=1.0, color="#0B0B0B"))
-    axL.set_title("(c) Temporal gap", fontsize=PT_TITLE, loc="left", pad=3)
-    axR.set_title(rf"$\Delta t$ = {dt/60:.0f} min", fontsize=8,
-                  loc="right", pad=2)
+    axL.set_title(f"(c) Temporal discontinuity ({dt/60:.0f} min daylight "
+                  "gap)", fontsize=PT_TITLE, loc="left", pad=3)
 
 
 def panel_d(ax):
-    """Monthly glare-based rotation fits 2014-2016 (deterministic rescan)."""
+    """Monthly glare-based rotation fits 2014-2016 (cache-first)."""
+    import json
+    cache = _REPO_ROOT / "figures" / "results" / "results_camera_orientation.csv"
+    rots = {}
+    if cache.exists():
+        df = pd.read_csv(cache)
+        for _, r in df.iterrows():
+            rots[(int(r["year"]), int(r["month"]))] = (float(r["rotation_deg"]),
+                                                       int(r["n_frames"]))
+        print(f"[orient] loaded cache ({len(rots)} months) — no rescan",
+              flush=True)
+    else:
+        rots = _scan_orientation()
+        df = pd.DataFrame([{"year": y, "month": m, "rotation_deg": r,
+                            "n_frames": n}
+                           for (y, m), (r, n) in sorted(rots.items())])
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(cache, index=False)
+        df.to_csv(ORIENT_CSV, index=False)
+        print(f"wrote {cache}", flush=True)
+    _scan_orientation_last = rots
+    return rots
+
+
+def _scan_orientation():
     rots = {}
     for year in (2014, 2015, 2016):
+        print(f"  [orient] scanning {year} ...", flush=True)
         g, ts = store(year)
         tab = pd.read_parquet(STD / "folsom" / "time_series.parquet")
         tab = tab.set_index("timestamp_utc").sort_index()
@@ -214,9 +245,9 @@ def panel_d(ax):
 
 def main() -> int:
     global fig
-    fig = plt.figure(figsize=(180 / 25.4, 50 / 25.4))
-    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 1.9, 1.25], wspace=0.28,
-                          left=0.03, right=0.995, top=0.90, bottom=0.14)
+    fig = plt.figure(figsize=(180 / 25.4, 46 / 25.4))
+    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 1.7, 1.5], wspace=0.30,
+                          left=0.025, right=0.995, top=0.88, bottom=0.17)
     a = fig.add_subplot(gs[0]); frame_axis(a); panel_a(a)
     b = fig.add_subplot(gs[1]); frame_axis(b); panel_b(b)
     panel_c(gs[2].subgridspec(1, 2, wspace=0.22))

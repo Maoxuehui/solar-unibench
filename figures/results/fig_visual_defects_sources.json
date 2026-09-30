@@ -1,0 +1,29 @@
+{
+  "figure": "Figures/fig_visual_defects.png",
+  "generated": "2026-10-01",
+  "dataset_store": "data/standardized/folsom/sky_images_2014.zarr",
+  "panels": {
+    "a_sun_glare": {
+      "frame_index": 158935,
+      "timestamp_utc": "2014-08-14T00:00:38",
+      "why": "strongest verified glare (fig05 frame)"
+    },
+    "b_non_sky_occlusion": {
+      "frame_index": 54000,
+      "timestamp_utc": "2014-03-27T15:54:59",
+      "why": "bottom-ring non-blue fraction = 1.00"
+    },
+    "c_temporal_gap": {
+      "before_index": 144405,
+      "after_index": 144406,
+      "before_utc": "2014-07-27T16:48:35",
+      "after_utc": "2014-07-27T17:04:53",
+      "gap_min": 16,
+      "why": "largest same-day daylight store gap (5-120min)"
+    },
+    "d_camera_orientation": {
+      "csv": "figures/results/results_camera_orientation.csv",
+      "method": "monthly glare-based rotation fits, 2014-2016"
+    }
+  }
+}
