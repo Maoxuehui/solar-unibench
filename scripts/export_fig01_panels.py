@@ -82,7 +82,7 @@ fig, ax = plt.subplots(figsize=(3.0, 3.0))
 ax.imshow(mn, aspect="auto", cmap="RdBu_r", vmin=-2, vmax=2,
           interpolation="nearest")
 ax.set_xticks([0, 11, 23], ["0", "12", "23"], fontsize=7)
-ax.set_yticks([0, 5, 11], ["CW", "RH", "TP"], fontsize=7)
+ax.set_yticks([0, 3, 4, 11], ["CW", "RH", "TCC", "TP"], fontsize=7)
 ax.set_xlabel("hour of day", fontsize=7.5, labelpad=1.5)
 cb = fig.colorbar(ax.images[0], ax=ax, fraction=0.046, pad=0.03)
 cb.set_ticks([-2, 0, 2]); cb.ax.tick_params(labelsize=6.5)
