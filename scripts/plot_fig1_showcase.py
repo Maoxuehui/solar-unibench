@@ -101,7 +101,7 @@ def draw_map(fig, rect) -> None:
                 xytext=(-137, 31), **akw)
     ax.annotate("Folsom", xy=_site("folsom", "FOLSOM_STN"),
                 xytext=(-112, 45), **akw)
-    ax.text(163, -38, "GEFCom2014\n(zones 1–3)", fontsize=8,
+    ax.text(163, -30.0, "GEFCom2014\n(zones 1–3)", fontsize=8,
             fontweight="bold", color="#000000", ha="center", va="center",
             zorder=6, transform=ccrs.PlateCarree())
     for ent, code, lx, ly in (("SUNLAKE_CAB", "CAB", -22.0, 51.5),
