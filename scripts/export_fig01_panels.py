@@ -122,7 +122,7 @@ axc1.plot(fxh, fw["ghi_actual"].to_numpy(), color=V.DS_COLORS["folsom"],
           lw=0.7, label="Observed GHI")
 axc1.plot(fxh, fw["ghi_clearsky"].to_numpy(), color=V.INK_2, lw=0.6,
           ls=(0, (4, 2)), label="Clear-sky GHI")
-_frame_marker(axc1, 31.0, "frame in (b2)")
+_frame_marker(axc1, 38.43, "frame in (b2)")
 axc1.set_ylabel(r"GHI (W m$^{-2}$)")
 axc1.set_ylim(0, 1000); axc1.set_yticks([0, 500, 1000])
 axc1.set_xlim(0, 48); axc1.set_xticks(np.arange(0, 49, 6))
@@ -140,11 +140,12 @@ _night(axc2)
 axc2.text(24, 0.93, "Night", ha="center", va="center", fontsize=7,
           color=V.INK_MUTED)
 axc2.plot(sxh, sw["pv_power_normalized"].astype(float).to_numpy(),
-          color=TEAL, lw=0.5, label="Normalized PV power")
-_frame_marker(axc2, 19.7, "frame in (b1)")
+          color="#0072B2", lw=0.5, label="Normalized PV power")
+_frame_marker(axc2, 12.03, "frame in (b1)")
 axc2.set_ylabel("Normalized PV power (0–1)")
 axc2.set_ylim(0, 1); axc2.set_yticks([0, 0.5, 1.0])
 axc2.set_xlabel("Local time (PST)")
+axc2.legend(loc="upper left", frameon=False, fontsize=7, handlelength=1.6)
 
 fig.subplots_adjust(wspace=0.22, left=0.06, right=0.99, top=0.97,
                     bottom=0.20)
