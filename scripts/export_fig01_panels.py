@@ -89,27 +89,65 @@ cb.set_ticks([-2, 0, 2]); cb.ax.tick_params(labelsize=6.5)
 cb.set_label("z-score", fontsize=7)
 save(fig, "b4_gefcom_nwp")
 
-# -- (c) GHI series only (no kt panel) ---------------------------------------
-fig = plt.figure(figsize=(12.0, 2.3))
-ax = fig.add_axes([0.07, 0.20, 0.90, 0.72])
-df = pd.read_parquet(V.STD / "folsom" / "time_series.parquet")
-df = df.set_index("timestamp_utc").sort_index()
-sl = df.loc["2014-02-26 08:00:00+00:00":"2014-02-28 08:00:00+00:00"]
-local = sl.index.tz_convert("America/Los_Angeles")
-xh = (local - local[0]) / np.timedelta64(1, "h")
-cs = sl["ghi_clearsky"].to_numpy()
-for s0, e0 in ((0, 6), (18, 30), (42, 47.983)):
-    ax.axvspan(s0, e0, color="#e6e6e6", alpha=0.6, zorder=0)
-ax.text(24, 950, "night", ha="center", va="center", fontsize=7,
-        color=V.INK_MUTED)
-ax.plot(xh, sl["ghi_actual"].to_numpy(), color=V.DS_COLORS["folsom"],
-        lw=0.8, label="Observed GHI")
-ax.plot(xh, cs, color=V.INK_2, lw=0.7, ls=(0, (4, 2)), label="Clear-sky GHI")
-ax.set_ylabel(r"GHI (W m$^{-2}$)")
-ax.set_ylim(0, 1000); ax.set_yticks([0, 500, 1000])
-ax.set_xlim(0, 48); ax.set_xticks(np.arange(0, 49, 6))
-ax.set_xlabel("Local time (PST)")
-ax.legend(loc="upper left", frameon=False, handlelength=1.8)
+# -- (c) 1x2 side-by-side: Folsom GHI | SKIPP'D normalized PV -------------
+import numpy as np
+
+TEAL = "#008B8B"
+NIGHT_BANDS = ((0, 6), (18, 30), (42, 47.983))
+
+fig, (axc1, axc2) = plt.subplots(1, 2, figsize=(12.0, 2.6),
+                                 sharex=True)
+
+def _night(ax):
+    for s0, e0 in NIGHT_BANDS:
+        ax.axvspan(s0, e0, color="#e6e6e6", alpha=0.6, zorder=0)
+
+def _frame_marker(ax, h, label):
+    ax.axvline(h, color="black", lw=0.8, ls=(0, (3, 2)), zorder=5)
+    ax.annotate(label, xy=(h, 0.06), xycoords=("data", "axes fraction"),
+                xytext=(h - 1.2, 0.30), textcoords=("data", "axes fraction"),
+                fontsize=7, color="#0B0B0B", ha="right",
+                arrowprops=dict(arrowstyle="->", lw=0.8, color="#0B0B0B"))
+
+# (c1) Folsom GHI — 48 h, trough marker at h=31.0
+fdf = pd.read_parquet(V.STD / "folsom" / "time_series.parquet")
+fdf = fdf.set_index("timestamp_utc").sort_index()
+f0 = pd.Timestamp("2014-02-26 08:00:00", tz="UTC")
+fw = fdf.loc[f0:f0 + pd.Timedelta(hours=48)]
+fxh = (fw.index - f0).total_seconds() / 3600.0
+_night(axc1)
+axc1.text(24, 950, "Night", ha="center", va="center", fontsize=7,
+          color=V.INK_MUTED)
+axc1.plot(fxh, fw["ghi_actual"].to_numpy(), color=V.DS_COLORS["folsom"],
+          lw=0.7, label="Observed GHI")
+axc1.plot(fxh, fw["ghi_clearsky"].to_numpy(), color=V.INK_2, lw=0.6,
+          ls=(0, (4, 2)), label="Clear-sky GHI")
+_frame_marker(axc1, 31.0, "frame in (b2)")
+axc1.set_ylabel(r"GHI (W m$^{-2}$)")
+axc1.set_ylim(0, 1000); axc1.set_yticks([0, 500, 1000])
+axc1.set_xlim(0, 48); axc1.set_xticks(np.arange(0, 49, 6))
+axc1.set_xlabel("Local time (PST)")
+axc1.legend(loc="upper left", frameon=False, fontsize=7, handlelength=1.6)
+
+# (c2) SKIPP'D normalized PV — 48 h from 2018-06-10 07:00 UTC, dip at 19.7 h
+sdf = pd.read_parquet(V.STD / "skippd" / "time_series.parquet")
+sdf["ts"] = pd.to_datetime(sdf["timestamp_utc"])
+sdf = sdf.set_index("ts").sort_index()
+s0 = pd.Timestamp("2018-06-10 07:00:00", tz="UTC")
+sw = sdf.loc[s0:s0 + pd.Timedelta(hours=48)]
+sxh = (sw.index - s0).total_seconds() / 3600.0
+_night(axc2)
+axc2.text(24, 0.93, "Night", ha="center", va="center", fontsize=7,
+          color=V.INK_MUTED)
+axc2.plot(sxh, sw["pv_power_normalized"].astype(float).to_numpy(),
+          color=TEAL, lw=0.5, label="Normalized PV power")
+_frame_marker(axc2, 19.7, "frame in (b1)")
+axc2.set_ylabel("Normalized PV power (0–1)")
+axc2.set_ylim(0, 1); axc2.set_yticks([0, 0.5, 1.0])
+axc2.set_xlabel("Local time (PST)")
+
+fig.subplots_adjust(wspace=0.22, left=0.06, right=0.99, top=0.97,
+                    bottom=0.20)
 save(fig, "c_timeseries")
 
 print(f"done -> {OUT}")
