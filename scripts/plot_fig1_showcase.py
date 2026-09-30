@@ -111,7 +111,7 @@ def draw_map(fig, rect) -> None:
                               ("SUNLAKE_IZA", "IZA", 24.0, 30.5),
                               ("SUNLAKE_TAM", "TAM", -11.0, 19.5)):
         ax.annotate(code, xy=_site("sunlake", ent), xytext=(lx, ly), **akw)
-    ax.legend(loc="lower left", bbox_to_anchor=(0.005, 0.02), frameon=True,
+    ax.legend(loc="lower left", bbox_to_anchor=(0.045, 0.02), frameon=True,
               facecolor="white", framealpha=0.85, edgecolor="#D5D5D1",
               handletextpad=0.2, labelspacing=0.3, borderaxespad=0.4,
               fontsize=8)
