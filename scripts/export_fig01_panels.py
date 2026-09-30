@@ -89,11 +89,27 @@ cb.set_ticks([-2, 0, 2]); cb.ax.tick_params(labelsize=6.5)
 cb.set_label("z-score", fontsize=7)
 save(fig, "b4_gefcom_nwp")
 
-# -- (c) aligned series, title stripped --------------------------------------
-fig = plt.figure(figsize=(12.0, 3.0))
-V.draw_timeseries(fig, [0.07, 0.14, 0.90, 0.80])
-for t in list(fig.texts):                    # strip the (c) title
-    t.remove()
+# -- (c) GHI series only (no kt panel) ---------------------------------------
+fig = plt.figure(figsize=(12.0, 2.3))
+ax = fig.add_axes([0.07, 0.20, 0.90, 0.72])
+df = pd.read_parquet(V.STD / "folsom" / "time_series.parquet")
+df = df.set_index("timestamp_utc").sort_index()
+sl = df.loc["2014-02-26 08:00:00+00:00":"2014-02-28 08:00:00+00:00"]
+local = sl.index.tz_convert("America/Los_Angeles")
+xh = (local - local[0]) / np.timedelta64(1, "h")
+cs = sl["ghi_clearsky"].to_numpy()
+for s0, e0 in ((0, 6), (18, 30), (42, 47.983)):
+    ax.axvspan(s0, e0, color="#e6e6e6", alpha=0.6, zorder=0)
+ax.text(24, 950, "night", ha="center", va="center", fontsize=7,
+        color=V.INK_MUTED)
+ax.plot(xh, sl["ghi_actual"].to_numpy(), color=V.DS_COLORS["folsom"],
+        lw=0.8, label="Observed GHI")
+ax.plot(xh, cs, color=V.INK_2, lw=0.7, ls=(0, (4, 2)), label="Clear-sky GHI")
+ax.set_ylabel(r"GHI (W m$^{-2}$)")
+ax.set_ylim(0, 1000); ax.set_yticks([0, 500, 1000])
+ax.set_xlim(0, 48); ax.set_xticks(np.arange(0, 49, 6))
+ax.set_xlabel("Local time (PST)")
+ax.legend(loc="upper left", frameon=False, handlelength=1.8)
 save(fig, "c_timeseries")
 
 print(f"done -> {OUT}")
