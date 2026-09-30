@@ -122,10 +122,15 @@ mm = 1 / 25.4
 
 
 def _save(fig: plt.Figure, stem: str) -> None:
-    """Dual export: vector PDF + 300 dpi PNG at identical physical size."""
+    """Dual export: vector PDF + 300 dpi PNG at identical physical size.
+
+    bbox_inches='tight' trims surplus canvas margins (e.g. the space rotated
+    x-tick labels reserve below the axes) so the exported artwork is compact.
+    """
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    fig.savefig(FIGURES_DIR / f"{stem}.pdf")
-    fig.savefig(FIGURES_DIR / f"{stem}.png", dpi=DPI_RASTER)
+    fig.savefig(FIGURES_DIR / f"{stem}.pdf", bbox_inches="tight")
+    fig.savefig(FIGURES_DIR / f"{stem}.png", dpi=DPI_RASTER,
+                bbox_inches="tight")
     plt.close(fig)
     print(f"  {stem}.pdf + .png")
 
@@ -349,62 +354,114 @@ def fig4() -> None:
     for ds in DS_ORDER:
         _, diffs[ds] = _irregularity(loader.load_tabular(ds))
 
-    fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 0.70),
-        gridspec_kw={"width_ratios": [1.0, 1.35]},
-    )
-    data = [diffs[ds] for ds in DS_ORDER]
-    # Original minimal rendering: boxplot's OWN fliers only (no jittered
-    # scatter overlay — the dense sunlake tail smudged the panel).
-    bp = ax1.boxplot(data, tick_labels=[DS_LABELS[d] for d in DS_ORDER],
-                     showfliers=True, patch_artist=True,
-                     medianprops=dict(color="black", linewidth=1.0),
-                     flierprops=dict(marker="o", markersize=2,
-                                     markerfacecolor="none",
-                                     markeredgecolor="0.35", alpha=0.6))
-    for patch, ds in zip(bp["boxes"], DS_ORDER):
-        patch.set_facecolor(DS_COLORS[ds]); patch.set_alpha(0.75)
-    ax1.set_yscale("log")
-    ax1.set_ylabel(r"Inter-step time gap $\Delta t$ (min)")
-    ax1.tick_params(axis="x", labelsize=TEXT_SIZE_PT - 2)  # 6.5 pt: no overlap
-    _no_minor(ax1)
+    fig = plt.figure(figsize=(WIDTH_MM * mm, HEIGHT_MM * mm * 0.70))
+    gs = fig.add_gridspec(1, 2, width_ratios=[1.0, 0.85])
+    ax_m = fig.add_subplot(gs[0, 0])                      # (a) matrix, LEFT
+    sub_h = gs[0, 1].subgridspec(len(DS_ORDER), 1, hspace=0.28)
+    axs_h = [fig.add_subplot(s) for s in sub_h]           # (b) per-dataset
 
+    # ---- (a) Missing values: presence matrix with merged check runs -------
     cols = list(CANONICAL_COLUMNS)
-    ax2.imshow(np.zeros((len(DS_ORDER), len(cols))), cmap="Greys", vmin=0, vmax=1,
-               aspect="auto")
+    ax_m.imshow(np.zeros((len(DS_ORDER), len(cols))), cmap="Greys", vmin=0,
+                vmax=1, aspect="auto")
+    GREEN, RED = "#009E73", "#D55E00"      # house Wong green / vermillion
+    GLYPH = dict(fontfamily="DejaVu Sans", ha="center", va="center",
+                 fontsize=TEXT_SIZE_PT + 2, fontweight="bold")
+    EDGE = "#D5D5D1"
+    # Fixed check segments for the two long irradiance rows (user layout):
+    # cols 2/3/4 each their own check, 5-9 merged, 10 alone, 11-12 merged.
+    SEGMENTS_2_12 = [(1, 1), (2, 2), (3, 3), (4, 8), (9, 9), (10, 11)]
+    present_rows = []
     for i, ds in enumerate(DS_ORDER):
         row = miss[miss.dataset == ds].set_index("column")["pct_nan"]
-        for j, c in enumerate(cols):
-            v = float(row.get(c, 100.0))
-            if v >= 99.5:
-                ax2.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
-                                            facecolor=DS_COLORS[ds],
-                                            edgecolor="white", linewidth=0.8))
-                ax2.text(j, i, "100", ha="center", va="center",
-                         fontsize=TEXT_SIZE_PT - 1, fontweight="bold", color="white")
-            elif v > 0.5:
-                ax2.add_patch(plt.Rectangle((j - 0.5, i - 0.5), 1, 1,
-                                            facecolor=DS_COLORS[ds], alpha=0.35,
-                                            edgecolor="white", linewidth=0.8))
-                ax2.text(j, i, f"{v:.0f}", ha="center", va="center",
-                         fontsize=TEXT_SIZE_PT - 1.5, color="black")
-    ax2.set_xticks(range(len(cols)), [ACADEMIC_LABELS.get(c, c) for c in cols],
-                   rotation=40, ha="right", fontsize=TEXT_SIZE_PT - 2,
-                   rotation_mode="anchor")   # 6.5 pt + anchor: labels fully inside
-    # (b) y dataset labels sized to MATCH panel (a)'s x dataset labels.
-    ax2.set_yticks(range(len(DS_ORDER)), [DS_LABELS[d] for d in DS_ORDER],
-                   fontsize=TEXT_SIZE_PT - 2)
-    ax2.grid(False)
-    ax2.set_xlim(-0.5, len(cols) - 0.5)
-    ax2.set_ylim(len(DS_ORDER) - 0.5, -0.5)
+        present = [float(row.get(c, 100.0)) < 99.5 for c in cols]
+        present_rows.append(present)
+        if ds in ("folsom", "sunlake") and all(present[1:12]):
+            if not present[0]:                  # keep the col-1 red cross
+                ax_m.text(0, i, "✗", color=RED, **GLYPH)
+            for a_i, b_i in SEGMENTS_2_12:      # one centered check per segment
+                ax_m.text((a_i + b_i) / 2.0, i, "✓", color=GREEN, **GLYPH)
+            continue
+        j = 0
+        while j < len(cols):
+            if present[j]:                 # merge horizontal check runs
+                k = j
+                while k + 1 < len(cols) and present[k + 1]:
+                    k += 1
+                ax_m.text((j + k) / 2.0, i, "✓", color=GREEN, **GLYPH)
+                j = k + 1
+            else:                          # absent -> individual red cross
+                ax_m.text(j, i, "✗", color=RED, **GLYPH)
+                j += 1
+    # cell grid: horizontal lines everywhere; vertical lines ONLY where the
+    # presence state changes (no separators inside merged check runs)
+    for yb in np.arange(-0.5, len(DS_ORDER) + 0.5, 1):
+        ax_m.axhline(yb, color=EDGE, linewidth=0.5, zorder=1)
+    for xb in np.arange(-0.5, len(cols) + 0.5, 1):
+        jb = int(xb + 0.5)
+        draw = xb in (-0.5, len(cols) - 0.5)
+        if not draw and 0 < jb < len(cols):
+            # boundary between jb-1 and jb: omit inside a present-present run
+            any_row_splits = any(pr[jb - 1] != pr[jb] or not pr[jb - 1]
+                                 or not pr[jb] for pr in present_rows)
+            draw = any_row_splits
+        if draw:
+            ax_m.axvline(xb, color=EDGE, linewidth=0.5, zorder=1)
+    ax_m.set_xticks(range(len(cols)), [ACADEMIC_LABELS.get(c, c) for c in cols],
+                    rotation=30, ha="right", fontsize=TEXT_SIZE_PT - 2,
+                    rotation_mode="anchor")
+    ax_m.set_yticks(range(len(DS_ORDER)), [DS_LABELS[d] for d in DS_ORDER],
+                    fontsize=TEXT_SIZE_PT - 2)
+    ax_m.grid(False)
+    ax_m.set_xlim(-0.5, len(cols) - 0.5)
+    ax_m.set_ylim(len(DS_ORDER) - 0.5, -0.5)
+    ax_m.set_title("(a) Missing values", fontsize=TEXT_SIZE_PT, loc="left",
+                   pad=3)
 
-    # Concise academic sub-titles carry the panel letters — no corner tags
-    # (they duplicated the letters).
-    ax1.set_title("(a) Timestamp gaps", fontsize=TEXT_SIZE_PT, loc="left", pad=3)
-    ax2.set_title("(b) Column-wise missingness (%)", fontsize=TEXT_SIZE_PT,
-                  loc="left", pad=3)
-    fig.tight_layout(rect=(0, 0.05, 1, 0.96))
-    fig.subplots_adjust(left=0.075, wspace=0.42)   # (b) y-labels clear of (a)
+    # ---- (b) per-dataset gap histograms -----------------------------------
+    edges = [0, 2, 5, 15, 60, 360, 1440, np.inf]
+    labels = ["≤2", "2–5", "5–15", "15–60", "1–6 h", "6–24 h", ">24 h"]
+    x = np.arange(len(labels))
+    n_ds = len(DS_ORDER)
+    all_cnt = {}
+    for ds in DS_ORDER:
+        d = pd.Series(diffs[ds])
+        modal = d.value_counts().idxmax()
+        all_cnt[ds] = np.histogram(d[d > modal], bins=edges)[0]
+    g_top = int(np.ceil(np.log10(max(int(c.max()) for c in all_cnt.values()
+                                     if c.size))))
+    for k, (ax_h, ds) in enumerate(zip(axs_h, DS_ORDER)):
+        cnt = all_cnt[ds]
+        ax_h.bar(x, np.maximum(cnt, 0), width=0.55, color="#0072B2",
+                 zorder=3)
+        for xb, c in zip(x, cnt):            # count INSIDE the bar, near top
+            if c > 0:
+                ax_h.text(xb, c * 0.72, f"{int(c)}", ha="center",
+                          va="top", fontsize=TEXT_SIZE_PT - 2.5,
+                          color="white")
+        ax_h.set_yscale("log")
+        ax_h.set_ylim(0.5, 10 ** g_top)          # shared full 10^n ladder
+        ticks = [10 ** e for e in range(0, g_top + 1)]
+        ax_h.set_yticks(ticks, [f"$10^{{{e}}}$" for e in range(0, g_top + 1)],
+                        fontsize=TEXT_SIZE_PT - 2)
+        # dataset name at the frame's top-left corner
+        ax_h.text(0.015, 0.93, DS_LABELS[ds], transform=ax_h.transAxes,
+                  fontsize=TEXT_SIZE_PT - 2, ha="left", va="top",
+                  color="#0B0B0B")
+        if k == 1:                             # one shared y-axis label
+            ax_h.set_ylabel("Count", rotation=90, va="center",
+                            fontsize=TEXT_SIZE_PT - 1, labelpad=2)
+        if k < n_ds - 1:
+            ax_h.set_xticks(x)
+            ax_h.tick_params(labelbottom=False)
+        else:
+            ax_h.set_xticks(x, labels, fontsize=TEXT_SIZE_PT - 2)
+            ax_h.set_xlabel("Gap (min)")
+        _no_minor(ax_h)
+    axs_h[0].set_title("(b) Irregular intervals", fontsize=TEXT_SIZE_PT,
+                       loc="left", pad=3)
+    fig.tight_layout(rect=(0, 0.02, 1, 0.96))
+    fig.subplots_adjust(left=0.075, wspace=0.25)   # (a)-(b) breathing gap
     _save(fig, "fig4_data_defects")
 
 
