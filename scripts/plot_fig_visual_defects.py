@@ -75,7 +75,7 @@ def frame_axis(ax):
         sp.set_color("#333333"); sp.set_linewidth(0.6)
 
 
-def overlay(ax, img, mask, alpha=0.45):
+def overlay(ax, img, mask, alpha=0.40):
     ax.imshow(img)
     ov = img.copy()
     ov[mask] = (0xD5, 0x5E, 0x00)
@@ -87,8 +87,7 @@ def panel_a(ax):
     img = dec(g, GLARE_IDX)
     sat = (img[..., 0] >= 250) & (img[..., 1] >= 250) & (img[..., 2] >= 250)
     overlay(ax, img, sat)
-    ax.set_title(f"(a) Sun glare — {sat.mean() * 100:.1f}% saturated pixels",
-                 fontsize=PT_TITLE, loc="left", pad=3)
+    ax.set_title("(a) Sun glare", fontsize=PT_TITLE, loc="left", pad=3)
 
 
 def panel_b(ax):
@@ -104,8 +103,8 @@ def panel_b(ax):
     circ = plt.Circle(((w - 1) / 2, (h - 1) / 2), 0.95 * min(h, w) / 2,
                       fill=False, ec=GREEN, lw=1.1, ls=(0, (4, 2)))
     ax.add_patch(circ)
-    ax.set_title(f"(b) Non-sky occlusion — {occ.mean() * 100:.1f}% of frame "
-                 "(lens mask dashed)", fontsize=PT_TITLE, loc="left", pad=3)
+    ax.set_title("(b) Non-sky occlusion", fontsize=PT_TITLE, loc="left",
+                 pad=3)
 
 
 def find_daylight_gap():
@@ -141,13 +140,13 @@ def panel_c(sub):
     for ax, i, tag in ((axL, i0, "before"), (axR, i1, "after")):
         frame_axis(ax)
         ax.imshow(dec(g, i))
-        ax.set_title(f"{tag}: {ts[i]:%H:%M:%S}", fontsize=7.5, loc="left",
-                     pad=2)
-    axL.set_title("(c) Temporal discontinuity — "
-                  f"{dt/60:.0f} min daylight gap", fontsize=PT_TITLE,
-                  loc="left", pad=3)
-    axR.set_title(f"{(ts[i1]-ts[i0]).total_seconds()/60:.0f} min later",
-                  fontsize=7.5, loc="left", pad=2)
+        ax.set_xlabel(f"{tag} {ts[i]:%H:%M}", fontsize=7.5, labelpad=1.5)
+    axL.annotate("", xy=(1.06, 0.5), xytext=(-0.06, 0.5),
+                 xycoords=axR.axes, textcoords=axL.axes,
+                 arrowprops=dict(arrowstyle="->", lw=1.0, color="#0B0B0B"))
+    axL.set_title("(c) Temporal gap", fontsize=PT_TITLE, loc="left", pad=3)
+    axR.set_title(rf"$\Delta t$ = {dt/60:.0f} min", fontsize=8,
+                  loc="right", pad=2)
 
 
 def panel_d(ax):
@@ -198,8 +197,12 @@ def panel_d(ax):
     ys = pd.to_datetime([f"{y}-{m:02d}-01" for y, m in rots])
     rv = np.array([r[0] for r in rots.values()])
     ax.plot(ys, rv, marker="o", ms=2.5, lw=0.7, color="#0072B2")
-    ax.set_ylabel("Fitted rotation (deg)")
+    ax.set_ylabel("Rotation (deg)", fontsize=8)
     ax.set_ylim(0, 360)
+    ax.set_yticks([0, 90, 180, 270, 360])
+    import matplotlib.dates as mdates
+    ax.xaxis.set_major_locator(mdates.YearLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     ax.set_title("(d) Camera orientation — monthly solar fits\n"
                  "(seasonal residual, mount stable)", fontsize=PT_TITLE,
                  loc="left", pad=3)
@@ -211,13 +214,13 @@ def panel_d(ax):
 
 def main() -> int:
     global fig
-    fig = plt.figure(figsize=(180 / 25.4, 120 / 25.4))
-    gs = fig.add_gridspec(2, 2, hspace=0.42, wspace=0.22,
-                          left=0.06, right=0.99, top=0.94, bottom=0.07)
-    a = fig.add_subplot(gs[0, 0]); frame_axis(a); panel_a(a)
-    b = fig.add_subplot(gs[0, 1]); frame_axis(b); panel_b(b)
-    panel_c(gs[1, 0].subgridspec(1, 2, wspace=0.08))
-    panel_d(fig.add_subplot(gs[1, 1]))
+    fig = plt.figure(figsize=(180 / 25.4, 50 / 25.4))
+    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 1.9, 1.25], wspace=0.28,
+                          left=0.03, right=0.995, top=0.90, bottom=0.14)
+    a = fig.add_subplot(gs[0]); frame_axis(a); panel_a(a)
+    b = fig.add_subplot(gs[1]); frame_axis(b); panel_b(b)
+    panel_c(gs[2].subgridspec(1, 2, wspace=0.22))
+    panel_d(fig.add_subplot(gs[3]))
 
     OUT_FIG.parent.mkdir(parents=True, exist_ok=True)
     for ext in ("png", "pdf"):
