@@ -249,13 +249,13 @@ def _plot_orientation(ax, rots):
 def main() -> int:
     global fig
     fig = plt.figure(figsize=(180 / 25.4, 46 / 25.4))
-    gs = fig.add_gridspec(1, 6, wspace=0.42,
-                          left=0.022, right=0.985, top=0.88, bottom=0.15)
+    gs = fig.add_gridspec(1, 6, wspace=0.20,
+                          left=0.022, right=0.988, top=0.88, bottom=0.15)
     a = fig.add_subplot(gs[0]); frame_axis(a); panel_a(a)
     b = fig.add_subplot(gs[1]); frame_axis(b); panel_b(b)
-    panel_c([gs[2], gs[3]])
-    d_sub = gs[:, 4:6].subgridspec(5, 1)
-    panel_d(fig.add_subplot(d_sub[0:4, :]))
+    panel_c(gs[2:4].subgridspec(1, 2, wspace=0.08))   # inner gap < outer
+    d_sub = gs[:, 4:6].subgridspec(5, 5)
+    panel_d(fig.add_subplot(d_sub[0:4, 1:5]))        # 4/5 size, shifted right
 
     OUT_FIG.parent.mkdir(parents=True, exist_ok=True)
     for ext in ("png", "pdf"):
