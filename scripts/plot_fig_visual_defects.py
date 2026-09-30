@@ -147,7 +147,7 @@ def find_daylight_gap():
 def panel_c(sub):
     g, i0, i1, dt = find_daylight_gap()
     ts = store(2014)[1]
-    (axL, axR) = [fig.add_subplot(s) for s in sub]
+    (axL, axR) = [fig.add_subplot(s) for s in sub]  # one unit each, a/b-sized
     for ax, i in ((axL, i0), (axR, i1)):
         frame_axis(ax)
         ax.imshow(dec(g, i))
@@ -231,7 +231,7 @@ def _plot_orientation(ax, rots):
     ys = pd.to_datetime([f"{y}-{m:02d}-01" for y, m in rots])
     rv = np.array([r[0] for r in rots.values()])
     ax.plot(ys, rv, marker="o", ms=2.5, lw=0.7, color="#0072B2")
-    ax.set_ylabel("Rotation (deg)", fontsize=8)
+    ax.set_ylabel("Rotation (deg)", fontsize=8, labelpad=1.0)
     ax.set_ylim(0, 360)
     ax.set_yticks([0, 90, 180, 270, 360])
     import matplotlib.dates as mdates
@@ -249,12 +249,13 @@ def _plot_orientation(ax, rots):
 def main() -> int:
     global fig
     fig = plt.figure(figsize=(180 / 25.4, 46 / 25.4))
-    gs = fig.add_gridspec(1, 4, width_ratios=[1, 1, 2.05, 1.35], wspace=0.26,
-                          left=0.025, right=0.995, top=0.88, bottom=0.17)
+    gs = fig.add_gridspec(1, 6, wspace=0.42,
+                          left=0.022, right=0.985, top=0.88, bottom=0.15)
     a = fig.add_subplot(gs[0]); frame_axis(a); panel_a(a)
     b = fig.add_subplot(gs[1]); frame_axis(b); panel_b(b)
-    panel_c(gs[2].subgridspec(1, 2, wspace=0.22))
-    panel_d(fig.add_subplot(gs[3]))
+    panel_c([gs[2], gs[3]])
+    d_sub = gs[:, 4:6].subgridspec(5, 1)
+    panel_d(fig.add_subplot(d_sub[0:4, :]))
 
     OUT_FIG.parent.mkdir(parents=True, exist_ok=True)
     for ext in ("png", "pdf"):
