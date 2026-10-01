@@ -29,9 +29,13 @@ import numpy as np
 import pandas as pd
 
 from plot_fig_outliers_noise import (
-    DAYTIME_COSZ, DS_LABELS, DS_ORDER, KT_SUPER, VERM,
+    DAYTIME_COSZ, KT_SUPER, VERM,
     load as load_ds, pick_folsom_day, stage1,
 )
+DS_ORDER = ["gefcom2014", "folsom", "skippd", "sunlake"]
+#: labels carry each dataset's NATIVE cadence (from defect_summary)
+DS_LABELS = {"gefcom2014": "GEFCom2014 (1 h)", "folsom": "Folsom (1 min)",
+             "skippd": "SKIPP'D (1 min)", "sunlake": "SunLake (30 min)"}
 
 mpl.rcParams.update({
     "font.family": "Arial", "font.size": 8.5, "axes.labelsize": 8.5,
@@ -83,39 +87,18 @@ def draw_matrix(ax_m, cols, miss):
     """PORTED VERBATIM from plot_essd_figures.fig4() — working version."""
     ax_m.imshow(np.zeros((len(DS_ORDER), len(cols))), cmap="Greys", vmin=0,
                 vmax=1, aspect="auto")
-    SEGMENTS_2_12 = [(1, 1), (2, 2), (3, 3), (4, 8), (9, 9), (10, 11)]
     present_rows = []
     for i, ds in enumerate(DS_ORDER):
         row = miss[miss.dataset == ds].set_index("column")["pct_nan"]
         present = [float(row.get(c, 100.0)) < 99.5 for c in cols]
         present_rows.append(present)
-        if ds in ("folsom", "sunlake") and all(present[1:12]):
-            if not present[0]:
-                ax_m.text(0, i, "✗", color=RED, **GLYPH)
-            for a_i, b_i in SEGMENTS_2_12:
-                ax_m.text((a_i + b_i) / 2.0, i, "✓", color=GREEN, **GLYPH)
-            continue
-        j = 0
-        while j < len(cols):
-            if present[j]:
-                k = j
-                while k + 1 < len(cols) and present[k + 1]:
-                    k += 1
-                ax_m.text((j + k) / 2.0, i, "✓", color=GREEN, **GLYPH)
-                j = k + 1
-            else:
-                ax_m.text(j, i, "✗", color=RED, **GLYPH)
-                j += 1
+        for j, ok in enumerate(present):          # one glyph PER CELL
+            ax_m.text(j, i, "✓" if ok else "✗",
+                      color=GREEN if ok else RED, **GLYPH)
     for yb in np.arange(-0.5, len(DS_ORDER) + 0.5, 1):
         ax_m.axhline(yb, color=EDGE, linewidth=0.5, zorder=1)
-    for xb in np.arange(-0.5, len(cols) + 0.5, 1):
-        jb = int(xb + 0.5)
-        draw = xb in (-0.5, len(cols) - 0.5)
-        if not draw and 0 < jb < len(cols):
-            draw = any(pr[jb - 1] != pr[jb] or not pr[jb - 1] or not pr[jb]
-                       for pr in present_rows)
-        if draw:
-            ax_m.axvline(xb, color=EDGE, linewidth=0.5, zorder=1)
+    for xb in np.arange(-0.5, len(cols) + 0.5, 1):   # full cell grid
+        ax_m.axvline(xb, color=EDGE, linewidth=0.5, zorder=1)
     ax_m.set_xticks(range(len(cols)),
                     [ACADEMIC_LABELS.get(c, c) for c in cols],
                     rotation=30, ha="right", fontsize=TEXT_SIZE_PT - 2,
