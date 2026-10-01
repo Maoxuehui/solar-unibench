@@ -104,7 +104,7 @@ def draw_matrix(ax_m, cols, miss):
                     rotation=30, ha="right", fontsize=TEXT_SIZE_PT - 2,
                     rotation_mode="anchor")
     ax_m.set_yticks(range(len(DS_ORDER)),
-                    [DS_LABELS[d] for d in DS_ORDER],
+                    [DS_LABELS[d].split(" (")[0] for d in DS_ORDER],
                     fontsize=TEXT_SIZE_PT - 2)
     ax_m.grid(False)
     ax_m.set_xlim(-0.5, len(cols) - 0.5)
@@ -138,8 +138,7 @@ def draw_minis(sub, diffs):
         ax_h.set_yticks(ticks,
                         [f"$10^{{{e}}}$" for e in range(0, g_top + 1)],
                         fontsize=TEXT_SIZE_PT - 2)
-        ax_h.text(0.015, 0.93, DS_LABELS[ds].split(" (")[0],
-                  transform=ax_h.transAxes,
+        ax_h.text(0.015, 0.93, DS_LABELS[ds], transform=ax_h.transAxes,
                   fontsize=TEXT_SIZE_PT - 2, ha="left", va="top",
                   color="#0B0B0B")
         if k == 1:
@@ -172,7 +171,8 @@ def draw_outlier_bars(ax, stats):
                 ha="center", va="bottom", fontsize=6.5)
     ax.set_ylim(0, 100)
     ax.set_yticks([0, 25, 50, 75, 100])
-    ax.set_xticks(x, [DS_LABELS[d] for d in DS_ORDER], fontsize=7.5)
+    ax.set_xticks(x, [DS_LABELS[d].split(" (")[0] for d in DS_ORDER],
+                  fontsize=7.5)
     ax.set_ylabel("Outlier fraction (%)")
     ax.legend(frameon=False, fontsize=6.5, loc="upper left")
     ax.set_title("(c) Outlier fractions", fontsize=9, loc="left", pad=3)
