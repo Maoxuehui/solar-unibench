@@ -138,7 +138,8 @@ def draw_minis(sub, diffs):
         ax_h.set_yticks(ticks,
                         [f"$10^{{{e}}}$" for e in range(0, g_top + 1)],
                         fontsize=TEXT_SIZE_PT - 2)
-        ax_h.text(0.015, 0.93, DS_LABELS[ds], transform=ax_h.transAxes,
+        ax_h.text(0.015, 0.93, DS_LABELS[ds].split(" (")[0],
+                  transform=ax_h.transAxes,
                   fontsize=TEXT_SIZE_PT - 2, ha="left", va="top",
                   color="#0B0B0B")
         if k == 1:
