@@ -49,8 +49,8 @@ RES = _REPO_ROOT / "figures_full" / "results"
 def _compute_frontier() -> tuple[list[str], list[float], list[float]]:
     """Margins from the cross-dataset grid CSV (micro-cleaned max vs deep camp)."""
     x = pd.read_csv(RES / "results_e9_cross_dataset.csv")
-    datasets = ["gefcom2014", "folsom", "skippd", "sunlake"]
-    disp = ["GEFCom2014", "Folsom", "SKIPPD", "SunLake"]
+    datasets = ["folsom", "skippd", "sunlake", "gefcom2014"]
+    disp = ["Folsom", "SKIPP'D", "SunLake", "GEFCom2014"]
     vs_mean, vs_best = [], []
     for ds in datasets:
         d = x[x.dataset == ds]
