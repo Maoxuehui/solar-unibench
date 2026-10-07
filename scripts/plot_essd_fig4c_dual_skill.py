@@ -80,7 +80,7 @@ mpl.rcParams.update({
 mm = 1 / 25.4
 
 E8_SUMMARY = _REPO_ROOT / "figures" / "results" / "e8_summary.csv"
-OUT = _REPO_ROOT / "figures_essd" / "fig4c_e8_dual_skill_grid"
+OUT = _REPO_ROOT / "figures" / "fig4c_e8_dual_skill_grid"
 
 
 def main() -> int:

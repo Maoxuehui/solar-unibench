@@ -55,7 +55,7 @@ mpl.rcParams.update({
 })
 mm = 1 / 25.4
 
-OUT = _REPO_ROOT / "figures_essd" / "fig5a_optflow_sequence"
+OUT = _REPO_ROOT / "figures" / "fig5a_optflow_sequence"
 
 
 def _gallery() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:

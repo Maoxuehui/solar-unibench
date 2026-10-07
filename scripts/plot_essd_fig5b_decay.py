@@ -67,7 +67,7 @@ mpl.rcParams.update({
 mm = 1 / 25.4
 
 RESULTS = _REPO_ROOT / "figures_full" / "results" / "results_e4_optflow.csv"
-OUT = _REPO_ROOT / "figures_essd" / "fig5b_optflow_decay"
+OUT = _REPO_ROOT / "figures" / "fig5b_optflow_decay"
 
 
 def main() -> int:

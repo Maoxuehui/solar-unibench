@@ -74,7 +74,7 @@ mpl.rcParams.update({
 })
 mm = 1 / 25.4
 
-OUT = _REPO_ROOT / "figures_essd" / "fig6_alignment_lag"
+OUT = _REPO_ROOT / "figures" / "fig6_alignment_lag"
 
 #: Panel spec: dataset -> (title, ΔSkill subtitle text).
 _PANELS = [
@@ -93,7 +93,7 @@ def _lag_arrays(dataset: str) -> tuple[np.ndarray, np.ndarray, float]:
     to a .npz cache; every later call (style iterations etc.) loads the cache
     in milliseconds. Delete the cache file to force a re-derivation.
     """
-    cache = _REPO_ROOT / "figures_essd" / ".fig6_lag_cache.npz"
+    cache = _REPO_ROOT / "figures" / ".fig6_lag_cache.npz"
     key_exact, key_nn, key_med = f"{dataset}_exact", f"{dataset}_nn", f"{dataset}_med"
     if cache.exists():
         z = np.load(cache)

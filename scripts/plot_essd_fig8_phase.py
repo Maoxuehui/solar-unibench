@@ -74,7 +74,7 @@ mpl.rcParams.update({
 mm = 1 / 25.4
 
 RESULTS = _REPO_ROOT / "figures_full" / "results" / "results_folsom_phase_sweep.csv"
-OUT = _REPO_ROOT / "figures_essd" / "fig8_phase_response"
+OUT = _REPO_ROOT / "figures" / "fig8_phase_response"
 
 
 def main() -> int:

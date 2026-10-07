@@ -45,7 +45,7 @@ STATS_PT = 8.5
 TITLE_PT = 10
 
 CACHE = _REPO_ROOT / ".closure_cache"
-OUT = _REPO_ROOT / "figures_essd" / "fig7_closure_parity"
+OUT = _REPO_ROOT / "figures" / "fig7_closure_parity"
 
 mpl.rcParams.update({
     "font.family": FONT_FAMILY,

@@ -1,7 +1,7 @@
 """ESSD submission figure set — Copernicus-formatted, standalone.
 
 Regenerates the core benchmark figures at ESSD/Copernicus specifications into
-``figures_essd/``:
+``figures/``:
 
   fig1_crossover_frontier_waterfall  E9 — (a) hierarchical crossover margin,
                                      (b) governance waterfall
@@ -85,7 +85,7 @@ ACADEMIC_LABELS = {
     "split": "Data Split",
 }
 
-FIGURES_DIR = _REPO_ROOT / "figures_essd"
+FIGURES_DIR = _REPO_ROOT / "figures"
 RESULTS = _REPO_ROOT / "figures_full" / "results"
 E8_SUMMARY = _REPO_ROOT / "figures" / "results" / "e8_summary.csv"
 
