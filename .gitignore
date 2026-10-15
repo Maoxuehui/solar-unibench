@@ -43,3 +43,8 @@ logs/
 *.LAST_MEMBER
 .fig6_lag_cache.npz
 .closure_cache/
+
+# upload chain runtime artifacts + local-only credential
+scratch/
+figures/QC_Flow_Candidates/
+closure_*.npy
