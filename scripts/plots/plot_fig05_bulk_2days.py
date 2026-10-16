@@ -17,11 +17,11 @@ import argparse
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-if str(_REPO_ROOT / "scripts") not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT / "scripts"))
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import cv2
 import numpy as np
