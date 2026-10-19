@@ -24,7 +24,6 @@ audit.jsonl
 manifest.json
 checkpoints/
 logs/
-figures_full/
 
 # Local session config
 .claude/
@@ -46,5 +45,12 @@ logs/
 
 # upload chain runtime artifacts + local-only credential
 scratch/
-figures/QC_Flow_Candidates/
+figures/dev/
 closure_*.npy
+
+# top-level dev scripts (untracked by design; public repo ships
+# scripts/plots paper-figure scripts only)
+dev/
+
+# sample dataset IS tracked (exceptions to *.parquet/*.zarr rules)
+!data/sample/**
