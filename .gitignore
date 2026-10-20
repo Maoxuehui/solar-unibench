@@ -54,3 +54,9 @@ dev/
 
 # sample dataset IS tracked (exceptions to *.parquet/*.zarr rules)
 !data/sample/**
+data/sample/standardized_rebuild/
+results/sample/
+
+# internal working docs (Chinese experiment reports etc.)
+docs/
+data/sample/standardized_nb/

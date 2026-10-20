@@ -1,4 +1,4 @@
-from scripts.pull_sunlake_tabular import find_channel_indices
+from scripts.data_tools.pull_sunlake_tabular import find_channel_indices
 
 
 def test_find_channel_indices_cab():

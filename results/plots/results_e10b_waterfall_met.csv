@@ -1,0 +1,4 @@
+waterfall,stage,mae,delta_mae_pct,n_test
+main_3stage,base,0.053042492335020196,,244
+main_3stage,+hygiene,0.05296347455936908,-0.14897070664031675,244
+main_3stage,+clear_sky,0.0489855383450601,-7.510716106531001,244

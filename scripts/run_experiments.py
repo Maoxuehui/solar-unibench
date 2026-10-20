@@ -271,6 +271,13 @@ def main(argv=None) -> int:
         help=f"Fast smoke run: select the quick subset {list(_QUICK_SUBSET)} (<1 min).",
     )
     ap.add_argument(
+        "--sample",
+        action="store_true",
+        help="1-minute demo on the shipped data/sample (folsom 1-day): forces "
+             "--data-root data/sample/standardized and --out results/sample, "
+             "runs the sample-safe subset (E7) unless --only is given.",
+    )
+    ap.add_argument(
         "--full",
         action="store_true",
         help="Phase 8 full-config: full-capacity GPU models + full data + 3-horizon "
@@ -298,11 +305,19 @@ def main(argv=None) -> int:
         print("[run_experiments] FULL-CONFIG mode (SUB_FULL_CONFIG=1): full-capacity "
               "GPU models, 50k-row/entity cap, 3-horizon grid.", flush=True)
 
+    if args.sample:
+        args.data_root = str(repo / "data" / "sample" / "standardized")
+        args.out = "results/sample"
+        print("[run_experiments] SAMPLE mode: data-root=data/sample/standardized, "
+              "out=results/sample", flush=True)
+
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     registry = discover_experiments()
-    if args.quick:
+    if args.sample and not args.only:
+        selected = [e for e in ("E7",) if e in registry]
+    elif args.quick:
         selected = [e for e in _QUICK_SUBSET if e in registry]
         if not selected:
             warnings.warn("--quick selected no available experiments; running nothing.")

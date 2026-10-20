@@ -1,14 +1,14 @@
 # Solar-UniBench - full pinned environment for Phase-8 reproducibility.
-# Captured from conda env 'solar_uni' (Python 3.10.20, platform: Windows-10-10.0.22621-SP0)
-# Generated via: /d/anaconda_data/envs/solar_uni/python.exe -m pip freeze
+# Captured from a fully verified Python 3.10 environment
+# (platform: Windows-10-10.0.22621-SP0) via pip freeze.
 #
 # This pins EVERY installed package so the Phase-8 figures, audits, and
 # benchmark results reproduce bit-for-bit. For a minimal/unpinned install
 # of just the core tabular pipeline, use requirements-core.txt instead.
 #
 # Platform notes:
-#   - torch==2.6.0+cu124 is a CUDA 12.4 wheel; install the wheel matching
-#     your platform/CUDA (or the CPU wheel) on non-matching hosts.
+#   - torch/torchvision are pinned to the PyPI builds; on CUDA hosts you may
+#     substitute the matching +cuXXX wheels from the PyTorch index.
 #   - numpy 2.x is required by this stack; downgrade with care.
 #
 #============================================================================
@@ -88,7 +88,8 @@ six==1.16.0
 sympy==1.13.1
 threadpoolctl==3.6.0
 tomli==2.4.1
-torch==2.6.0+cu124
+torch==2.6.0
+torchvision==0.21.0
 tqdm==4.68.4
 typing-inspection==0.4.2
 typing_extensions==4.16.0
@@ -97,3 +98,4 @@ urllib3==2.7.0
 xxhash==3.8.1
 yarl==1.24.2
 zarr==2.18.3
+cartopy==0.25.0

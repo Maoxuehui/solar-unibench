@@ -12,10 +12,15 @@ keywords:
   - standardization
   - renewable energy
   - reproducibility
-# Placeholder author block — replace with the full author list before release.
 authors:
-  - given-names: "TBD"
-    family-names: "Author"
+  - given-names: "Keyu"
+    family-names: "Qi"
+  - given-names: "Xuehui"
+    family-names: "Mao"
+  - given-names: "Dazhi"
+    family-names: "Yang"
+  - given-names: "Yinghao"
+    family-names: "Chu"
 # A descriptor paper is in preparation for ESSD (Earth System Science Data).
 # Once published, point preferred-citation at the final DOI / BibTeX.
 preferred-citation:
@@ -31,5 +36,11 @@ preferred-citation:
     pipeline, and benchmark suite is being written; update this citation
     with the DOI and bibliographic details once the manuscript is accepted.
   authors:
-    - given-names: "TBD"
-      family-names: "Author"
+    - given-names: "Keyu"
+      family-names: "Qi"
+    - given-names: "Xuehui"
+      family-names: "Mao"
+    - given-names: "Dazhi"
+      family-names: "Yang"
+    - given-names: "Yinghao"
+      family-names: "Chu"

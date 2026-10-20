@@ -487,6 +487,26 @@ def run(loader, out_dir, *, model_factory=None, datasets=None) -> dict:
 
     df_out = pd.DataFrame(rows)
     _save_results_csv(rows, out_dir)
+    # Structured (Dataset, Metric, Horizon) x models summary — the same
+    # multi-index e8_summary.csv (+ LaTeX twin) the unified runner emits, so a
+    # plain ``run_experiments.py`` invocation produces it under
+    # <out>/results/ too (plot_fig09/plot_fig10 consume this file).
+    from solarunibench.benchmark.summary import save_results
+
+    save_results(
+        [
+            {
+                "dataset": r["dataset"], "horizon": r["horizon"],
+                "model": r["model"],
+                "MAE": r["Daytime_MAE"], "RMSE": r["Daytime_RMSE"],
+                "Skill_MAE_pct": 100.0 * float(r["Daytime_skill"]),
+                "Skill_RMSE_pct": 100.0 * float(r["Daytime_RMSE_skill"])
+                if "Daytime_RMSE_skill" in r else np.nan,
+            }
+            for r in rows
+        ],
+        out_dir / "results",
+    )
     figures: list[Path] = []
     if len(df_out):
         figures += _plot_heatmap(df_out, out_dir)
