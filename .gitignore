@@ -60,3 +60,6 @@ results/sample/
 # internal working docs (Chinese experiment reports etc.)
 docs/
 data/sample/standardized_nb/
+figures/fig01_c1_set_rebuilt/
+figures/fig01_dataset_showcase_panels/
+figures/results/
