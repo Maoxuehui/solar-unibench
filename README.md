@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![DOI](https://img.shields.io/doi/10.57967/hf/11056)](https://doi.org/10.57967/hf/11056)
 <!-- Zenodo DOI Badge (Uncomment after publishing Zenodo deposit) -->
 <!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX) -->
 
@@ -29,7 +30,7 @@
 | **SunLake** | GHI | Tabular (GHI) + EUMETSAT Satellite Patches (`.zarr`) | 30-min resolution, 6 BSRN stations |
 | **GEFCom2014** | PV Power | Tabular (PV, ECMWF NWP); Recovered WGS-84 Coordinates | 1-hour resolution, 3 Australia zones |
 
-*Full datasets are hosted on Hugging Face: [Solar-UniBench-v1.0](https://huggingface.co/datasets/Monicahhhhh06/Solar-UniBench-v1.0).*
+*Full datasets are hosted on Hugging Face: [Solar-UniBench-v1.0](https://huggingface.co/datasets/Monicahhhhh06/Solar-UniBench-v1.0) — DOI [10.57967/hf/11056](https://doi.org/10.57967/hf/11056).*
 
 ---
 

@@ -3,8 +3,9 @@ message: "If you use this software, please cite it as below."
 title: "Solar-UniBench: A unified multi-modal standardized solar-forecasting benchmark"
 type: software
 license: MIT
+repository-code: "https://github.com/Maoxuehui/solar-unibench"
 year: 2026
-version: 0.1.0
+version: 1.0.0
 keywords:
   - solar forecasting
   - benchmark
@@ -12,6 +13,10 @@ keywords:
   - standardization
   - renewable energy
   - reproducibility
+identifiers:
+  - description: "Full benchmark datasets (Hugging Face)"
+    type: doi
+    value: 10.57967/hf/11056
 authors:
   - given-names: "Keyu"
     family-names: "Qi"
