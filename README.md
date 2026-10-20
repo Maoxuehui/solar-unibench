@@ -3,8 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![DOI](https://img.shields.io/doi/10.57967/hf/11056)](https://doi.org/10.57967/hf/11056)
-<!-- Zenodo DOI Badge (Uncomment after publishing Zenodo deposit) -->
-<!-- [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX) -->
+<!-- Software DOI (v1.0.0; concept DOI for all versions: 10.5281/zenodo.23494160) -->
+[![Zenodo DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23494161.svg)](https://doi.org/10.5281/zenodo.23494161)
 
 **Solar-UniBench v1.0** is an open, analysis-ready, multimodal data product and benchmark suite for reproducible short-term solar forecasting. It integrates four widely used public archives — spanning **11 sites and 91 station-years** across California, Europe, and Australia — into a single physics-guided curation pipeline.
 
