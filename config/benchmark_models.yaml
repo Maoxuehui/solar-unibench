@@ -1,0 +1,40 @@
+# Benchmark model hyperparameters (paper Table B1).
+# Source of truth: solarunibench/experiments/_config.py (the exact values
+# the harness instantiates). Two presets per model — dev (tests/smoke, the
+# default) and full (SUB_FULL_CONFIG=1 / `run_experiments.py --full`,
+# convergence-tuned for 2x RTX 3090 24GB; the publishable set).
+
+grid:
+  dev:  {max_rows_per_entity: 2000, horizons_hours: [1, 6]}
+  full: {max_rows_per_entity: 50000, horizons_hours: [1, 6, 24]}
+
+SmartPersistence:       # reference baseline (no hyperparameters beyond lag)
+  note: clear-sky-scaled persistence; skill reference for every model
+
+LightGBM:
+  dev:  {n_estimators: 100, verbose: -1, n_jobs: 1, random_state: 0}
+  full: {n_estimators: 100, verbose: -1, n_jobs: -1, random_state: 0}
+
+MLP:
+  dev:  {hidden_layer_sizes: [32], max_iter: 80, random_state: 0}
+  full: {hidden_layer_sizes: [256, 128], max_iter: 500, random_state: 0}
+
+LSTM:
+  dev:  {hidden_size: 16, num_layers: 1, epochs: 3, batch_size: 64, device: cpu}
+  full: {hidden_size: 128, num_layers: 2, epochs: 100, batch_size: 256, lr: 0.001, device: cuda}
+
+DLinear:
+  dev:  {kernel_size: 25, epochs: 3, batch_size: 64, device: cpu}
+  full: {kernel_size: 25, epochs: 25, batch_size: 256, lr: 0.001, device: cuda}
+
+iTransformer:
+  dev:  {d_model: 32, n_heads: 4, depth: 1, epochs: 3, batch_size: 64, device: cpu}
+  full: {d_model: 128, n_heads: 8, depth: 3, epochs: 100, batch_size: 256, lr: 0.0001, device: cuda}
+
+PatchTST:
+  dev:  {d_model: 32, n_heads: 4, depth: 1, epochs: 3, batch_size: 64, device: cpu}
+  full: {d_model: 128, n_heads: 8, depth: 3, epochs: 100, batch_size: 256, lr: 0.0001, device: cuda}
+
+CrossViViT:             # image variant; img_size/img_patch follow the 64x64 sky frames
+  dev:  {img_size: 64, img_patch: 4, epochs: 3, batch_size: 32, device: cpu}
+  full: {img_size: 64, img_patch: 8, epochs: 100, batch_size: 64, lr: 0.0001, device: cuda}

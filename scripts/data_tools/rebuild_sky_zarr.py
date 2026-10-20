@@ -36,12 +36,12 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=200, help="frame cap (default 200; 0 = all)")
     ap.add_argument("--only-year", type=int, default=None,
                     help="folsom only: restrict to Folsom_sky_images_<year>.tar.bz2 (e.g. 2014)")
-    ap.add_argument("--data-root", default=None, help="override configs/paths.yaml data_root")
-    ap.add_argument("--output-root", default=None, help="override configs/paths.yaml output_root")
+    ap.add_argument("--data-root", default=None, help="override config/paths.yaml data_root")
+    ap.add_argument("--output-root", default=None, help="override config/paths.yaml output_root")
     args = ap.parse_args(argv)
 
     repo = Path(__file__).resolve().parents[2]
-    cfg = yaml.safe_load((repo / "configs" / "paths.yaml").read_text())
+    cfg = yaml.safe_load((repo / "config" / "paths.yaml").read_text())
     data_root = Path(args.data_root or cfg["data_root"])
     output_root = Path(args.output_root or cfg["output_root"])
     # Per-year output paths for Folsom (--only-year): each year gets its own

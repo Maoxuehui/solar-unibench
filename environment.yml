@@ -1,0 +1,11 @@
+# Conda environment for Solar-UniBench (verified on Windows/Linux, py3.10).
+#   conda env create -f environment.yml && conda activate solar_uni
+# Pip-level pins live in requirements.txt (single source of truth).
+name: solar_uni
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - -r requirements.txt

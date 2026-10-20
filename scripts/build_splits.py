@@ -1,4 +1,4 @@
-"""CLI: build frozen splits.parquet for a dataset from configs/splits.yaml."""
+"""CLI: build frozen splits.parquet for a dataset from config/splits.yaml."""
 import argparse
 import json
 import sys
@@ -12,7 +12,7 @@ from solarunibench.splits import build
 
 def main(argv=None):
     root = Path(__file__).resolve().parents[1]
-    cfg_all = yaml.safe_load((root / "configs" / "splits.yaml").read_text())
+    cfg_all = yaml.safe_load((root / "config" / "splits.yaml").read_text())
     # Per-dataset keys exclude the top-level version stamp and the benchmark-level
     # `spatial` cross-domain folds entry (not a per-dataset config).
     dataset_choices = sorted(k for k in cfg_all if k not in ("splits_version", "spatial"))
@@ -23,7 +23,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     version = cfg_all.pop("splits_version", "1.0")
-    paths = yaml.safe_load((root / "configs" / "paths.yaml").read_text())
+    paths = yaml.safe_load((root / "config" / "paths.yaml").read_text())
     out_root = Path(args.output_root or paths["output_root"])
     manifest = build(out_root / args.dataset, cfg_all[args.dataset], version)
     print(json.dumps(manifest, indent=2))

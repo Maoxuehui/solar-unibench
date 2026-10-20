@@ -162,7 +162,7 @@ python scripts/generate_paper_figures.py --fig 8    # just Figure 8
 ```
 
 Notebooks: `notebooks/01_quickstart_data_pipeline.ipynb` (pipeline on the
-sample) and `notebooks/02_reproduce_fig8_crossover.ipynb` (Figure 8 from the
+sample) and `notebooks/02_reproduce_fig8.ipynb` (Figure 8 from the
 result CSVs).
 
 ---

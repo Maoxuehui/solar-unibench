@@ -47,7 +47,7 @@ _MODELS = {
 def main(argv=None):
     repo = Path(__file__).resolve().parents[2]
     import yaml
-    default_root = yaml.safe_load((repo / "configs" / "paths.yaml").read_text())["output_root"]
+    default_root = yaml.safe_load((repo / "config" / "paths.yaml").read_text())["output_root"]
 
     ap = argparse.ArgumentParser(description="Run one forecast baseline; print metrics.")
     ap.add_argument("--dataset", required=True)

@@ -253,7 +253,7 @@ def main(argv=None) -> int:
     repo = Path(__file__).resolve().parents[1]
     import yaml
 
-    paths_cfg = yaml.safe_load((repo / "configs" / "paths.yaml").read_text())
+    paths_cfg = yaml.safe_load((repo / "config" / "paths.yaml").read_text())
     default_root = paths_cfg["output_root"]
     default_raw_source = Path(paths_cfg.get("data_root", "")) / _RAW_SUBDIRS.get(
         _RAW_DATASET, ""

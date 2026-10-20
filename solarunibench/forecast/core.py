@@ -39,7 +39,7 @@ from ..loader import SolarUniBenchLoader
 from .scaling import PhysicalFeatureScaler
 
 # Repo-relative config path for the default ``output_root`` resolution.
-_PATHS_YAML = Path(__file__).resolve().parents[2] / "configs" / "paths.yaml"
+_PATHS_YAML = Path(__file__).resolve().parents[2] / "config" / "paths.yaml"
 
 # Future-context columns shared by the physical Smart Persistence baseline and
 # tabular models. X_future is built only when BOTH are present in the frame.
@@ -51,7 +51,7 @@ _TEST_SPLIT = "test"
 
 
 def _default_data_root() -> str | None:
-    """Return ``output_root`` from ``configs/paths.yaml`` (None if unreadable)."""
+    """Return ``output_root`` from ``config/paths.yaml`` (None if unreadable)."""
     try:
         cfg = yaml.safe_load(_PATHS_YAML.read_text())
     except (FileNotFoundError, OSError):
@@ -467,7 +467,7 @@ class SolarForecastPipeline:
 
         If ``df_provider`` is ``None``, tabular frames are loaded via
         :class:`SolarUniBenchLoader` from ``config.data_root`` (falling back to
-        ``configs/paths.yaml``'s ``output_root``). Otherwise ``df_provider`` is
+        ``config/paths.yaml``'s ``output_root``). Otherwise ``df_provider`` is
         called as ``df_provider(config)`` and is expected to return a frame that
         includes a ``split`` column (or a single split already filtered).
         """
@@ -535,7 +535,7 @@ class SolarForecastPipeline:
         root = self.config.data_root or _default_data_root()
         if not root:
             raise ValueError(
-                "config.data_root is unset and configs/paths.yaml 'output_root' "
+                "config.data_root is unset and config/paths.yaml 'output_root' "
                 "could not be resolved; pass data_root explicitly."
             )
         return root

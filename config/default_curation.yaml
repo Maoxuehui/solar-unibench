@@ -1,0 +1,27 @@
+# Default curation-pipeline parameters (paper Eqs. 1-5).
+# Canonical implementations: solarunibench/curation/*.py + operators/.
+# These values mirror the operator defaults; change here only for
+# dataset-specific overrides passed explicitly to the tools/adapters.
+
+geolocation:            # Eq. (1) — clear-sky shape-match inversion
+  lat_grid_deg: 2.0     # search grid step (default -60..60)
+  lon_grid_deg: 2.0     # search grid step (default -180..180)
+  min_daytime_samples: 100
+
+physical_bounds:        # Eq. (2)-(3) — apply_physical_bounds
+  kt_min: 0.0           # clearness-index clamp lower bound
+  kt_max: 1.5           # clearness-index clamp upper bound
+  night_zenith_deg: 90.0  # cos_zenith <= 0 -> nocturnal mask (zeroing)
+  pv_capacity: 1.0      # normalized nameplate cap for PV clipping
+
+visual_features:        # Eq. (4)-(5) — NRBR + optical-flow reliability
+  nrbr_cloud_threshold: 0.1   # NRBR above this = cloud-consistent pixel
+  farneback:
+    pyr_scale: 0.5
+    levels: 3
+    winsize: 21
+    iterations: 3
+    poly_n: 5
+    poly_sigma: 1.2
+  max_flow_pairs: 4     # consecutive frame pairs evaluated per call
+  glare_radius_px: 25   # full-res glare-mask radius (fig05/QC convention)

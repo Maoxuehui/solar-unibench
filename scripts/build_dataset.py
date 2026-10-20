@@ -97,7 +97,7 @@ def main(argv=None):
     if not args.dataset:
         ap.error("--dataset is required (or use --sample)")
 
-    cfg = yaml.safe_load((Path(__file__).resolve().parents[1] / "configs" / "paths.yaml").read_text())
+    cfg = yaml.safe_load((Path(__file__).resolve().parents[1] / "config" / "paths.yaml").read_text())
     data_root = args.data_root or cfg["data_root"]
     output_root = args.output_root or cfg["output_root"]
 

@@ -14,6 +14,8 @@ through their tool-use adapters, e.g.::
              (tool_recover_geolocation, tool_apply_physical_qc,
               tool_extract_physics_features)]
 """
-from .agent import SolarCurationAgent, export_canonical
+from .agent import STEPS, SolarCurationAgent, export_canonical
+from . import skill_entry  # noqa: F401
 
-__all__ = ["SolarCurationAgent", "export_canonical"]
+__all__ = ["STEPS", "SolarCurationAgent", "export_canonical",
+           "skill_entry"]
