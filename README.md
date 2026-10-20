@@ -1,4 +1,4 @@
-# Solar-UniBench — A Multi-modal Standardized Benchmark for Solar Forecasting
+# Solar-UniBench v1.0: Harmonizing heterogeneous public solar data into a spatiotemporally aligned and quality-aware data product
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
