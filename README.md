@@ -6,7 +6,7 @@
 <!-- Software DOI (v1.0.0; concept DOI for all versions: 10.5281/zenodo.23494160) -->
 [![Zenodo DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23494161.svg)](https://doi.org/10.5281/zenodo.23494161)
 
-**Solar-UniBench v1.0** is an open, analysis-ready, multimodal data product and benchmark suite for reproducible short-term solar forecasting. It integrates four widely used public archives — spanning **11 sites and 91 station-years** across California, Europe, and Australia — into a single physics-guided curation pipeline.
+**Solar-UniBench v1.0** is an open, analysis-ready, multimodal data product and benchmark suite for reproducible short-term solar forecasting. It integrates four widely used public archives — spanning **11 sites and 91 station-years across seven countries and four continents** — through a deterministic, physics-guided curation pipeline.
 
 > **Key Thesis — Governance over Complexity:** Experimental evaluations (E9) demonstrate that physics-guided data governance (quality auditing + clear-sky physical anchoring) yields greater forecast skill improvements than scaling model architectural complexity alone.
 
@@ -16,7 +16,7 @@
 
 - **Standardized Data Contract:** Emits unified `metadata.parquet`, `time_series.parquet`, and chunked `sky_images.zarr` tensors across all observing sites.
 - **Physics-Guided Curation:** Reconstructs missing geospatial parameters, enforces physical boundaries ($k_t \in [0, 1.5]$), and derives physics-informed visual features (NRBR color-ratio maps and optical-flow advection reliability maps).
-- **Agentic Workflow Integration:** Curation operators are packaged as an autonomous agentic skill (`SKILL.md`), enabling natural-language tool dispatch for automated data harmonization.
+- **Extensible Onboarding & Interface Specification:** Heterogeneous archives are ingested via lightweight adapter classes (`solarunibench/pipeline/adapters/`) governed by strict schema contracts (`solarunibench/contract.py`). A machine-readable specification (`SKILL.md`) documents the required data schemas, metadata fields, and step-by-step execution procedures for both researchers and IDE coding assistants.
 - **Fair & Frozen Benchmark:** Provides standardized chronological splits and a tiered baseline suite (Smart Persistence, LightGBM, MLP, LSTM, iTransformer, PatchTST, and CrossViViT).
 
 ---
@@ -62,7 +62,7 @@ The repository includes a lightweight 1-day sample dataset (`data/sample/`, ~15 
 # Test the raw -> standardized pipeline on the sample
 python scripts/build_dataset.py --sample
 
-# Run agentic-workflow curation on the sample
+# Verify deterministic curation operators via the task orchestrator
 python scripts/run_agent_curation.py
 
 # Run fast defect diagnostics
@@ -108,7 +108,7 @@ solar-unibench/
 ├── data/sample/             # 1-day Folsom sample (raw + standardized) for instant demos
 ├── solarunibench/           # Core Python package
 │   ├── curation/            # Eq.(1) geo-alignment, Eq.(2-3) physical bounds, Eq.(4-5) NRBR/flow
-│   ├── agent/               # Agentic curation layer (tools + skill entry)
+│   ├── agent/               # Deterministic task-orchestration layer (operator dispatch)
 │   ├── models/              # Benchmark suite (Smart Persistence, LightGBM, MLP, LSTM,
 │   │                        #   iTransformer, PatchTST, DLinear, CrossViViT)
 │   ├── pipeline/            # Standardization adapters & contract definitions
@@ -116,11 +116,11 @@ solar-unibench/
 ├── scripts/                 # CLI entry points
 │   ├── run_curation.py      #   run the curation pipeline
 │   ├── run_benchmark.py     #   1-h dispatch evaluation & multi-horizon sensitivity
-│   └── run_agent_curation.py#   Agentic pipeline entry
+│   └── run_agent_curation.py#   Task-orchestrator CLI entry point
 ├── figures/paper/           # The 10 final paper figures (PNG + PDF)
 ├── results/                 # Experiment result CSVs (plots/ = figure inputs)
 ├── notebooks/               # Quickstart & one-click figure reproduction
-├── SKILL.md                 # Autonomous Agent Skill definition
+├── SKILL.md                 # Structured data-onboarding & curation workflow specification
 ├── environment.yml          # Conda environment definition
 └── requirements.txt         # Pinned dependencies
 ```
