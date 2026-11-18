@@ -86,7 +86,7 @@ def tool_extract_physics_features(image_tensor: np.ndarray,
     flow = optical_flow_reliability(t, max_pairs=max_flow_pairs)
     return {
         "nrbr": nrbr,
-        "nrbr_cloud_fraction": float((nrbr > 0.1).mean()),
+        "nrbr_cloud_fraction": float((nrbr < -0.1).mean()),
         "flow": flow["flow"],
         "reliability": flow["reliability"],
         "flow_mean_magnitude": flow["flow_mean_magnitude"],

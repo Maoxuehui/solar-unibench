@@ -20,7 +20,7 @@ def nrbr_map(rgb: np.ndarray) -> np.ndarray:
 
     Returns:
         ``(H, W)`` mean map (stack input) or ``(H, W)`` map (single frame);
-        positive values are cloud-consistent (blue-dominated sky).
+        negative values are cloud-consistent (red-dominant); clear blue sky reads near +1.
     """
     t = np.asarray(rgb, dtype=np.float32)
     if t.ndim == 3:
