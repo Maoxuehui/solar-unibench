@@ -74,16 +74,17 @@ def _panel_a(ax: plt.Axes) -> None:
         for b, v in zip(bars, vals):
             va = "bottom" if v >= 0 else "top"
             off = 0.006 * (1 if v >= 0 else -1)
-            ax.text(b.get_x() + b.get_width() / 2, v + off, f"{v:+.3f}",
+            ax.text(b.get_x() + b.get_width() / 2, v + off,
+                    f"{v * 100:+.1f}%",
                     ha="center", va=va, fontsize=8.5, color=col,
                     fontweight="bold")
-    # Y head/foot room so the +/- labels never collide with the zero line.
-    all_vals = vs_mean + vs_best
-    lo, hi = min(all_vals), max(all_vals)
-    span = hi - lo
-    ax.set_ylim(lo - 0.22 * span, hi + 0.22 * span)
+    # Percent axis: fixed physical frame (-5% .. 20%) with 5%-spaced ticks.
+    ax.set_ylim(-0.05, 0.20)
+    ax.set_yticks(np.arange(-0.05, 0.2001, 0.05))
+    ax.yaxis.set_major_formatter(
+        mpl.ticker.PercentFormatter(xmax=1.0, decimals=0))
     ax.set_xticks(xpos, disp)
-    ax.set_ylabel(r"CrossOver Margin $\chi$ (Skill Difference)")
+    ax.set_ylabel(r"Crossover Margin $\chi$ (Skill Difference, %)")
     ax.grid(axis="y", linestyle="--", alpha=0.15)
     ax.set_axisbelow(True)
     ax.legend(frameon=False, fontsize=10, loc="upper left")
