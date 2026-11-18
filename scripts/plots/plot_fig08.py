@@ -89,7 +89,8 @@ def _panel_a(ax: plt.Axes) -> None:
     ax.set_axisbelow(True)
     ax.legend(frameon=False, fontsize=10, loc="upper left")
     ax.text(0.01, 0.02,
-            r"$\chi=\max(\mathrm{LGBM},\mathrm{MLP})_{\mathrm{cleaned}}-\mathrm{deep}_{\mathrm{raw}}$",
+            r"$\chi=\mathrm{Skill}_{\mathrm{lightweight,\ cleaned}}^{\mathrm{best}}"
+            r"-\mathrm{Skill}_{\mathrm{deep,\ raw}}$",
             transform=ax.transAxes, fontsize=9.5, color="0.25")
 
 
