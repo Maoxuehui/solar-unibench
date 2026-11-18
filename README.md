@@ -98,6 +98,17 @@ python scripts/generate_paper_figures.py
 
 Interactive walkthroughs: `notebooks/01_data_quickstart.ipynb` (pipeline on the sample) and `notebooks/02_reproduce_fig8.ipynb` (one-click paper Figure 8).
 
+> **Terminology note — BRR vs. NRBR.** The `BRR` channel produced by the operator
+> `solarunibench/operators/brr.py` and stored as the 4th channel of the sky-image
+> Zarr feature tensors, and the `NRBR` feature discussed in the paper text, denote
+> the **same physical quantity**: the normalized blue–red ratio
+> $(B - R)/(B + R + \epsilon)$ with $\epsilon = 10^{-6}$ (Li et al., 2011,
+> *J. Atmos. Oceanic Technol.*, Eq. 2). Positive values indicate clear-sky
+> Rayleigh scattering (blue-dominated sky); negative values indicate cloud / Mie
+> scattering. The short code name `BRR` is retained for backward compatibility
+> with the published Zarr datasets (`compute_nrbr` / `compute_brr` are aliases of
+> the same operator).
+
 ---
 
 ## Repository Structure
