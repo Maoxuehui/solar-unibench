@@ -259,7 +259,13 @@ class ImageWindowEngineer:
         img_tail_frames: int | None = None,
     ):
         self.target = target
-        self.feature_cols: list[str] = list(feature_cols or _FEATURE_COLS)
+        # NOTE: `feature_cols or _FEATURE_COLS` would silently turn an
+        # explicit EMPTY list (the E9-contiguous raw arm's target-only
+        # spec) into the full E8 block — empty-list-is-falsy trap. Treat
+        # None as "default" and [] as "target-only".
+        self.feature_cols: list[str] = (
+            list(feature_cols) if feature_cols is not None
+            else list(_FEATURE_COLS))
         self.cube = cube
         self.img_size = img_size
         if image_stride <= 0:

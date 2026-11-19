@@ -318,6 +318,14 @@ def run_crossvivit_arm(loader, ds, target, train_frame, test_gov, lb, hz,
         raise RuntimeError(f"no sky cube resolved for {ds}")
     channels = 4 if governed else 3
     feats = list(_E8_FEATURES) if governed else []
+    # Raw arm: the TEST frame must not expose anchor columns either — the
+    # column-presence asymmetry (raw train has none, governed test has all)
+    # would leak them into the engineered test block (Fp mismatch vs train,
+    # and physics features in a target-only arm). SP reference below uses a
+    # separately built GOVERNED test with the full feature block on the
+    # identical windows (same rows/stride/contiguity/kept-mask).
+    test_frame_model = test_gov if governed else test_gov.drop(
+        columns=[c for c in _ANCHOR_COLS if c in test_gov.columns])
     # E8's exact image regime: 8 frames at 30-step spacing over the LAST
     # ~3.5 h of the lookback (img_tail_frames). Camera uptime is duty-cycled
     # in multi-hour blocks, so a 12-h full-lookback image coverage is
@@ -326,9 +334,13 @@ def run_crossvivit_arm(loader, ds, target, train_frame, test_gov, lb, hz,
     eng = ImageWindowEngineer(target, cube, img_ts, img_size=32,
                               image_stride=30, img_tail_frames=8,
                               feature_cols=feats)
+    eng_gov = ImageWindowEngineer(
+        target, cube, img_ts, img_size=32, image_stride=30,
+        img_tail_frames=8, feature_cols=list(_E8_FEATURES)) \
+        if not governed else eng
 
-    def _build(df, fit: bool):
-        out = eng.create_features(df, lb, hz, st)
+    def _build(fe, df, fit: bool):
+        out = fe.create_features(df, lb, hz, st)
         keep = _contiguous_keep(df, lb, hz, st, dt) & out["kept"]
         if keep.sum() == 0:
             raise RuntimeError("no contiguous image-covered windows")
@@ -336,17 +348,23 @@ def run_crossvivit_arm(loader, ds, target, train_frame, test_gov, lb, hz,
                     == out["X_past"].shape[:1] else v)
                 for k, v in out.items() if k != "kept"}, int(keep.sum())
 
-    tr, _ = _build(train_frame, fit=True)
-    te, _ = _build(test_gov, fit=False)
+    tr, _ = _build(eng, train_frame, fit=True)
+    te, _ = _build(eng, test_frame_model, fit=False)
+    te_gov, _ = _build(eng_gov, test_gov, fit=False)
+    # Window identity must match across the model/governed-SP builds.
+    assert len(te["times"]) == len(te_gov["times"]), \
+        "image-arm window mismatch between model and SP builds"
+    assert (te["times"] == te_gov["times"]).all()
     if channels == 3:
-        tr["images"], te["images"] = tr["images"][:, :, :3], te["images"][:, :, :3]
+        tr["images"] = tr["images"][:, :, :3]
+        te["images"] = te["images"][:, :, :3]
 
-    # SP reference on the SAME governed windows (clear-sky scaled whenever
-    # the governed test frame provides the anchors — the raw-arm engineer
-    # builds no X_future for its own train rows).
+    # SP reference on the SAME windows, governed features (clear-sky
+    # scaled) — the raw arm's model never sees these columns.
     sp = SmartPersistenceModel()
-    sp.fit(tr["X_past"], tr["Y"])
-    sp_pred = sp.predict(te["X_past"], te["times"], te["X_future"])
+    sp.fit(tr["X_past"], tr["Y"])  # fit is a no-op for SP
+    sp_pred = sp.predict(te_gov["X_past"], te_gov["times"],
+                         te_gov["X_future"])
 
     # Raw-arm model contract: no future-anchor tokens at fit OR predict
     # (fit-time X_future is None because the raw train frame has no anchors).
@@ -365,7 +383,9 @@ def run_crossvivit_arm(loader, ds, target, train_frame, test_gov, lb, hz,
               images=tr["images"])
     pred = model.predict(te["X_past"], te["times"], model_xf_te,
                          images=te["images"])
-    return te["Y"], pred, te["cos_zenith_issue"], sp_pred
+    # Daytime mask from the GOVERNED build (identical windows, asserted
+    # above) — the raw-arm test frame has no cos_zenith column.
+    return te["Y"], pred, te_gov["cos_zenith_issue"], sp_pred
 
 
 # ---------------------------------------------------------------------------
