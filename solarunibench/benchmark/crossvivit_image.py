@@ -256,6 +256,7 @@ class ImageWindowEngineer:
         image_stride: int = DEFAULT_IMAGE_STRIDE,
         tolerance: pd.Timedelta | str | None = DEFAULT_TOLERANCE,
         feature_cols: list[str] | None = None,
+        img_tail_frames: int | None = None,
     ):
         self.target = target
         self.feature_cols: list[str] = list(feature_cols or _FEATURE_COLS)
@@ -264,6 +265,11 @@ class ImageWindowEngineer:
         if image_stride <= 0:
             raise ValueError(f"image_stride must be positive (got {image_stride})")
         self.image_stride = image_stride
+        # Optional cap: keep only the most recent N spaced frames of the
+        # lookback (branch exp/e9-contiguous-rerun: E8's exact 8-frame/4h
+        # image regime inside a longer tabular lookback). None = full
+        # lookback coverage (upstream behaviour unchanged).
+        self.img_tail_frames = img_tail_frames
         self.tolerance = (
             pd.Timedelta(tolerance) if tolerance is not None else None
         )
@@ -304,6 +310,8 @@ class ImageWindowEngineer:
         # Subsampled image-frame positions within a lookback, lookback-anchored
         # (ends at the issue time; the most recent frames matter most).
         img_pos = list(range(lookback - 1, -1, -self.image_stride))[::-1]
+        if self.img_tail_frames is not None:
+            img_pos = img_pos[-self.img_tail_frames:]
 
         past_cols = [self.target] + [c for c in self.feature_cols if c in df.columns]
         future_cols = ["ghi_clearsky", "cos_zenith"]
