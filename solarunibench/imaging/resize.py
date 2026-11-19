@@ -31,16 +31,20 @@ def resize_frames(frames, target_hw):
 
     is_torch = type(frames).__name__ == "Tensor"
     arr = np.asarray(frames.detach() if hasattr(frames, "detach") else frames)
-    if arr.ndim != 4 or arr.shape[1] != 4:
-        raise ValueError(f"resize_frames expects (N,4,H,W); got shape {arr.shape}")
-    n, _, h, w = arr.shape
+    # Any channel count C >= 1 is resized channel-wise (4 = RGB+BRR is the
+    # standardized sky cube; 3 = the RGB-only raw arm of the E9-contiguous
+    # governance experiment, branch exp/e9-contiguous-rerun).
+    if arr.ndim != 4 or arr.shape[1] < 1:
+        raise ValueError(f"resize_frames expects (N,C,H,W) with C >= 1; "
+                         f"got shape {arr.shape}")
+    n, c_dim, h, w = arr.shape
     if (h, w) == (th, tw):
         return frames  # identity; nothing to do
 
     interp = cv2.INTER_AREA if (th <= h and tw <= w) else cv2.INTER_LINEAR
-    out = np.empty((n, 4, th, tw), dtype=arr.dtype)
+    out = np.empty((n, c_dim, th, tw), dtype=arr.dtype)
     for i in range(n):
-        for c in range(4):
+        for c in range(c_dim):
             out[i, c] = cv2.resize(arr[i, c], (tw, th), interpolation=interp)
     if is_torch:
         import torch
