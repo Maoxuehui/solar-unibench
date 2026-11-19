@@ -81,9 +81,17 @@ def _panel_a(ax: plt.Axes) -> None:
                     f"{v * 100:+.1f}%",
                     ha="center", va=va, fontsize=8.5, color=col,
                     fontweight="bold")
-    # Percent axis: fixed physical frame (-5% .. 20%) with 5%-spaced ticks.
-    ax.set_ylim(-0.05, 0.20)
-    ax.set_yticks(np.arange(-0.05, 0.2001, 0.05))
+    # Percent axis: adaptive frame with quantized (5% or 10%) tick steps so
+    # the chi range always fits (the contiguous rerun reached chi_mu +46%).
+    all_vals = vs_mean + vs_best
+    lo, hi = min(all_vals), max(all_vals)
+    span = hi - lo
+    lo_f, hi_f = lo - 0.18 * span - 0.02, hi + 0.24 * span + 0.02
+    step = 0.05 if span <= 0.45 else 0.10
+    lo_q = np.floor(lo_f / step) * step
+    hi_q = np.ceil(hi_f / step) * step
+    ax.set_ylim(lo_q, hi_q)
+    ax.set_yticks(np.arange(lo_q, hi_q + step / 2, step))
     ax.yaxis.set_major_formatter(
         mpl.ticker.PercentFormatter(xmax=1.0, decimals=0))
     ax.set_xticks(xpos, disp)
