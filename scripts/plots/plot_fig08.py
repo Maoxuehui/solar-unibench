@@ -71,10 +71,11 @@ def _panel_a(ax: plt.Axes) -> None:
                 label=r"vs. deep-model best")
     ax.axhline(0.0, color="black", linewidth=0.8)
     for bars, vals, col in ((b1, vs_mean, BLUE), (b2, vs_best, ORANGE)):
+        dx = 0.0 if col == BLUE else 0.04   # nudge orange labels rightward
         for b, v in zip(bars, vals):
             va = "bottom" if v >= 0 else "top"
             off = 0.006 * (1 if v >= 0 else -1)
-            ax.text(b.get_x() + b.get_width() / 2, v + off,
+            ax.text(b.get_x() + b.get_width() / 2 + dx, v + off,
                     f"{v * 100:+.1f}%",
                     ha="center", va=va, fontsize=8.5, color=col,
                     fontweight="bold")
