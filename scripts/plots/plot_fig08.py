@@ -14,6 +14,13 @@ Colorblind-safe palette per the user spec: blue #005ab5 / orange #dc7d28
 (with '//' hatch double-encoding), serif fonts, no titles (LaTeX captions
 own the explanation), LaTeX-math axis labels, y-only faint dashed grid.
 
+Sampling-basis note (paper caption should carry this): tabular models are
+scored on all contiguous windows; CrossViViT (folsom/skippd) on the
+image-fully-covered subset (72% / 40%), with a paired same-window SP
+reference (E8 image-variant discipline). chi over the full deep pool
+therefore mixes sampling bases; chi_mu_3/chi_best_3 are the like-for-like
+tabular-camp margins (exported in results_e9_contiguous_chi.csv).
+
 Run: python scripts/plots/plot_fig08.py
 """
 from __future__ import annotations
@@ -103,6 +110,16 @@ def _panel_a(ax: plt.Axes) -> None:
             r"$\chi=\mathrm{Skill}_{\mathrm{lightweight,\ cleaned}}^{\mathrm{best}}"
             r"-\mathrm{Skill}_{\mathrm{deep,\ raw}}$",
             transform=ax.transAxes, fontsize=9.5, color="0.25")
+    # Sampling-basis disclosure (paper caption carries the full wording):
+    # CrossViViT cells sit on the image-covered window subset (folsom 72%,
+    # skippd 40%, paired same-window SP); tabular models on all windows.
+    ax.text(0.01, -0.14,
+            "CrossViViT (Folsom/SKIPP'D): image-covered windows only "
+            "(72% / 40%); tabular models: all windows.\n"
+            "Same-window 3-model-camp margins: see "
+            "results_e9_contiguous_chi.csv (chi_mu_3 / chi_best_3).",
+            transform=ax.transAxes, fontsize=7, color="0.45",
+            va="top", ha="left")
 
 
 def _panel_b(ax: plt.Axes) -> None:

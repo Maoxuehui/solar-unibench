@@ -11,6 +11,18 @@ governed = E8 features [cos_zenith, ghi_clearsky,
 clearness_index_aligned]. CrossViViT: image datasets only, 8 frames
 per window (image_stride = L//8), raw arm = RGB 3-channel.
 
+Sampling basis (honest disclosure): tabular models and their Smart
+Persistence reference are scored on ALL contiguous windows; CrossViViT
+cells (and a paired same-window SP reference) are scored on the
+image-fully-covered SUBSET — folsom 5,993/8,310 daytime samples (72%),
+skippd 2,684/6,754 (40%). This follows the E8 image-variant discipline
+(uncovered windows dropped from both model and reference; camera uptime
+is duty-cycled in multi-hour blocks, so 12-h full-lookback coverage is
+structurally impossible on folsom). Consequently chi_mu / chi_best (the
+full deep pool) mix sampling bases, while chi_mu_3 / chi_best_3 (the
+tabular-only deep camp: LSTM / iTransformer / PatchTST-CD) compare on
+identical window sets — the like-for-like margins. Both are reported.
+
 ## folsom
 
 | arm | model | MAE | RMSE | Skill_MAE_% | Skill_RMSE_% | n_day |
