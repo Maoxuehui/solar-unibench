@@ -4,7 +4,7 @@ Branch companion to scripts/experiments/e9_contiguous.py: reruns the
 3-stage progressive ablation (Raw -> +Hygiene -> +Clear-sky) for fig08
 panel (b) under the SAME strict full-data contiguous regime as panel (a):
 
-  * full Folsom record (no subsampling — the legacy e10b_waterfall_met.py
+  * full Folsom record (no subsampling — the legacy e10b_waterfall_met.py (archived)
     used a 20k-row uniform subsample and L=12/H=1/stride=12 rows),
   * frozen E8 splits (test governed windows as the scoring set),
   * L=720 / H=60 / stride=30 (12 h -> 1 h physical), strict per-window

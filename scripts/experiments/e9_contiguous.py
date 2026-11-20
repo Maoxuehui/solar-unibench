@@ -1,7 +1,7 @@
 """E9-contiguous — full-data governance crossover on the E8-aligned protocol.
 
 Branch experiment (exp/e9-contiguous-rerun). Replaces the bounded/subsampled
-E9 grid (scripts/experiments/e9_cross_dataset.py) with a strict re-run whose
+E9 grid (archive/legacy_e9_bounded/scripts/e9_cross_dataset.py) with a strict re-run whose
 data regime, splits, windowing and evaluation are byte-aligned with the E8
 unified benchmark (solarunibench/benchmark/run_e8.py):
 

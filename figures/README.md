@@ -6,7 +6,7 @@ color, and dimension — no magic numbers in the plotting layers).
 
 | File | Content | Source data |
 |---|---|---|
-| `fig1_crossover_frontier_waterfall` | (a) hierarchical crossover margin χ per dataset vs deep-model mean/best; (b) governance waterfall (LightGBM probe) | `results_e9_cross_dataset.csv`, `results_e9_waterfall.csv` |
+| `fig1_crossover_frontier_waterfall` | (a) hierarchical crossover margin χ per dataset vs deep-model mean/best; (b) governance waterfall (LightGBM probe) | `results/results_e9_contiguous_chi.csv` + `results_e10b_waterfall_contiguous.csv` (see scripts/plots/plot_fig08.py -> figures/paper/fig08_v2) |
 | `fig2_benchmark_skill_heatmap` | E8 daytime Skill (MAE \| RMSE), 7 models × 4 datasets × 3 native horizons (CrossViViT v2; DLinear excluded from display) | `figures/results/e8_summary.csv` |
 | `fig3_benchmark_horizon_lines` | Skill vs native horizon per dataset — the persistence-crossover view | `e8_summary.csv` |
 | `fig4_data_defects` | (a) inter-step gap distributions; (b) column-wise missingness with Honest-NaN modality colors | `defect_summary.csv` + standardized packages |

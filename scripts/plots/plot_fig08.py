@@ -169,9 +169,13 @@ def main() -> int:
     axes[1].text(-0.22, 1.05, "(b)", transform=axes[1].transAxes,
                  fontsize=14, fontweight="bold", va="bottom", ha="left")
     fig.tight_layout(rect=(0, 0, 1, 0.945))
-    fig.savefig(OUT.with_suffix(".pdf"), dpi=300, bbox_inches="tight")
-    fig.savefig(OUT.with_suffix(".png"), dpi=300, bbox_inches="tight")
-    print(f"wrote {OUT}.pdf (+ .png)")
+    for ext in ("pdf", "png"):
+        fig.savefig(OUT.with_suffix(f".{ext}"), dpi=300, bbox_inches="tight")
+        # LaTeX-convention twin at figures/ (manuscript references
+        # Figures/fig08_v2.pdf; the repo maps Figures/ -> figures/).
+        fig.savefig(_REPO_ROOT / "figures" / f"fig08_v2.{ext}", dpi=300,
+                    bbox_inches="tight")
+    print(f"wrote {OUT}.pdf (+ .png, + figures/ twins)")
     return 0
 
 
