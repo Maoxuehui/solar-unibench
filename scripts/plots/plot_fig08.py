@@ -148,7 +148,11 @@ def _panel_b(ax: plt.Axes) -> None:
                 color=ORANGE, fontweight="bold")
     ax.set_xticks(np.arange(3), steps, fontsize=9.5)
     ax.set_ylabel(r"Daytime Forecast Error (MAE)")
-    ax.set_ylim(0.04, max(mae) + 0.42 * span)   # headroom for both bands
+    # Normal upright axis zoomed onto the tight contiguous-rerun range
+    # (0.02555..0.02821): bars, value labels, and both % annotations all
+    # fit INSIDE the frame. (The legacy hard ylim 0.04.. flew the bars out.)
+    ax.set_ylim(0.0235, 0.0295)
+    ax.set_yticks(np.arange(0.024, 0.0296, 0.001))
     ax.grid(axis="y", linestyle="--", alpha=0.15)
     ax.set_axisbelow(True)
 
