@@ -4,7 +4,7 @@ The full chain ran with pre-fix resize_frames (hard 4-channel check), so
 skippd and folsom raw/CrossViViT (RGB 3-channel arm) failed. This reruns
 ONLY those cells with the fixed code, merges them into
 results/results_e9_contiguous.csv, recomputes chi and the markdown summary,
-and re-renders fig08_v2.
+and re-renders fig08.
 
 Run: python scripts/experiments/e9_patch_raw_crossvivit.py
 """

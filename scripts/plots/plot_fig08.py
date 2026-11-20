@@ -42,7 +42,7 @@ mpl.rcParams.update({
 })
 
 BLUE, ORANGE = "#005ab5", "#dc7d28"
-OUT = _REPO_ROOT / "figures" / "paper" / "fig08_v2"
+OUT = _REPO_ROOT / "figures" / "paper" / "fig08"
 RES = _REPO_ROOT / "results"
 
 
@@ -172,8 +172,8 @@ def main() -> int:
     for ext in ("pdf", "png"):
         fig.savefig(OUT.with_suffix(f".{ext}"), dpi=300, bbox_inches="tight")
         # LaTeX-convention twin at figures/ (manuscript references
-        # Figures/fig08_v2.pdf; the repo maps Figures/ -> figures/).
-        fig.savefig(_REPO_ROOT / "figures" / f"fig08_v2.{ext}", dpi=300,
+        # Figures/fig08.pdf; the repo maps Figures/ -> figures/).
+        fig.savefig(_REPO_ROOT / "figures" / f"fig08.{ext}", dpi=300,
                     bbox_inches="tight")
     print(f"wrote {OUT}.pdf (+ .png, + figures/ twins)")
     return 0
