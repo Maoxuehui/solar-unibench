@@ -42,22 +42,24 @@ mpl.rcParams.update({
 })
 
 BLUE, ORANGE = "#005ab5", "#dc7d28"
-OUT = _REPO_ROOT / "figures" / "paper" / "fig08"
-RES = _REPO_ROOT / "results" / "plots"
+OUT = _REPO_ROOT / "figures" / "paper" / "fig08_v2"
+RES = _REPO_ROOT / "results"
 
 
 def _compute_frontier() -> tuple[list[str], list[float], list[float]]:
-    """Margins from the cross-dataset grid CSV (micro-cleaned max vs deep camp)."""
-    x = pd.read_csv(RES / "results_e9_cross_dataset.csv")
+    """Margins from the contiguous E9 rerun chi table (skill % -> fractions).
+
+    Branch exp/e9-contiguous-rerun: reads results/results_e9_contiguous_chi.csv
+    produced by scripts/experiments/e9_contiguous.py (full-data, E8-aligned
+    splits, strict window contiguity). chi_mu / chi_best use the full deep
+    pool ({LSTM, iTransformer, PatchTST-CD} + CrossViViT on image datasets).
+    """
+    chi = pd.read_csv(RES / "results_e9_contiguous_chi.csv")
+    chi = chi.set_index("dataset")
     datasets = ["folsom", "skippd", "sunlake", "gefcom2014"]
     disp = ["Folsom", "SKIPP'D", "SunLake", "GEFCom2014"]
-    vs_mean, vs_best = [], []
-    for ds in datasets:
-        d = x[x.dataset == ds]
-        micro = max(d[d.model == m].skill_cleaned.iloc[0] for m in ("LightGBM", "MLP"))
-        deep = [d[d.model == m].skill_raw.iloc[0] for m in ("LSTM", "iTransformer", "PatchTST")]
-        vs_mean.append(micro - float(np.mean(deep)))
-        vs_best.append(micro - max(deep))
+    vs_mean = [float(chi.loc[ds, "chi_mu"]) / 100.0 for ds in datasets]
+    vs_best = [float(chi.loc[ds, "chi_best"]) / 100.0 for ds in datasets]
     return disp, vs_mean, vs_best
 
 
@@ -79,9 +81,17 @@ def _panel_a(ax: plt.Axes) -> None:
                     f"{v * 100:+.1f}%",
                     ha="center", va=va, fontsize=8.5, color=col,
                     fontweight="bold")
-    # Percent axis: fixed physical frame (-5% .. 20%) with 5%-spaced ticks.
-    ax.set_ylim(-0.05, 0.20)
-    ax.set_yticks(np.arange(-0.05, 0.2001, 0.05))
+    # Percent axis: adaptive frame with quantized (5% or 10%) tick steps so
+    # the chi range always fits (the contiguous rerun reached chi_mu +46%).
+    all_vals = vs_mean + vs_best
+    lo, hi = min(all_vals), max(all_vals)
+    span = hi - lo
+    lo_f, hi_f = lo - 0.18 * span - 0.02, hi + 0.24 * span + 0.02
+    step = 0.05 if span <= 0.45 else 0.10
+    lo_q = np.floor(lo_f / step) * step
+    hi_q = np.ceil(hi_f / step) * step
+    ax.set_ylim(lo_q, hi_q)
+    ax.set_yticks(np.arange(lo_q, hi_q + step / 2, step))
     ax.yaxis.set_major_formatter(
         mpl.ticker.PercentFormatter(xmax=1.0, decimals=0))
     ax.set_xticks(xpos, disp)
@@ -96,19 +106,26 @@ def _panel_a(ax: plt.Axes) -> None:
 
 
 def _panel_b(ax: plt.Axes) -> None:
-    """(b) Governance waterfall — the MET-informed 3-stage variant (E10b-MET).
+    """(b) Governance waterfall — contiguous full-data rerun (branch).
 
-    Values are read LIVE from results_e10b_waterfall_met.csv (no hardcoding);
-    Base/+Hygiene keep the blue ramp of panel (a), the +Clear-sky
-    breakthrough bar + its connector + the -7.51% label carry panel (a)'s
+    Values are read LIVE from results/results_e10b_waterfall_contiguous.csv
+    (scripts/experiments/e10b_waterfall_contiguous.py: full Folsom record,
+    E8 splits, L=720/H=60/stride=30, strict contiguity — the same regime as
+    panel (a)). Styling is unchanged vs the legacy panel: Base/+Hygiene keep
+    the blue ramp, the +Clear-sky bar + connectors + % labels carry the
     academic orange.
     """
     import pandas as pd
 
-    res = pd.read_csv(RES / "results_e10b_waterfall_met.csv")
-    m = res[res.waterfall == "main_3stage"].set_index("stage")["mae"]
-    mae = [float(m["base"]), float(m["+hygiene"]), float(m["+clear_sky"])]
-    steps = ["Base (Target-lag + 5 MET)", "+Hygiene", "+Clear-sky"]
+    res = pd.read_csv(RES / "results_e10b_waterfall_contiguous.csv")
+    m = res.set_index("stage")
+    mae = [float(m.loc["raw", "mae"]),
+           float(m.loc["+hygiene", "mae"]),
+           float(m.loc["+clear_sky", "mae"])]
+    pct_lbl = [None,
+               float(m.loc["+hygiene", "delta_mae_pct"]),
+               float(m.loc["+clear_sky", "delta_mae_pct"])]
+    steps = ["Raw (target-lag)", "+Hygiene", "+Clear-sky"]
 
     colors = ["#08306b", "#2171b5", ORANGE]   # blue ramp -> academic orange
     bars = ax.bar(np.arange(3), mae, width=0.55, facecolor=colors,
@@ -119,7 +136,7 @@ def _panel_b(ax: plt.Axes) -> None:
         ax.text(b.get_x() + b.get_width() / 2, v + 0.22 * span, f"{v:.5f}",
                 ha="center", va="bottom", fontsize=8.5, color="black")
     for i in (1, 2):
-        pct = (mae[i] / mae[i - 1] - 1) * 100
+        pct = pct_lbl[i]
         ax.annotate("", xy=(i, mae[i]), xytext=(i - 1, mae[i - 1]),
                     arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.0,
                                     connectionstyle="arc3,rad=-0.15"))
@@ -131,7 +148,11 @@ def _panel_b(ax: plt.Axes) -> None:
                 color=ORANGE, fontweight="bold")
     ax.set_xticks(np.arange(3), steps, fontsize=9.5)
     ax.set_ylabel(r"Daytime Forecast Error (MAE)")
-    ax.set_ylim(0.04, max(mae) + 0.42 * span)   # headroom for both bands
+    # Normal upright axis zoomed onto the tight contiguous-rerun range
+    # (0.02555..0.02821): bars, value labels, and both % annotations all
+    # fit INSIDE the frame. (The legacy hard ylim 0.04.. flew the bars out.)
+    ax.set_ylim(0.0235, 0.0295)
+    ax.set_yticks(np.arange(0.024, 0.0296, 0.001))
     ax.grid(axis="y", linestyle="--", alpha=0.15)
     ax.set_axisbelow(True)
 
